@@ -11,6 +11,7 @@ import { todayISODate } from '../lib/srs';
 import { applyPracticeToStreak } from '../lib/streak';
 import { checkBadges, type SessionBadgeContext } from '../lib/badges';
 import { isCollectionComplete } from '../lib/collectionProgress';
+import { buildDueQueueAcrossCollections } from '../lib/reviewQueue';
 import { hoursUntilNextHeart } from '../lib/hearts';
 import { VerseDisplay } from '../components/practice/VerseDisplay';
 import { ComboMeter } from '../components/practice/ComboMeter';
@@ -44,7 +45,7 @@ export function PracticePage() {
   const { profile, loading: profileLoading } = useProfile();
   const { collections, collectionsById, loading: collectionsLoading } = useCollections();
   const { progressByVerseId, loading: progressLoading } = useProgress();
-  const { verses, loading: versesLoading } = useVerses();
+  const { versesById, loading: versesLoading } = useVerses();
 
   const status = usePracticeSession((s) => s.status);
   const queue = usePracticeSession((s) => s.queue);
@@ -68,29 +69,32 @@ export function PracticePage() {
   const orchestrationRanRef = useRef(false);
   const [outcome, setOutcome] = useState<SessionOutcome | null>(null);
 
-  const collection = collectionId ? collectionsById.get(collectionId) : undefined;
+  const isReviewAll = collectionId === 'review-due';
+  const collection = !isReviewAll && collectionId ? collectionsById.get(collectionId) : undefined;
   const loadingData = profileLoading || collectionsLoading || progressLoading || versesLoading;
 
   useEffect(() => {
     if (startedRef.current) return;
-    if (loadingData || !collection || !profile) return;
+    if (loadingData || (!isReviewAll && !collection) || !profile) return;
     if (profile.hearts <= 0) return;
 
     startedRef.current = true;
 
     const today = todayISODate(new Date());
-    const dueVerses = verses
-      .filter((v): v is Verse => {
-        if (v.collectionId !== collection.id) return false;
-        const p = progressByVerseId.get(v.id);
-        return !!p && p.nextReviewDate <= today;
-      })
-      .sort((a, b) => a.order - b.order);
+    const dueVerses = isReviewAll
+      ? buildDueQueueAcrossCollections(collections, progressByVerseId, versesById, today)
+      : collection!.verseIds
+          .map((id) => versesById.get(id))
+          .filter((v): v is Verse => {
+            if (!v) return false;
+            const p = progressByVerseId.get(v.id);
+            return !!p && p.nextReviewDate <= today;
+          });
 
     isFirstVerseEverRef.current = ![...progressByVerseId.values()].some((p) => p.totalAttempts > 0);
 
     startSession(dueVerses, profile.hearts);
-  }, [loadingData, collection, profile, verses, progressByVerseId, startSession]);
+  }, [loadingData, isReviewAll, collection, collections, profile, versesById, progressByVerseId, startSession]);
 
   useEffect(() => {
     if (orchestrationRanRef.current) return;
@@ -130,9 +134,13 @@ export function PracticePage() {
       const allProgress = await progressStore.getAllProgress();
       const updatedProgressByVerseId = new Map(allProgress.map((p) => [p.verseId, p]));
 
-      const touchedCollectionIds = new Set(completedVerses.map((cv) => cv.verse.collectionId));
+      const completedVerseIds = new Set(completedVerses.map((cv) => cv.verse.id));
       const justCompletedCollectionIds = collections
-        .filter((c) => touchedCollectionIds.has(c.id) && isCollectionComplete(c, updatedProgressByVerseId))
+        .filter(
+          (c) =>
+            c.verseIds.some((id) => completedVerseIds.has(id)) &&
+            isCollectionComplete(c, updatedProgressByVerseId)
+        )
         .map((c) => c.id);
 
       const ctx: SessionBadgeContext = {
@@ -156,7 +164,7 @@ export function PracticePage() {
     navigate('/');
   }
 
-  if (loadingData || !collection) {
+  if (loadingData || (!isReviewAll && !collection)) {
     return (
       <div className="mx-auto max-w-2xl p-4">
         <p className="text-center text-text-dim">Loading…</p>

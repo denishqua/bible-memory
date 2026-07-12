@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
 import { usePracticeSession } from '../../hooks/usePracticeSession';
-import { isWordCorrect } from '../../lib/hint';
+import { isWordCorrect, isWordCorrectLoose } from '../../lib/hint';
 import { shuffle } from '../../lib/distractors';
 
 interface Tile {
@@ -15,13 +16,17 @@ interface Props {
 export function WordBankTiles({ reference }: Props) {
   const words = usePracticeSession((s) => s.words);
   const wordIndex = usePracticeSession((s) => s.wordIndex);
+  const inputValue = usePracticeSession((s) => s.inputValue);
+  const flash = usePracticeSession((s) => s.flash);
+  const setInputValue = usePracticeSession((s) => s.setInputValue);
   const submitAttempt = usePracticeSession((s) => s.submitAttempt);
 
   const [tray, setTray] = useState<Tile[]>(() => shuffle(words.map((w, i) => ({ id: i, text: w.core }))));
   const [shakeId, setShakeId] = useState<number | null>(null);
   const prevWordIndexRef = useRef(wordIndex);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Whenever the word index advances (correct tap or the final auto-reveal on a
+  // Whenever the word index advances (correct tap/type or the final auto-reveal on a
   // miss), remove one matching tile from the tray so tile count stays in sync with
   // resolved words, regardless of which physical tile the user tapped.
   useEffect(() => {
@@ -38,6 +43,10 @@ export function WordBankTiles({ reference }: Props) {
     prevWordIndexRef.current = wordIndex;
   }, [wordIndex, words]);
 
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [flash]);
+
   function handleTap(tile: Tile) {
     const current = words[wordIndex];
     if (!current) return;
@@ -46,6 +55,14 @@ export function WordBankTiles({ reference }: Props) {
       setShakeId(tile.id);
       setTimeout(() => setShakeId((id) => (id === tile.id ? null : id)), 300);
     }
+    submitAttempt(correct);
+  }
+
+  function handleTypeSubmit(e: FormEvent) {
+    e.preventDefault();
+    const current = words[wordIndex];
+    if (!current || inputValue.trim().length === 0) return;
+    const correct = isWordCorrectLoose(inputValue, current.core);
     submitAttempt(correct);
   }
 
@@ -82,6 +99,38 @@ export function WordBankTiles({ reference }: Props) {
           </button>
         ))}
       </div>
+
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-xs text-text-dim">or type it</span>
+        <div className="h-px flex-1 bg-border" />
+      </div>
+
+      <form onSubmit={handleTypeSubmit} className="flex gap-2">
+        <input
+          ref={inputRef}
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          autoCapitalize="off"
+          autoCorrect="off"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="Type the word…"
+          className={`flex-1 rounded-xl border-2 bg-surface-2 px-4 py-3 text-lg outline-none transition-colors ${
+            flash === 'correct'
+              ? 'border-accent'
+              : flash === 'wrong'
+                ? 'border-danger'
+                : 'border-border focus:border-accent-2'
+          }`}
+        />
+        <button
+          type="submit"
+          className="rounded-xl bg-accent px-5 py-3 font-bold uppercase text-bg transition-colors hover:bg-accent/90"
+        >
+          Go
+        </button>
+      </form>
     </div>
   );
 }

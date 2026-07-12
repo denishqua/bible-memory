@@ -10,4 +10,16 @@ export class LocalCollectionStore implements CollectionStore {
   getCollectionById(id: string): Promise<Collection | undefined> {
     return db.collections.get(id);
   }
+
+  async addCollection(collection: Collection): Promise<void> {
+    await db.collections.add(collection);
+  }
+
+  async updateCollection(id: string, patch: Partial<Collection>): Promise<void> {
+    await db.collections.update(id, patch);
+  }
+
+  async deleteCollection(id: string): Promise<void> {
+    await db.collections.delete(id);
+  }
 }

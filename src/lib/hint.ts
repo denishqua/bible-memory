@@ -31,6 +31,12 @@ export function isWordCorrect(input: string, core: string): boolean {
   return input.trim().toLowerCase() === core.toLowerCase();
 }
 
+/** Letters-only, case-insensitive comparison — ignores punctuation/apostrophes on both sides. */
+export function isWordCorrectLoose(input: string, core: string): boolean {
+  const lettersOnly = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
+  return lettersOnly(input) === lettersOnly(core);
+}
+
 /**
  * Masks a word's core down to its first letter plus `extraRevealed` progressively
  * hinted letters, with underscores standing in for the rest.

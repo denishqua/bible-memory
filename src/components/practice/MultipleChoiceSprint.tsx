@@ -3,7 +3,7 @@ import { usePracticeSession } from '../../hooks/usePracticeSession';
 import { isWordCorrect } from '../../lib/hint';
 import { pickDistractors, shuffle } from '../../lib/distractors';
 
-export const SPRINT_TIME_LIMIT_MS = 600000;
+export const SPRINT_TIME_LIMIT_MS = 5000;
 const OPTION_COUNT = 4;
 
 interface Props {

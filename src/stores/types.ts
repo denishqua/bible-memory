@@ -3,7 +3,6 @@ import type { Verse, Collection, VerseProgress, UserProfile } from '../types';
 export interface VerseStore {
   getAllVerses(): Promise<Verse[]>;
   getVerseById(id: string): Promise<Verse | undefined>;
-  getVersesByCollection(collectionId: string): Promise<Verse[]>;
   addVerse(verse: Verse): Promise<void>;
   updateVerse(id: string, patch: Partial<Verse>): Promise<void>;
   deleteVerse(id: string): Promise<void>;
@@ -12,6 +11,9 @@ export interface VerseStore {
 export interface CollectionStore {
   getAllCollections(): Promise<Collection[]>;
   getCollectionById(id: string): Promise<Collection | undefined>;
+  addCollection(collection: Collection): Promise<void>;
+  updateCollection(id: string, patch: Partial<Collection>): Promise<void>;
+  deleteCollection(id: string): Promise<void>;
 }
 
 export interface ProgressStore {

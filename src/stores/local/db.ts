@@ -15,6 +15,15 @@ export class BibleMemoryDB extends Dexie {
       progress: 'verseId, nextReviewDate, status',
       profile: 'id',
     });
+    // v2: verses no longer belong to a single "home" collection (topic collections were
+    // dropped in favor of one flat Set concept) — membership lives entirely in
+    // Collection.verseIds now, so the collectionId index is gone.
+    this.version(2).stores({
+      verses: 'id, createdAt',
+      collections: 'id, order',
+      progress: 'verseId, nextReviewDate, status',
+      profile: 'id',
+    });
   }
 }
 

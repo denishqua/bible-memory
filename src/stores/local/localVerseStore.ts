@@ -4,15 +4,11 @@ import { db } from './db';
 
 export class LocalVerseStore implements VerseStore {
   getAllVerses(): Promise<Verse[]> {
-    return db.verses.orderBy('order').toArray();
+    return db.verses.orderBy('createdAt').toArray();
   }
 
   getVerseById(id: string): Promise<Verse | undefined> {
     return db.verses.get(id);
-  }
-
-  getVersesByCollection(collectionId: string): Promise<Verse[]> {
-    return db.verses.where('collectionId').equals(collectionId).sortBy('order');
   }
 
   async addVerse(verse: Verse): Promise<void> {
