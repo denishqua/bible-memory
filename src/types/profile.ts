@@ -1,21 +1,10 @@
-export interface Badge {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
+export interface StreakState {
+  currentStreak: number;
+  longestStreak: number;
+  lastQualifyingDate: string | null; // "YYYY-MM-DD", device-local
 }
 
-export interface UserProfile {
-  id: string;
-  displayName: string;
-  xp: number;
-  level: number;
-  currentStreakDays: number;
-  longestStreakDays: number;
-  lastPracticeDate: string | null;
-  hearts: number;
-  heartsMax: number;
-  lastHeartLostAt: string | null;
-  badges: string[];
+export interface Profile {
   createdAt: string;
+  streak: StreakState;
 }

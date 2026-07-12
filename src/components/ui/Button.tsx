@@ -1,23 +1,55 @@
-import type { ButtonHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes } from "react";
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
-const variantClasses: Record<Variant, string> = {
-  primary: 'bg-accent text-bg hover:bg-accent/90 disabled:bg-accent/30',
-  secondary: 'bg-surface-2 text-text hover:bg-surface-2/70 border border-border',
-  ghost: 'bg-transparent text-text-dim hover:text-text',
-  danger: 'bg-danger text-white hover:bg-danger/90',
-};
-
-interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: Variant;
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ButtonVariant;
 }
 
-export function Button({ variant = 'primary', className = '', ...props }: Props) {
+const VARIANT_STYLES: Record<ButtonVariant, React.CSSProperties> = {
+  primary: {
+    background: "var(--color-clay)",
+    color: "var(--color-clay-contrast)",
+    border: "1px solid transparent",
+  },
+  secondary: {
+    background: "var(--color-sage)",
+    color: "var(--color-sage-contrast)",
+    border: "1px solid transparent",
+  },
+  ghost: {
+    background: "transparent",
+    color: "var(--color-ink)",
+    border: "1px solid var(--color-border)",
+  },
+  danger: {
+    background: "transparent",
+    color: "var(--color-danger)",
+    border: "1px solid var(--color-danger)",
+  },
+};
+
+export function Button({ variant = "secondary", style, disabled, ...rest }: ButtonProps) {
   return (
     <button
-      className={`rounded-xl px-5 py-3 font-bold uppercase tracking-wide text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${variantClasses[variant]} ${className}`}
-      {...props}
+      type="button"
+      disabled={disabled}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "0.4rem",
+        fontSize: "0.9rem",
+        fontWeight: 500,
+        padding: "0.5rem 1rem",
+        borderRadius: "0.6rem",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+        transition: "opacity 0.15s ease, transform 0.05s ease",
+        ...VARIANT_STYLES[variant],
+        ...style,
+      }}
+      {...rest}
     />
   );
 }

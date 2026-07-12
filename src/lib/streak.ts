@@ -1,23 +1,62 @@
-import type { UserProfile } from '../types';
-import { todayISODate, addDaysISODate } from './srs';
+import type { StreakState } from "../types/profile";
 
-export function applyPracticeToStreak(
-  profile: Pick<UserProfile, 'currentStreakDays' | 'longestStreakDays' | 'lastPracticeDate'>,
-  now: Date
-): Pick<UserProfile, 'currentStreakDays' | 'longestStreakDays' | 'lastPracticeDate'> {
-  const today = todayISODate(now);
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-  if (profile.lastPracticeDate === today) {
-    return profile;
+// "YYYY-MM-DD" via local getFullYear/getMonth/getDate — NOT toISOString/UTC,
+// which would shift the date across midnight for users west of UTC.
+export function toLocalDateKey(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// Reconstructs a "YYYY-MM-DD" key as a local-midnight Date via new Date(y, m-1, d)
+// — never `new Date(dateString)`, which parses date-only strings as UTC and can
+// land on the wrong local day.
+function parseLocalDateKey(key: string): Date {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+// Local-midnight diff in whole days. Spec-review fix #3: round rather than
+// truncate, so a 23- or 25-hour DST-boundary day still resolves to exactly 1
+// (a truncating division could yield 0.958 or 1.041 and floor to 0 or 1
+// inconsistently depending on which side of the transition the pair falls on).
+export function daysBetween(a: string, b: string): number {
+  const dateA = parseLocalDateKey(a);
+  const dateB = parseLocalDateKey(b);
+  return Math.round((dateB.getTime() - dateA.getTime()) / MS_PER_DAY);
+}
+
+// Pure, no hidden Date.now() — "now" is always passed in explicitly as completedAt.
+// The accuracy >= 90 pass/fail gate lives in the caller (session-completion
+// handler); this function only ever runs for sessions already known to qualify.
+export function updateStreakOnQualifyingSession(
+  current: StreakState,
+  completedAt: Date,
+): StreakState {
+  const todayKey = toLocalDateKey(completedAt);
+
+  // Same local day as the last qualifying session: no-op.
+  if (current.lastQualifyingDate === todayKey) {
+    return current;
   }
 
-  const yesterday = addDaysISODate(today, -1);
-  const continuing = profile.lastPracticeDate === yesterday;
-  const currentStreakDays = continuing ? profile.currentStreakDays + 1 : 1;
+  let nextStreak: number;
+  if (current.lastQualifyingDate === null) {
+    nextStreak = 1;
+  } else {
+    const gap = daysBetween(current.lastQualifyingDate, todayKey);
+    // Gap of exactly 1 day extends the streak; any other gap (missed a day, or
+    // a non-positive gap from clock skew) resets to 1 — today counts as day 1
+    // of the new streak, not 0.
+    nextStreak = gap === 1 ? current.currentStreak + 1 : 1;
+  }
 
   return {
-    currentStreakDays,
-    longestStreakDays: Math.max(profile.longestStreakDays, currentStreakDays),
-    lastPracticeDate: today,
+    currentStreak: nextStreak,
+    longestStreak: Math.max(current.longestStreak, nextStreak),
+    lastQualifyingDate: todayKey,
   };
 }

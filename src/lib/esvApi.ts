@@ -1,42 +1,73 @@
-const ESV_API_URL = 'https://api.esv.org/v3/passage/text/';
+// Thin client for the ESV Bible API's passage-text endpoint. Used by
+// AddVerseForm to prefill reference/text ahead of the manual-entry path.
+// See plan's "ESV API Integration" section — errors must be distinguishable
+// by the caller (network vs. not-found vs. bad-API-key) so the UI can show a
+// precise inline message while always leaving manual entry usable.
 
-export interface EsvFetchResult {
-  reference: string;
-  text: string;
+export type EsvApiErrorCode = "network" | "not-found" | "api-key" | "unknown";
+
+export class EsvApiError extends Error {
+  readonly code: EsvApiErrorCode;
+
+  constructor(code: EsvApiErrorCode, message: string) {
+    super(message);
+    this.name = "EsvApiError";
+    this.code = code;
+  }
 }
 
-/** Fetches a passage's plain text from Crossway's ESV API, given a free-text reference like "John 3:16". */
-export async function fetchEsvPassage(reference: string): Promise<EsvFetchResult> {
-  const apiKey = import.meta.env.VITE_ESV_API_KEY;
-  if (!apiKey) {
-    throw new Error('ESV API key is not configured (set VITE_ESV_API_KEY in .env.local).');
-  }
+export interface EsvPassageResult {
+  reference: string; // API's own "canonical" field, e.g. "Psalm 23:1–3"
+  rawText: string; // uncleaned passages[0], still containing "[N]" verse markers etc.
+}
 
-  const url = new URL(ESV_API_URL);
-  url.searchParams.set('q', reference);
-  url.searchParams.set('include-passage-references', 'false');
-  url.searchParams.set('include-verse-numbers', 'false');
-  url.searchParams.set('include-footnotes', 'false');
-  url.searchParams.set('include-headings', 'false');
-  url.searchParams.set('include-short-copyright', 'false');
-  url.searchParams.set('include-selahs', 'false');
+const ESV_API_URL = "https://api.esv.org/v3/passage/text/";
 
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `Token ${apiKey}` },
+interface EsvPassageResponse {
+  canonical?: string;
+  passages?: string[];
+}
+
+export async function fetchEsvPassage(query: string): Promise<EsvPassageResult> {
+  const apiKey = import.meta.env.VITE_ESV_API_KEY as string | undefined;
+  const params = new URLSearchParams({
+    q: query,
+    "include-verse-numbers": "true",
+    "include-footnotes": "false",
+    "include-headings": "false",
+    "include-passage-references": "false",
   });
 
-  if (!res.ok) {
-    throw new Error(`ESV API request failed (${res.status}).`);
+  let response: Response;
+  try {
+    response = await fetch(`${ESV_API_URL}?${params.toString()}`, {
+      headers: { Authorization: `Token ${apiKey ?? ""}` },
+    });
+  } catch {
+    throw new EsvApiError("network", "Couldn't reach the ESV API — check your connection and try again.");
   }
 
-  const data = await res.json();
-  const passage: string | undefined = data.passages?.[0];
-  if (!passage || !passage.trim()) {
-    throw new Error(`No passage found for "${reference}". Check the reference and try again.`);
+  if (response.status === 401 || response.status === 403) {
+    throw new EsvApiError("api-key", "ESV API key issue — the app's API key looks invalid or missing.");
+  }
+
+  if (!response.ok) {
+    throw new EsvApiError("unknown", `ESV API returned an unexpected error (status ${response.status}).`);
+  }
+
+  let data: EsvPassageResponse;
+  try {
+    data = (await response.json()) as EsvPassageResponse;
+  } catch {
+    throw new EsvApiError("unknown", "Couldn't read the ESV API's response.");
+  }
+
+  if (!data.passages || data.passages.length === 0) {
+    throw new EsvApiError("not-found", "Reference not found — check spelling or enter the verse manually.");
   }
 
   return {
-    reference: data.canonical ?? reference,
-    text: passage.trim(),
+    reference: data.canonical?.trim() || query.trim(),
+    rawText: data.passages[0],
   };
 }

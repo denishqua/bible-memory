@@ -1,29 +1,17 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-import { VitePWA } from 'vite-plugin-pwa'
 
+// https://vite.dev/config/
 export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
-      manifest: {
-        name: 'Bible Memory',
-        short_name: 'Bible Memory',
-        description: 'Memorize Scripture with streaks, XP, and a skill tree.',
-        theme_color: '#166534',
-        background_color: '#052e16',
-        display: 'standalone',
-        start_url: '/',
-        icons: [
-          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
-    }),
-  ],
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    // Node 22+ ships an experimental global `localStorage` that is only
+    // partially initialized without a --localstorage-file path. It shadows
+    // jsdom's own (fully functional) localStorage global, breaking anything
+    // that calls e.g. `localStorage.clear()`. Disable it in the test worker
+    // so jsdom's implementation is the only one in play.
+    execArgv: ['--no-experimental-webstorage'],
+  },
 })

@@ -1,40 +1,137 @@
-@import "tailwindcss";
-
-@theme {
-  --color-bg: #052e16;
-  --color-surface: #0b3d20;
-  --color-surface-2: #124a29;
-  --color-border: #1e5c34;
-  --color-accent: #22c55e;
-  --color-accent-2: #facc15;
-  --color-danger: #ef4444;
-  --color-text: #ecfdf5;
-  --color-text-dim: #86b998;
-}
+/* ---------------------------------------------------------------------- */
+/* Bible Memory — "Calm, Minimal, Devotional" theme                       */
+/* Light palette is the base; dark is an explicit variant, both reachable */
+/* via the [data-theme] attribute set on <html> by useTheme().            */
+/* ---------------------------------------------------------------------- */
 
 :root {
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Light theme (default) — cream/parchment, muted clay & sage accents */
+  --color-bg: #f6f1e7;
+  --color-surface: #fffdf8;
+  --color-ink: #3a332a;
+  --color-ink-muted: #6f6656;
+  --color-border: #e3d9c4;
+  --color-clay: #a56a3c;
+  --color-clay-contrast: #fffdf8;
+  --color-sage: #7c8b69;
+  --color-sage-contrast: #fffdf8;
+  --color-danger: #b3492f;
+  --shadow-soft: 0 4px 16px rgba(58, 51, 42, 0.08);
+
+  color-scheme: light;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background: var(--color-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme="dark"] {
+  /* Dark theme — charcoal/parchment-ink, brightened clay & sage for contrast */
+  --color-bg: #211d17;
+  --color-surface: #2b251d;
+  --color-ink: #ece4d3;
+  --color-ink-muted: #b3a891;
+  --color-border: #433a2c;
+  --color-clay: #d99a67;
+  --color-clay-contrast: #211d17;
+  --color-sage: #a3b48c;
+  --color-sage-contrast: #211d17;
+  --color-danger: #e08066;
+  --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.35);
+
   color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    --color-bg: #211d17;
+    --color-surface: #2b251d;
+    --color-ink: #ece4d3;
+    --color-ink-muted: #b3a891;
+    --color-border: #433a2c;
+    --color-clay: #d99a67;
+    --color-clay-contrast: #211d17;
+    --color-sage: #a3b48c;
+    --color-sage-contrast: #211d17;
+    --color-danger: #e08066;
+    --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.35);
+
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
   background: var(--color-bg);
-  color: var(--color-text);
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
+  color: var(--color-ink);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 #root {
   min-height: 100svh;
+  display: flex;
+  flex-direction: column;
 }
 
-@keyframes shake {
-  10%, 90% { transform: translateX(-1px); }
-  20%, 80% { transform: translateX(2px); }
-  30%, 50%, 70% { transform: translateX(-4px); }
-  40%, 60% { transform: translateX(4px); }
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  color: var(--color-ink);
+  margin: 0;
 }
 
-.animate-shake {
-  animation: shake 0.3s ease-in-out;
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--color-clay);
+}
+
+button {
+  font-family: inherit;
+}
+
+/* Review engine: wrong-keystroke cue on the current word. Color alone isn't
+   an accessible signal, so this pairs the red flash with a brief shake
+   (spec-review / Build Order step 10). Re-triggered by the parent remounting
+   the WordToken (keyed by attempts count) on every miss. */
+@keyframes word-flash-shake {
+  0% {
+    transform: translateX(0);
+    color: var(--color-danger);
+  }
+  20% {
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(4px);
+    color: var(--color-danger);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+  100% {
+    transform: translateX(0);
+    color: inherit;
+  }
+}
+
+.word-token--flash {
+  animation: word-flash-shake 0.3s ease-in-out;
 }

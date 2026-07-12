@@ -1,46 +1,94 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { Collection } from '../types';
-import { collectionStore } from '../stores';
+import { useCallback, useEffect, useState } from "react";
+import { useStorage } from "../data/storageContext";
+import { createId } from "../data/ids";
+import type { Collection, CollectionVerseLink } from "../types/collection";
 
 export function useCollections() {
+  const storage = useStorage();
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [links, setLinks] = useState<CollectionVerseLink[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const all = await collectionStore.getAllCollections();
-    setCollections(all);
+    const [nextCollections, nextLinks] = await Promise.all([
+      storage.getCollections(),
+      storage.getCollectionLinks(),
+    ]);
+    setCollections(nextCollections);
+    setLinks(nextLinks);
     setLoading(false);
-  }, []);
+  }, [storage]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  const collectionsById = new Map(collections.map((c) => [c.id, c]));
-
-  const addCollection = useCallback(
-    async (collection: Collection) => {
-      await collectionStore.addCollection(collection);
+  const createCollection = useCallback(
+    async (name: string): Promise<Collection> => {
+      const collection: Collection = { id: createId(), name, createdAt: new Date().toISOString() };
+      await storage.saveCollection(collection);
       await refresh();
+      return collection;
     },
-    [refresh]
-  );
-
-  const updateCollection = useCallback(
-    async (id: string, patch: Partial<Collection>) => {
-      await collectionStore.updateCollection(id, patch);
-      await refresh();
-    },
-    [refresh]
+    [storage, refresh],
   );
 
   const deleteCollection = useCallback(
-    async (id: string) => {
-      await collectionStore.deleteCollection(id);
+    async (id: string): Promise<void> => {
+      await storage.deleteCollection(id);
       await refresh();
     },
-    [refresh]
+    [storage, refresh],
   );
 
-  return { collections, collectionsById, loading, refresh, addCollection, updateCollection, deleteCollection };
+  const addVerseToCollection = useCallback(
+    async (collectionId: string, verseId: string): Promise<void> => {
+      await storage.addVerseToCollection({ collectionId, verseId, addedAt: new Date().toISOString() });
+      await refresh();
+    },
+    [storage, refresh],
+  );
+
+  const removeVerseFromCollection = useCallback(
+    async (collectionId: string, verseId: string): Promise<void> => {
+      await storage.removeVerseFromCollection(collectionId, verseId);
+      await refresh();
+    },
+    [storage, refresh],
+  );
+
+  const getVerseIdsForCollection = useCallback(
+    // Sorted by addedAt ascending (date-added order) — bulk review plays
+    // through a collection in this order, and it's a sane default for the
+    // detail-page list too. ISO 8601 strings sort correctly lexicographically.
+    (collectionId: string): string[] =>
+      links
+        .filter((link) => link.collectionId === collectionId)
+        .sort((a, b) => a.addedAt.localeCompare(b.addedAt))
+        .map((link) => link.verseId),
+    [links],
+  );
+
+  const getCollectionsForVerse = useCallback(
+    (verseId: string): Collection[] => {
+      const collectionIds = new Set(
+        links.filter((link) => link.verseId === verseId).map((link) => link.collectionId),
+      );
+      return collections.filter((c) => collectionIds.has(c.id));
+    },
+    [links, collections],
+  );
+
+  return {
+    collections,
+    links,
+    loading,
+    createCollection,
+    deleteCollection,
+    addVerseToCollection,
+    removeVerseFromCollection,
+    getVerseIdsForCollection,
+    getCollectionsForVerse,
+    refresh,
+  };
 }
