@@ -17,7 +17,7 @@ import { VerseDisplay } from '../components/practice/VerseDisplay';
 import { ComboMeter } from '../components/practice/ComboMeter';
 import { HeartsDisplay } from '../components/practice/HeartsDisplay';
 import { HintButton } from '../components/practice/HintButton';
-import { WordInput } from '../components/practice/WordInput';
+import { FirstLetterInput } from '../components/practice/FirstLetterInput';
 import { WordBankTiles } from '../components/practice/WordBankTiles';
 import { MultipleChoiceSprint } from '../components/practice/MultipleChoiceSprint';
 import { SessionSummary } from '../components/practice/SessionSummary';
@@ -52,7 +52,6 @@ export function PracticePage() {
   const verseIndex = usePracticeSession((s) => s.verseIndex);
   const words = usePracticeSession((s) => s.words);
   const wordIndex = usePracticeSession((s) => s.wordIndex);
-  const inputValue = usePracticeSession((s) => s.inputValue);
   const combo = usePracticeSession((s) => s.combo);
   const maxComboSession = usePracticeSession((s) => s.maxComboSession);
   const sessionXp = usePracticeSession((s) => s.sessionXp);
@@ -60,8 +59,7 @@ export function PracticePage() {
   const completedVerses = usePracticeSession((s) => s.completedVerses);
   const flash = usePracticeSession((s) => s.flash);
   const startSession = usePracticeSession((s) => s.startSession);
-  const setInputValue = usePracticeSession((s) => s.setInputValue);
-  const submitWord = usePracticeSession((s) => s.submitWord);
+  const submitLetter = usePracticeSession((s) => s.submitLetter);
   const resetSession = usePracticeSession((s) => s.reset);
 
   const startedRef = useRef(false);
@@ -249,9 +247,7 @@ export function PracticePage() {
 
       <ComboMeter combo={combo} />
 
-      {mode === 'first-letter' && (
-        <WordInput value={inputValue} flash={flash} onChange={setInputValue} onSubmit={submitWord} />
-      )}
+      {mode === 'first-letter' && <FirstLetterInput flash={flash} onLetter={submitLetter} />}
 
       <div className="flex items-center justify-between">
         <span className="text-sm text-text-dim">Session XP: {sessionXp}</span>

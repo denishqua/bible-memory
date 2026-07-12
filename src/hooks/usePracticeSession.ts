@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Verse, VerseProgress } from '../types';
-import { splitVerseIntoWords, isWordCorrect, maskWord } from '../lib/hint';
+import { splitVerseIntoWords, maskWord } from '../lib/hint';
 import { applyAttemptResult, PASS_ACCURACY_THRESHOLD } from '../lib/srs';
 import { calculateVerseXp } from '../lib/xp';
 import { progressStore } from '../stores';
@@ -44,7 +44,7 @@ interface PracticeSessionState {
 
   startSession: (queue: Verse[], startingHearts: number) => void;
   setInputValue: (value: string) => void;
-  submitWord: () => Promise<void>;
+  submitLetter: (letter: string) => Promise<void>;
   submitAttempt: (isCorrect: boolean, opts?: { forceResolve?: boolean }) => Promise<void>;
   useHint: () => void;
   reset: () => void;
@@ -179,11 +179,11 @@ export const usePracticeSession = create<PracticeSessionState>((set, get) => ({
     set({ words: nextWords, combo: 0 });
   },
 
-  submitWord: async () => {
+  submitLetter: async (letter) => {
     const state = get();
     if (state.status !== 'active' || state.wordIndex >= state.words.length) return;
     const word = state.words[state.wordIndex];
-    const correct = isWordCorrect(state.inputValue, word.core);
+    const correct = word.core.length > 0 && letter.toLowerCase() === word.core[0].toLowerCase();
     await get().submitAttempt(correct);
   },
 
