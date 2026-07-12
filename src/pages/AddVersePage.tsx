@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useVerses } from '../hooks/useVerses';
+import { useCollections } from '../hooks/useCollections';
 import { splitVerseIntoWords } from '../lib/hint';
 import { fetchEsvPassage } from '../lib/esvApi';
 import { Card } from '../components/ui/Card';
@@ -10,13 +11,27 @@ import { Button } from '../components/ui/Button';
 export function AddVersePage() {
   const navigate = useNavigate();
   const { addVerse } = useVerses();
+  const { collections, loading: collectionsLoading, updateCollection } = useCollections();
 
   const [reference, setReference] = useState('');
   const [text, setText] = useState('');
   const [translation, setTranslation] = useState('');
+  const [selectedSetIds, setSelectedSetIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+
+  function toggleSet(setId: string) {
+    setSelectedSetIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(setId)) {
+        next.delete(setId);
+      } else {
+        next.add(setId);
+      }
+      return next;
+    });
+  }
 
   async function handleImportFromEsv() {
     if (!reference.trim() || importing) return;
@@ -39,14 +54,22 @@ export function AddVersePage() {
     if (!reference.trim() || !text.trim() || submitting) return;
 
     setSubmitting(true);
+    const verseId = crypto.randomUUID();
     await addVerse({
-      id: crypto.randomUUID(),
+      id: verseId,
       reference: reference.trim(),
       text: text.trim(),
       translation: translation.trim() || 'Custom',
       wordCount: splitVerseIntoWords(text).length,
       createdAt: new Date().toISOString(),
     });
+
+    for (const setId of selectedSetIds) {
+      const set = collections.find((c) => c.id === setId);
+      if (set) {
+        await updateCollection(setId, { verseIds: [...set.verseIds, verseId] });
+      }
+    }
 
     navigate('/');
   }
@@ -103,6 +126,30 @@ export function AddVersePage() {
               className="rounded-xl border-2 border-border bg-surface-2 px-4 py-3 outline-none focus:border-accent-2"
             />
           </label>
+
+          {!collectionsLoading && collections.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-bold uppercase tracking-wide text-text-dim">
+                Add to Set{selectedSetIds.size > 0 ? ` (${selectedSetIds.size} selected)` : ' (optional)'}
+              </span>
+              <div className="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-xl border-2 border-border bg-surface-2 p-3">
+                {collections.map((set) => (
+                  <label
+                    key={set.id}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-surface"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedSetIds.has(set.id)}
+                      onChange={() => toggleSet(set.id)}
+                      className="h-4 w-4 accent-accent"
+                    />
+                    <span className="text-sm">{set.title}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           <Button type="submit" disabled={submitting || !reference.trim() || !text.trim()}>
             Save Verse
