@@ -31,12 +31,11 @@ interface SessionOutcome {
 
 type PracticeMode = 'word-bank' | 'multiple-choice' | 'first-letter';
 
-/** Mode selection is driven purely by the verse's SRS box level as of session start. */
-function practiceModeForBoxLevel(boxLevel: number | undefined): PracticeMode {
-  if (boxLevel === undefined || boxLevel <= 0) return 'word-bank';
-  if (boxLevel === 1) return 'multiple-choice';
-  return 'first-letter';
-}
+const MODE_OPTIONS: { mode: PracticeMode; title: string; description: string }[] = [
+  { mode: 'word-bank', title: 'Word Bank', description: 'Tap the words into order (or type them).' },
+  { mode: 'multiple-choice', title: 'Multiple Choice Sprint', description: 'Pick the right word before the clock runs out.' },
+  { mode: 'first-letter', title: 'First-Letter Hint', description: 'Recall each word from its first letter.' },
+];
 
 export function PracticePage() {
   const { collectionId } = useParams<{ collectionId: string }>();
@@ -66,6 +65,7 @@ export function PracticePage() {
   const isFirstVerseEverRef = useRef(false);
   const orchestrationRanRef = useRef(false);
   const [outcome, setOutcome] = useState<SessionOutcome | null>(null);
+  const [selectedMode, setSelectedMode] = useState<PracticeMode | null>(null);
 
   const isReviewAll = collectionId === 'review-due';
   const collection = !isReviewAll && collectionId ? collectionsById.get(collectionId) : undefined;
@@ -75,6 +75,7 @@ export function PracticePage() {
     if (startedRef.current) return;
     if (loadingData || (!isReviewAll && !collection) || !profile) return;
     if (profile.hearts <= 0) return;
+    if (!selectedMode) return;
 
     startedRef.current = true;
 
@@ -92,7 +93,17 @@ export function PracticePage() {
     isFirstVerseEverRef.current = ![...progressByVerseId.values()].some((p) => p.totalAttempts > 0);
 
     startSession(dueVerses, profile.hearts);
-  }, [loadingData, isReviewAll, collection, collections, profile, versesById, progressByVerseId, startSession]);
+  }, [
+    loadingData,
+    isReviewAll,
+    collection,
+    collections,
+    profile,
+    versesById,
+    progressByVerseId,
+    selectedMode,
+    startSession,
+  ]);
 
   useEffect(() => {
     if (orchestrationRanRef.current) return;
@@ -187,6 +198,31 @@ export function PracticePage() {
     );
   }
 
+  if (!selectedMode && status === 'idle') {
+    return (
+      <div className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold">How do you want to practice?</h1>
+          <Button variant="ghost" onClick={() => navigate('/')}>
+            ← Home
+          </Button>
+        </div>
+        <div className="flex flex-col gap-3">
+          {MODE_OPTIONS.map((opt) => (
+            <Card
+              key={opt.mode}
+              className="cursor-pointer transition-colors hover:bg-surface-2"
+              onClick={() => setSelectedMode(opt.mode)}
+            >
+              <h3 className="font-bold">{opt.title}</h3>
+              <p className="text-xs text-text-dim">{opt.description}</p>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (status === 'session-complete' || status === 'out-of-hearts') {
     if (!outcome) {
       return (
@@ -219,10 +255,8 @@ export function PracticePage() {
     );
   }
 
-  // Box level as captured when the session's due-queue was built (progressByVerseId
-  // isn't refetched mid-session), so each verse in a mixed-box-level queue keeps the
-  // mode it started with even as this session's own attempts update its progress.
-  const mode = practiceModeForBoxLevel(progressByVerseId.get(currentVerse.id)?.boxLevel);
+  // User-chosen up front on the mode-picker screen; applies to every verse in this session.
+  const mode = selectedMode!;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
