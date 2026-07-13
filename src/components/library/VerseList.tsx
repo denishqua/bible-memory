@@ -1,5 +1,8 @@
+import { Link } from "react-router-dom";
 import type { Verse } from "../../types/verse";
-import { VerseCard } from "./VerseCard";
+import { Card } from "../ui/Card";
+import { Button } from "../ui/Button";
+import { VerseRow, VERSE_GRID_TEMPLATE } from "./VerseRow";
 
 interface VerseListProps {
   verses: Verse[];
@@ -7,31 +10,72 @@ interface VerseListProps {
   onAddToCollection: (verse: Verse) => void;
 }
 
+const headerCellStyle: React.CSSProperties = {
+  fontSize: "0.72rem",
+  fontWeight: 600,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  color: "var(--color-ink-muted)",
+};
+
 export function VerseList({ verses, onDelete, onAddToCollection }: VerseListProps) {
   if (verses.length === 0) {
     return (
-      <p style={{ color: "var(--color-ink-muted)" }}>
-        No verses yet. Add your first verse to start memorizing.
-      </p>
+      <Card style={{ textAlign: "center", padding: "2.5rem 1.5rem" }}>
+        <p style={{ color: "var(--color-ink-muted)", marginBottom: "1rem" }}>
+          No verses yet. Add your first verse to start memorizing.
+        </p>
+        <Link to="/add" style={{ textDecoration: "none" }}>
+          <Button variant="primary">+ Add Verse</Button>
+        </Link>
+      </Card>
     );
   }
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-        gap: "1rem",
-      }}
-    >
+    <Card role="table" aria-label="Saved verses" style={{ padding: 0 }}>
+      <div
+        role="row"
+        style={{
+          display: "grid",
+          gridTemplateColumns: VERSE_GRID_TEMPLATE,
+          gap: "0.75rem",
+          alignItems: "center",
+          padding: "0.65rem 1rem",
+        }}
+      >
+        <div role="columnheader" style={headerCellStyle}>
+          Reference
+        </div>
+        <div role="columnheader" style={headerCellStyle}>
+          Verse
+        </div>
+        <div role="columnheader" style={headerCellStyle}>
+          Trans.
+        </div>
+        <div role="columnheader" style={{ ...headerCellStyle, textAlign: "right" }}>
+          <span
+            style={{
+              position: "absolute",
+              width: 1,
+              height: 1,
+              overflow: "hidden",
+              clipPath: "inset(50%)",
+            }}
+          >
+            Actions
+          </span>
+        </div>
+      </div>
+
       {verses.map((verse) => (
-        <VerseCard
+        <VerseRow
           key={verse.id}
           verse={verse}
           onDelete={onDelete}
           onAddToCollection={onAddToCollection}
         />
       ))}
-    </div>
+    </Card>
   );
 }
