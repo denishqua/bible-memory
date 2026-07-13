@@ -1,11 +1,18 @@
-// "verse-defender" joins this union in a follow-up phase.
-export type ReviewMode = "type-it" | "memorize-it" | "master-it";
+// "verse-defender" (tower-defense asteroids) and "lane-defender" (4-lane
+// rhythm variant) are lives-based arcade modes — they share ReviewResult's
+// "lives" branch and ReviewSession's scope/history plumbing, but do NOT use
+// the mask-based engine (see MaskableReviewMode below).
+export type ReviewMode = "type-it" | "memorize-it" | "master-it" | "verse-defender" | "lane-defender";
 
 // Alias of ReviewMode used specifically by the masking engine (reviewModes.ts /
 // useReviewSession.ts) so the compiler forces initialVisibility() to handle every
-// case — a future mode that isn't mask-based (e.g. "verse-defender") should NOT be
-// added to this alias, which would surface as a type error anywhere it's required.
+// case — a mode that isn't mask-based (verse-defender, lane-defender) should NOT
+// be added to this alias, which would surface as a type error anywhere it's required.
 export type MaskableReviewMode = "type-it" | "memorize-it" | "master-it";
+
+export function isMaskableReviewMode(mode: ReviewMode): mode is MaskableReviewMode {
+  return mode === "type-it" || mode === "memorize-it" || mode === "master-it";
+}
 
 export type ReviewScope =
   | { type: "verse"; verseId: string }

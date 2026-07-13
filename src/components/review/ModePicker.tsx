@@ -1,8 +1,8 @@
 import { Card } from "../ui/Card";
-import type { MaskableReviewMode } from "../../types/review";
+import type { ReviewMode } from "../../types/review";
 
 interface ModeOption {
-  value: MaskableReviewMode;
+  value: ReviewMode;
   label: string;
   description: string;
 }
@@ -25,10 +25,22 @@ const MODE_OPTIONS: ModeOption[] = [
     label: "Master It",
     description: "The whole verse is hidden. Recall every word from just its first letter.",
   },
+  {
+    value: "verse-defender",
+    label: "Verse Defender",
+    description:
+      "Asteroids descend toward your base. Type each word's first letter fast enough to blast it before it lands.",
+  },
+  {
+    value: "lane-defender",
+    label: "Lane Defender",
+    description:
+      "Words fall across four lanes — hit D/F/J/K to fire at the lane holding the correct next word.",
+  },
 ];
 
 interface ModePickerProps {
-  onSelect: (mode: MaskableReviewMode) => void;
+  onSelect: (mode: ReviewMode) => void;
 }
 
 export function ModePicker({ onSelect }: ModePickerProps) {

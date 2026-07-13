@@ -6,9 +6,25 @@ import { tokenize } from "../lib/tokenize";
 import { buildCollectionReviewTokens } from "../lib/collectionReview";
 import { ModePicker } from "../components/review/ModePicker";
 import { ReviewSession } from "../components/review/ReviewSession";
+import { VerseDefenderSession } from "../components/verse-defender/VerseDefenderSession";
+import { LaneDefenderSession } from "../components/lane-defender/LaneDefenderSession";
 import type { Token } from "../lib/tokenize";
 import type { Verse } from "../types/verse";
-import type { MaskableReviewMode, ReviewScope } from "../types/review";
+import { isMaskableReviewMode, type ReviewMode, type ReviewScope } from "../types/review";
+
+// Single dispatch point for "which session component renders this mode" —
+// the 3 mask-based modes share ReviewSession/useReviewSession; the 2 arcade
+// modes each own their own component. Keeping this here means neither game
+// component nor ModePicker need to know about each other.
+function renderSession(mode: ReviewMode, scope: ReviewScope, tokens: Token[], onChangeMode: () => void) {
+  if (isMaskableReviewMode(mode)) {
+    return <ReviewSession scope={scope} tokens={tokens} mode={mode} onChangeMode={onChangeMode} />;
+  }
+  if (mode === "verse-defender") {
+    return <VerseDefenderSession scope={scope} tokens={tokens} onChangeMode={onChangeMode} />;
+  }
+  return <LaneDefenderSession scope={scope} tokens={tokens} onChangeMode={onChangeMode} />;
+}
 
 export function ReviewPage() {
   const [searchParams] = useSearchParams();
@@ -16,7 +32,7 @@ export function ReviewPage() {
   const collectionId = searchParams.get("collectionId");
   const { verses, loading: versesLoading } = useVerses();
   const { collections, loading: collectionsLoading, getVerseIdsForCollection } = useCollections();
-  const [mode, setMode] = useState<MaskableReviewMode | null>(null);
+  const [mode, setMode] = useState<ReviewMode | null>(null);
 
   const loading = versesLoading || (collectionId !== null && collectionsLoading);
 
@@ -98,7 +114,7 @@ export function ReviewPage() {
         {mode === null || scope === null ? (
           <ModePicker onSelect={setMode} />
         ) : (
-          <ReviewSession scope={scope} tokens={tokens} mode={mode} onChangeMode={() => setMode(null)} />
+          renderSession(mode, scope, tokens, () => setMode(null))
         )}
       </div>
     );
@@ -132,7 +148,7 @@ export function ReviewPage() {
       {mode === null ? (
         <ModePicker onSelect={setMode} />
       ) : (
-        <ReviewSession scope={scope} tokens={tokens} mode={mode} onChangeMode={() => setMode(null)} />
+        renderSession(mode, scope, tokens, () => setMode(null))
       )}
     </div>
   );

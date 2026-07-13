@@ -135,3 +135,39 @@ button {
 .word-token--flash {
   animation: word-flash-shake 0.3s ease-in-out;
 }
+
+/* Verse Defender: cannon laser + impact burst on a correct hit. Both are
+   transient elements keyed by hit id — the animation plays once per mount
+   and the parent unmounts them when it ends. */
+@keyframes laser-zap {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) scaleX(1);
+  }
+  70% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scaleX(0.2);
+  }
+}
+
+.laser-beam {
+  animation: laser-zap 0.22s ease-out forwards;
+}
+
+@keyframes laser-burst {
+  0% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.7);
+  }
+}
+
+.laser-burst {
+  animation: laser-burst 0.3s ease-out forwards;
+}
