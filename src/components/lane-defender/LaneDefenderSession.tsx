@@ -22,9 +22,21 @@ interface LaneDefenderSessionProps {
   scope: ReviewScope;
   tokens: Token[];
   onChangeMode: () => void;
+  // Fired exactly once when the run ends (complete or failed alike).
+  // Optional — existing callers omit it; the gate page listens for it.
+  onComplete?: () => void;
+  // Rendered inside the verse gate: hide the "Change Mode" button and the
+  // mission screen's "Back to Library" link (the gate owns its own exit).
+  embedded?: boolean;
 }
 
-export function LaneDefenderSession({ scope, tokens, onChangeMode }: LaneDefenderSessionProps) {
+export function LaneDefenderSession({
+  scope,
+  tokens,
+  onChangeMode,
+  onComplete,
+  embedded = false,
+}: LaneDefenderSessionProps) {
   const isCollection = scope.type === "collection";
   const {
     lanes,
@@ -45,6 +57,10 @@ export function LaneDefenderSession({ scope, tokens, onChangeMode }: LaneDefende
   // once per completed session, not once per re-render while status stays
   // terminal. Reset alongside the hook's own retry() on Retry.
   const finalizedRef = useRef(false);
+  // Separate once-per-completion latch for the optional onComplete callback —
+  // unlike the finalize effect it must NOT wait on profile, so it can't share
+  // finalizedRef. Reset alongside it on Retry.
+  const completeNotifiedRef = useRef(false);
   const startedAtRef = useRef(new Date().toISOString());
 
   // Hint is pure UI-layer state: while active, a chip in the header shows the
@@ -64,6 +80,12 @@ export function LaneDefenderSession({ scope, tokens, onChangeMode }: LaneDefende
   useEffect(() => {
     if (status === "playing") inputRef.current?.focus();
   }, [status]);
+
+  useEffect(() => {
+    if (status === "playing" || !result || completeNotifiedRef.current) return;
+    completeNotifiedRef.current = true;
+    onComplete?.();
+  }, [status, result, onComplete]);
 
   useEffect(() => {
     if (status === "playing" || finalizedRef.current) return;
@@ -107,6 +129,7 @@ export function LaneDefenderSession({ scope, tokens, onChangeMode }: LaneDefende
     retry();
     setHintActive(false);
     finalizedRef.current = false;
+    completeNotifiedRef.current = false;
     startedAtRef.current = new Date().toISOString();
     // Refocusing the (remounted) input happens in the status effect above.
   }, [retry]);
@@ -166,9 +189,11 @@ export function LaneDefenderSession({ scope, tokens, onChangeMode }: LaneDefende
           >
             Hint
           </Button>
-          <Button variant="ghost" onClick={onChangeMode}>
-            Change Mode
-          </Button>
+          {!embedded && (
+            <Button variant="ghost" onClick={onChangeMode}>
+              Change Mode
+            </Button>
+          )}
         </div>
       </div>
 
@@ -226,10 +251,10 @@ export function LaneDefenderSession({ scope, tokens, onChangeMode }: LaneDefende
       )}
 
       {status === "complete" && result && (
-        <MissionCompleteScreen result={result} onRetry={handleRetry} />
+        <MissionCompleteScreen result={result} onRetry={handleRetry} backTo={embedded ? null : "/"} />
       )}
       {status === "failed" && result && (
-        <MissionFailedScreen result={result} onRetry={handleRetry} />
+        <MissionFailedScreen result={result} onRetry={handleRetry} backTo={embedded ? null : "/"} />
       )}
 
       <BuiltVerse tokens={tokens} completedWords={destroyedCount} />

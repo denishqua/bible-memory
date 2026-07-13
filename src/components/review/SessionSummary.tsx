@@ -6,7 +6,9 @@ interface SessionSummaryProps {
   accuracy: number;
   passed: boolean;
   onRetry: () => void;
-  backTo: string;
+  // Destination for the "Back to Library" link. null hides the link entirely
+  // (the verse gate has its own "Proceed to site" exit instead).
+  backTo: string | null;
 }
 
 export function SessionSummary({ accuracy, passed, onRetry, backTo }: SessionSummaryProps) {
@@ -41,9 +43,11 @@ export function SessionSummary({ accuracy, passed, onRetry, backTo }: SessionSum
         <Button variant="primary" onClick={onRetry}>
           Retry
         </Button>
-        <Link to={backTo} style={{ textDecoration: "none" }}>
-          <Button variant="ghost">Back to Library</Button>
-        </Link>
+        {backTo !== null && (
+          <Link to={backTo} style={{ textDecoration: "none" }}>
+            <Button variant="ghost">Back to Library</Button>
+          </Link>
+        )}
       </div>
     </Card>
   );

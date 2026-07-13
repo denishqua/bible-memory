@@ -6,12 +6,14 @@ import type { LaneDefenderResult } from "../../lib/laneDefenderEngine";
 interface MissionCompleteScreenProps {
   result: LaneDefenderResult;
   onRetry: () => void;
+  // null hides the "Back to Library" link (the verse gate supplies its own exit).
+  backTo?: string | null;
 }
 
 // Every word in the queue was destroyed. A collection run can still complete
 // without passing (lives bottomed out on some verse along the way), so the
 // badge reflects `result.passed`, not completion itself.
-export function MissionCompleteScreen({ result, onRetry }: MissionCompleteScreenProps) {
+export function MissionCompleteScreen({ result, onRetry, backTo = "/" }: MissionCompleteScreenProps) {
   const accuracy =
     result.totalKeystrokes === 0
       ? 100
@@ -55,9 +57,11 @@ export function MissionCompleteScreen({ result, onRetry }: MissionCompleteScreen
         <Button variant="primary" onClick={onRetry}>
           Retry
         </Button>
-        <Link to="/" style={{ textDecoration: "none" }}>
-          <Button variant="ghost">Back to Library</Button>
-        </Link>
+        {backTo !== null && (
+          <Link to={backTo} style={{ textDecoration: "none" }}>
+            <Button variant="ghost">Back to Library</Button>
+          </Link>
+        )}
       </div>
     </Card>
   );

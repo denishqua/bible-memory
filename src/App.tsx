@@ -1,4 +1,4 @@
-import { HashRouter, NavLink, Route, Routes } from "react-router-dom";
+import { HashRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { StorageProvider } from "./data/storageContext";
 import { ThemeToggle } from "./components/ui/ThemeToggle";
 import { FlameStreakBadge } from "./components/ui/FlameStreakBadge";
@@ -11,6 +11,7 @@ import { AddVersePage } from "./pages/AddVersePage";
 import { ReviewPage } from "./pages/ReviewPage";
 import { ImportPage } from "./pages/ImportPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { GatePage } from "./pages/GatePage";
 
 function navLinkStyle({ isActive }: { isActive: boolean }): React.CSSProperties {
   return {
@@ -56,23 +57,38 @@ function AppHeader() {
   );
 }
 
+// Header + routed content. Split out of App so useLocation (which must run
+// inside HashRouter) can hide the app chrome on the distraction-free /gate
+// page — the extension's verse gate renders full-screen with no navigation.
+function AppLayout() {
+  const location = useLocation();
+  const isGate = location.pathname === "/gate";
+
+  return (
+    <>
+      {!isGate && <AppHeader />}
+      <main style={{ flex: 1, padding: "1.5rem", maxWidth: "72rem", margin: "0 auto", width: "100%" }}>
+        <Routes>
+          <Route path="/" element={<LibraryPage />} />
+          <Route path="/verse/:id" element={<VerseDetailPage />} />
+          <Route path="/collections" element={<CollectionsPage />} />
+          <Route path="/collections/:id" element={<CollectionDetailPage />} />
+          <Route path="/add" element={<AddVersePage />} />
+          <Route path="/review" element={<ReviewPage />} />
+          <Route path="/import" element={<ImportPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/gate" element={<GatePage />} />
+        </Routes>
+      </main>
+    </>
+  );
+}
+
 function App() {
   return (
     <StorageProvider>
       <HashRouter>
-        <AppHeader />
-        <main style={{ flex: 1, padding: "1.5rem", maxWidth: "72rem", margin: "0 auto", width: "100%" }}>
-          <Routes>
-            <Route path="/" element={<LibraryPage />} />
-            <Route path="/verse/:id" element={<VerseDetailPage />} />
-            <Route path="/collections" element={<CollectionsPage />} />
-            <Route path="/collections/:id" element={<CollectionDetailPage />} />
-            <Route path="/add" element={<AddVersePage />} />
-            <Route path="/review" element={<ReviewPage />} />
-            <Route path="/import" element={<ImportPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-          </Routes>
-        </main>
+        <AppLayout />
       </HashRouter>
     </StorageProvider>
   );

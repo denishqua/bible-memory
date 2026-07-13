@@ -6,10 +6,12 @@ import type { LaneDefenderResult } from "../../lib/laneDefenderEngine";
 interface MissionFailedScreenProps {
   result: LaneDefenderResult;
   onRetry: () => void;
+  // null hides the "Back to Library" link (the verse gate supplies its own exit).
+  backTo?: string | null;
 }
 
 // Single-verse scope only: lives hit 0 before the queue was cleared.
-export function MissionFailedScreen({ result, onRetry }: MissionFailedScreenProps) {
+export function MissionFailedScreen({ result, onRetry, backTo = "/" }: MissionFailedScreenProps) {
   const accuracy =
     result.totalKeystrokes === 0
       ? 100
@@ -49,9 +51,11 @@ export function MissionFailedScreen({ result, onRetry }: MissionFailedScreenProp
         <Button variant="primary" onClick={onRetry}>
           Retry
         </Button>
-        <Link to="/" style={{ textDecoration: "none" }}>
-          <Button variant="ghost">Back to Library</Button>
-        </Link>
+        {backTo !== null && (
+          <Link to={backTo} style={{ textDecoration: "none" }}>
+            <Button variant="ghost">Back to Library</Button>
+          </Link>
+        )}
       </div>
     </Card>
   );

@@ -8,9 +8,11 @@ import { Button } from "../ui/Button";
 interface MissionFailedScreenProps {
   result: LivesResult;
   onRetry: () => void;
+  // null hides the "Back to Library" link (the verse gate supplies its own exit).
+  backTo?: string | null;
 }
 
-export function MissionFailedScreen({ result, onRetry }: MissionFailedScreenProps) {
+export function MissionFailedScreen({ result, onRetry, backTo = "/" }: MissionFailedScreenProps) {
   return (
     <Card style={{ marginTop: "1.5rem", textAlign: "center" }}>
       <span
@@ -51,9 +53,11 @@ export function MissionFailedScreen({ result, onRetry }: MissionFailedScreenProp
         <Button variant="primary" onClick={onRetry}>
           Retry
         </Button>
-        <Link to="/" style={{ textDecoration: "none" }}>
-          <Button variant="ghost">Back to Library</Button>
-        </Link>
+        {backTo !== null && (
+          <Link to={backTo} style={{ textDecoration: "none" }}>
+            <Button variant="ghost">Back to Library</Button>
+          </Link>
+        )}
       </div>
     </Card>
   );

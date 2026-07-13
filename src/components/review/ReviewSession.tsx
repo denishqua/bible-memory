@@ -22,9 +22,15 @@ interface ReviewSessionProps {
   tokens: Token[];
   mode: MaskableReviewMode;
   onChangeMode: () => void;
+  // Fired exactly once when the session completes (pass or fail alike).
+  // Optional — existing callers omit it; the gate page listens for it.
+  onComplete?: () => void;
+  // Rendered inside the verse gate, which owns its own chrome: hide the
+  // "Change Mode" button and the summary's "Back to Library" link.
+  embedded?: boolean;
 }
 
-export function ReviewSession({ scope, tokens, mode, onChangeMode }: ReviewSessionProps) {
+export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, embedded = false }: ReviewSessionProps) {
   const { words, currentIndex, accuracy, status, handleKeyPress, reset } = useReviewSession(
     tokens,
     mode,
@@ -38,6 +44,10 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode }: ReviewSessi
   // once per completed session, not once per re-render while status stays
   // "complete". Reset alongside the hook's own reset() on Retry.
   const finalizedRef = useRef(false);
+  // Separate once-per-completion latch for the optional onComplete callback —
+  // unlike the finalize effect it must NOT wait on profile, so it can't share
+  // finalizedRef. Reset alongside it on Retry.
+  const completeNotifiedRef = useRef(false);
   const startedAtRef = useRef(new Date().toISOString());
 
   // Hint is pure UI-layer state: which word index has its full text revealed
@@ -84,6 +94,12 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode }: ReviewSessi
   }, [currentIndex]);
 
   useEffect(() => {
+    if (status !== "complete" || completeNotifiedRef.current) return;
+    completeNotifiedRef.current = true;
+    onComplete?.();
+  }, [status, onComplete]);
+
+  useEffect(() => {
     if (status !== "complete" || finalizedRef.current) return;
     // Wait for the profile to have loaded before finalizing — appending the
     // session unconditionally but only *after* profile is available means we
@@ -126,6 +142,7 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode }: ReviewSessi
     reset();
     setHintedIndex(null);
     finalizedRef.current = false;
+    completeNotifiedRef.current = false;
     startedAtRef.current = new Date().toISOString();
   }, [reset]);
 
@@ -230,9 +247,11 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode }: ReviewSessi
           >
             Hint
           </Button>
-          <Button variant="ghost" onClick={onChangeMode}>
-            Change Mode
-          </Button>
+          {!embedded && (
+            <Button variant="ghost" onClick={onChangeMode}>
+              Change Mode
+            </Button>
+          )}
         </div>
       </div>
 
@@ -241,7 +260,7 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode }: ReviewSessi
           accuracy={accuracy}
           passed={accuracy >= PASS_THRESHOLD}
           onRetry={handleRetry}
-          backTo="/"
+          backTo={embedded ? null : "/"}
         />
       )}
     </div>

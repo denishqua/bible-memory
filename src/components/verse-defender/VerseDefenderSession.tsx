@@ -30,6 +30,12 @@ interface VerseDefenderSessionProps {
   scope: ReviewScope;
   tokens: Token[];
   onChangeMode: () => void;
+  // Fired exactly once when the mission ends (complete or failed alike).
+  // Optional — existing callers omit it; the gate page listens for it.
+  onComplete?: () => void;
+  // Rendered inside the verse gate: hide the "Change Mode" button and the
+  // mission screen's "Back to Library" link (the gate owns its own exit).
+  embedded?: boolean;
 }
 
 // Top-level orchestrator for the Verse Defender arcade mode: wires the
@@ -37,7 +43,13 @@ interface VerseDefenderSessionProps {
 // always-focused input (mobile virtual-keyboard reliability — same idiom as
 // ReviewSession.tsx), and finalizes the session record exactly once whether
 // the mission completes or fails.
-export function VerseDefenderSession({ scope, tokens, onChangeMode }: VerseDefenderSessionProps) {
+export function VerseDefenderSession({
+  scope,
+  tokens,
+  onChangeMode,
+  onComplete,
+  embedded = false,
+}: VerseDefenderSessionProps) {
   const {
     status,
     currentWord,
@@ -60,6 +72,10 @@ export function VerseDefenderSession({ scope, tokens, onChangeMode }: VerseDefen
   // once per completed session, not once per re-render while status stays
   // terminal. Reset alongside the hook's own retry() on Retry.
   const finalizedRef = useRef(false);
+  // Separate once-per-completion latch for the optional onComplete callback —
+  // unlike the finalize effect it must NOT wait on profile, so it can't share
+  // finalizedRef. Reset alongside it on Retry.
+  const completeNotifiedRef = useRef(false);
   const startedAtRef = useRef(new Date().toISOString());
 
   // Brief cosmetic cannon recoil on every correct hit.
@@ -103,6 +119,12 @@ export function VerseDefenderSession({ scope, tokens, onChangeMode }: VerseDefen
   }, [lastHit]);
 
   useEffect(() => {
+    if (result === null || completeNotifiedRef.current) return;
+    completeNotifiedRef.current = true;
+    onComplete?.();
+  }, [result, onComplete]);
+
+  useEffect(() => {
     if (result === null || finalizedRef.current) return;
     // Wait for the profile to have loaded before finalizing — appending the
     // session unconditionally but only *after* profile is available means we
@@ -138,6 +160,7 @@ export function VerseDefenderSession({ scope, tokens, onChangeMode }: VerseDefen
     retry();
     setHintActive(false);
     finalizedRef.current = false;
+    completeNotifiedRef.current = false;
     startedAtRef.current = new Date().toISOString();
     inputRef.current?.focus();
   }, [retry]);
@@ -180,17 +203,19 @@ export function VerseDefenderSession({ scope, tokens, onChangeMode }: VerseDefen
           <Button variant="ghost" onClick={handleHint} disabled={hintActive || isDone}>
             Hint
           </Button>
-          <Button variant="ghost" onClick={onChangeMode}>
-            Change Mode
-          </Button>
+          {!embedded && (
+            <Button variant="ghost" onClick={onChangeMode}>
+              Change Mode
+            </Button>
+          )}
         </div>
       </div>
 
       {isDone && result !== null ? (
         status === "failed" ? (
-          <MissionFailedScreen result={result} onRetry={handleRetry} />
+          <MissionFailedScreen result={result} onRetry={handleRetry} backTo={embedded ? null : "/"} />
         ) : (
-          <MissionCompleteScreen result={result} onRetry={handleRetry} />
+          <MissionCompleteScreen result={result} onRetry={handleRetry} backTo={embedded ? null : "/"} />
         )
       ) : (
         <div

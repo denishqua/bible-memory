@@ -8,9 +8,11 @@ import { Button } from "../ui/Button";
 interface MissionCompleteScreenProps {
   result: LivesResult;
   onRetry: () => void;
+  // null hides the "Back to Library" link (the verse gate supplies its own exit).
+  backTo?: string | null;
 }
 
-export function MissionCompleteScreen({ result, onRetry }: MissionCompleteScreenProps) {
+export function MissionCompleteScreen({ result, onRetry, backTo = "/" }: MissionCompleteScreenProps) {
   return (
     <Card style={{ marginTop: "1.5rem", textAlign: "center" }}>
       <span
@@ -51,9 +53,11 @@ export function MissionCompleteScreen({ result, onRetry }: MissionCompleteScreen
         <Button variant="primary" onClick={onRetry}>
           Retry
         </Button>
-        <Link to="/" style={{ textDecoration: "none" }}>
-          <Button variant="ghost">Back to Library</Button>
-        </Link>
+        {backTo !== null && (
+          <Link to={backTo} style={{ textDecoration: "none" }}>
+            <Button variant="ghost">Back to Library</Button>
+          </Link>
+        )}
       </div>
     </Card>
   );

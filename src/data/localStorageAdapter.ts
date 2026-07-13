@@ -181,7 +181,9 @@ export class LocalStorageAdapter implements StorageAdapter {
       return settings;
     }
     try {
-      return JSON.parse(raw) as Settings;
+      // Merge over defaults so settings saved before a new field existed
+      // (e.g. `newTabGate`) still come back fully populated.
+      return { ...defaultSettings(), ...(JSON.parse(raw) as Partial<Settings>) };
     } catch {
       const settings = defaultSettings();
       localStorage.setItem(KEYS.settings, JSON.stringify(settings));

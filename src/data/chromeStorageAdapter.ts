@@ -170,7 +170,9 @@ export class ChromeStorageAdapter implements StorageAdapter {
     const result = await chrome.storage.local.get(KEYS.settings);
     const value = result[KEYS.settings];
     if (value) {
-      return value as Settings;
+      // Merge over defaults so settings saved before a new field existed
+      // (e.g. `newTabGate`) still come back fully populated.
+      return { ...defaultSettings(), ...(value as Partial<Settings>) };
     }
     const settings = defaultSettings();
     await chrome.storage.local.set({ [KEYS.settings]: settings });

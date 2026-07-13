@@ -3,13 +3,16 @@ import { useStorage } from "../data/storageContext";
 import { useSettings, SETTINGS_UPDATED_EVENT } from "../hooks/useSettings";
 import { PROFILE_UPDATED_EVENT } from "../hooks/useProfile";
 import { useTheme, type ThemePreference } from "../hooks/useTheme";
+import { useCollections } from "../hooks/useCollections";
+import { useVerses } from "../hooks/useVerses";
+import { normalizeDomain } from "../lib/domainWhitelist";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import type { Verse } from "../types/verse";
 import type { Collection, CollectionVerseLink } from "../types/collection";
-import type { ReviewSession } from "../types/review";
+import type { ReviewMode, ReviewSession } from "../types/review";
 import type { Profile } from "../types/profile";
-import type { Settings } from "../types/settings";
+import type { NewTabGateSettings, Settings } from "../types/settings";
 
 // Full-backup file shape produced by "Export data" below. Import accepts the
 // same shape and merges it ADDITIVELY (upserts by id; never deletes).
@@ -57,6 +60,36 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "dark", label: "Dark" },
   { value: "system", label: "System" },
 ];
+
+const REVIEW_MODE_OPTIONS: { value: ReviewMode; label: string }[] = [
+  { value: "type-it", label: "Type It" },
+  { value: "memorize-it", label: "Memorize It" },
+  { value: "master-it", label: "Master It" },
+  { value: "verse-defender", label: "Verse Defender" },
+  { value: "lane-defender", label: "Lane Defender" },
+];
+
+const SNOOZE_PRESET_HOURS = [1, 2, 4, 8];
+
+const gateSubsectionStyle: React.CSSProperties = {
+  marginTop: "1.25rem",
+  paddingTop: "1rem",
+  borderTop: "1px solid var(--color-border)",
+};
+
+const gateLabelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "0.9rem",
+  fontWeight: 600,
+  marginBottom: "0.4rem",
+};
+
+const gateSelectStyle: React.CSSProperties = {
+  ...inputStyle,
+  flex: undefined,
+  width: "100%",
+  cursor: "pointer",
+};
 
 function isBackupFile(value: unknown): value is BackupFile {
   if (typeof value !== "object" || value === null) return false;
@@ -344,6 +377,8 @@ export function SettingsPage() {
         </div>
       </Card>
 
+      {settings ? <VerseGateCard settings={settings} updateSettings={updateSettings} /> : null}
+
       <Card>
         <h3 style={sectionTitleStyle}>Data</h3>
         <p style={{ ...helperTextStyle, marginBottom: "0.75rem" }}>
@@ -412,5 +447,331 @@ export function SettingsPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+// --- Verse Gate (extension new-tab gate) section ---
+// Rendered only once settings has loaded, so `settings` is always non-null here
+// and every write can safely spread the full object.
+function VerseGateCard({
+  settings,
+  updateSettings,
+}: {
+  settings: Settings;
+  updateSettings: (next: Settings) => Promise<void>;
+}) {
+  const gate = settings.newTabGate;
+  const { collections, getVerseIdsForCollection } = useCollections();
+  const { verses } = useVerses();
+
+  const [domainDraft, setDomainDraft] = useState("");
+  const [domainError, setDomainError] = useState<string | null>(null);
+  const [customHours, setCustomHours] = useState("");
+  const [limitOpen, setLimitOpen] = useState(false);
+
+  async function updateGate(patch: Partial<NewTabGateSettings>) {
+    await updateSettings({ ...settings, newTabGate: { ...gate, ...patch } });
+  }
+
+  // --- Whitelist ---
+  function handleAddDomain() {
+    const domain = normalizeDomain(domainDraft);
+    if (!domain) {
+      setDomainError("That doesn’t look like a valid domain (try something like “docs.google.com”).");
+      return;
+    }
+    setDomainError(null);
+    setDomainDraft("");
+    if (gate.whitelist.includes(domain)) return;
+    updateGate({ whitelist: [...gate.whitelist, domain] });
+  }
+
+  // --- Snooze ---
+  function pauseForHours(hours: number) {
+    updateGate({ snoozeUntil: new Date(Date.now() + hours * 3_600_000).toISOString() });
+  }
+
+  const parsedCustomHours = Number(customHours);
+  const customHoursValid = Number.isFinite(parsedCustomHours) && parsedCustomHours > 0;
+
+  // A snooze in the past is treated as "not snoozed" (the worker does the same).
+  const snoozeDate = gate.snoozeUntil ? new Date(gate.snoozeUntil) : null;
+  const activeSnooze = snoozeDate && snoozeDate.getTime() > Date.now() ? snoozeDate : null;
+
+  // --- Verse source ---
+  // Ids in the chosen collection (display order). A stored verseIds subset is
+  // always intersected with this, so verses later removed from the collection
+  // silently drop out of the pool.
+  const collectionVerseIds = gate.collectionId ? getVerseIdsForCollection(gate.collectionId) : [];
+  const versesById = new Map(verses.map((v) => [v.id, v]));
+  const checkedIds = new Set(gate.verseIds ?? collectionVerseIds);
+  const checkedCount = collectionVerseIds.filter((id) => checkedIds.has(id)).length;
+
+  function toggleVerse(verseId: string) {
+    const next = new Set(checkedIds);
+    if (next.has(verseId)) {
+      next.delete(verseId);
+    } else {
+      next.add(verseId);
+    }
+    const subset = collectionVerseIds.filter((id) => next.has(id));
+    // null means "the whole collection", so a full selection is stored as null —
+    // verses added to the collection later are then included automatically.
+    updateGate({ verseIds: subset.length === collectionVerseIds.length ? null : subset });
+  }
+
+  // --- Warnings ---
+  // The gate FAILS OPEN when unconfigured; make that loud.
+  let warning: string | null = null;
+  if (gate.enabled && !gate.collectionId) {
+    warning =
+      "Gate is on but no collection is selected — navigation will NOT be blocked until you pick one.";
+  } else if (gate.enabled && gate.collectionId && gate.verseIds !== null && checkedCount === 0) {
+    warning =
+      "Gate is on but no verses are selected — navigation will NOT be blocked until you check at least one.";
+  }
+
+  return (
+    <Card>
+      <h3 style={sectionTitleStyle}>Verse Gate</h3>
+      <p style={{ ...helperTextStyle, marginBottom: "0.75rem" }}>
+        When on, every new tab must complete a verse review before it can load a non-whitelisted
+        site. (Only applies in the Chrome extension.)
+      </p>
+      <div
+        role="group"
+        aria-label="Verse gate"
+        style={{
+          display: "inline-flex",
+          border: "1px solid var(--color-border)",
+          borderRadius: "0.6rem",
+          overflow: "hidden",
+        }}
+      >
+        {[false, true].map((value) => {
+          const active = gate.enabled === value;
+          return (
+            <button
+              key={String(value)}
+              type="button"
+              onClick={() => updateGate({ enabled: value })}
+              aria-pressed={active}
+              style={{
+                padding: "0.5rem 1.1rem",
+                fontSize: "0.9rem",
+                fontWeight: active ? 600 : 500,
+                border: "none",
+                cursor: "pointer",
+                background: active ? "var(--color-clay)" : "transparent",
+                color: active ? "var(--color-clay-contrast)" : "var(--color-ink-muted)",
+                transition: "background 0.15s ease, color 0.15s ease",
+              }}
+            >
+              {value ? "On" : "Off"}
+            </button>
+          );
+        })}
+      </div>
+      {warning ? (
+        <p style={{ color: "var(--color-danger)", fontSize: "0.85rem", fontWeight: 600, marginTop: "0.75rem" }}>
+          {warning}
+        </p>
+      ) : null}
+
+      <div style={gateSubsectionStyle}>
+        <span style={gateLabelStyle}>Whitelisted domains</span>
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.6rem" }}>
+          <input
+            type="text"
+            value={domainDraft}
+            onChange={(e) => setDomainDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleAddDomain();
+            }}
+            placeholder="e.g. docs.google.com"
+            autoComplete="off"
+            aria-label="Domain to whitelist"
+            style={inputStyle}
+          />
+          <Button type="button" variant="primary" onClick={handleAddDomain} disabled={domainDraft.trim() === ""}>
+            Add
+          </Button>
+        </div>
+        {domainError ? (
+          <p style={{ color: "var(--color-danger)", fontSize: "0.85rem", marginBottom: "0.6rem" }}>
+            {domainError}
+          </p>
+        ) : null}
+        {gate.whitelist.length > 0 ? (
+          <ul style={{ listStyle: "none", display: "flex", flexDirection: "column", gap: "0.35rem", marginBottom: "0.6rem" }}>
+            {gate.whitelist.map((domain) => (
+              <li key={domain} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span style={{ flex: 1, fontSize: "0.9rem" }}>{domain}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => updateGate({ whitelist: gate.whitelist.filter((d) => d !== domain) })}
+                  aria-label={`Remove ${domain} from whitelist`}
+                  style={{ padding: "0.25rem 0.7rem", fontSize: "0.8rem" }}
+                >
+                  Remove
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <p style={helperTextStyle}>
+          Only these sites load without a review. A domain also matches its subdomains.
+        </p>
+      </div>
+
+      <div style={gateSubsectionStyle}>
+        <span style={gateLabelStyle}>Snooze</span>
+        {activeSnooze ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.6rem" }}>
+            <span style={{ color: "var(--color-clay)", fontSize: "0.9rem", fontWeight: 600 }}>
+              Paused until{" "}
+              {activeSnooze.toLocaleString([], {
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </span>
+            <Button type="button" variant="secondary" onClick={() => updateGate({ snoozeUntil: null })}>
+              Resume now
+            </Button>
+          </div>
+        ) : null}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+          {SNOOZE_PRESET_HOURS.map((hours) => (
+            <Button key={hours} type="button" variant="ghost" onClick={() => pauseForHours(hours)}>
+              Pause {hours} hr
+            </Button>
+          ))}
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={customHours}
+            onChange={(e) => setCustomHours(e.target.value)}
+            placeholder="Hours"
+            aria-label="Custom snooze hours"
+            style={{ ...inputStyle, flex: undefined, width: "5rem" }}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => pauseForHours(parsedCustomHours)}
+            disabled={!customHoursValid}
+          >
+            Pause
+          </Button>
+        </div>
+      </div>
+
+      <div style={gateSubsectionStyle}>
+        <label htmlFor="gate-collection" style={gateLabelStyle}>
+          Verse source
+        </label>
+        <select
+          id="gate-collection"
+          value={gate.collectionId ?? ""}
+          onChange={(e) =>
+            // Switching collections resets any verse subset — it belonged to
+            // the old collection.
+            updateGate({ collectionId: e.target.value || null, verseIds: null })
+          }
+          style={gateSelectStyle}
+        >
+          <option value="">— Pick a collection —</option>
+          {collections.map((collection) => (
+            <option key={collection.id} value={collection.id}>
+              {collection.name}
+            </option>
+          ))}
+        </select>
+        {gate.collectionId ? (
+          <div style={{ marginTop: "0.6rem" }}>
+            <button
+              type="button"
+              onClick={() => setLimitOpen((v) => !v)}
+              aria-expanded={limitOpen}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                color: "var(--color-clay)",
+                fontFamily: "inherit",
+              }}
+            >
+              {limitOpen ? "▾" : "▸"} Limit to specific verses
+              {gate.verseIds !== null ? ` (${checkedCount} of ${collectionVerseIds.length})` : ""}
+            </button>
+            {limitOpen ? (
+              <div
+                style={{
+                  marginTop: "0.5rem",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "0.5rem",
+                  padding: "0.6rem 0.75rem",
+                  maxHeight: "14rem",
+                  overflowY: "auto",
+                }}
+              >
+                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.4rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={collectionVerseIds.length > 0 && checkedCount === collectionVerseIds.length}
+                    onChange={(e) => updateGate({ verseIds: e.target.checked ? null : [] })}
+                    style={{ accentColor: "var(--color-clay)" }}
+                  />
+                  Select all
+                </label>
+                {collectionVerseIds.length === 0 ? (
+                  <p style={helperTextStyle}>This collection has no verses yet.</p>
+                ) : (
+                  collectionVerseIds.map((verseId) => (
+                    <label
+                      key={verseId}
+                      style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", padding: "0.15rem 0" }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checkedIds.has(verseId)}
+                        onChange={() => toggleVerse(verseId)}
+                        style={{ accentColor: "var(--color-clay)" }}
+                      />
+                      {versesById.get(verseId)?.reference ?? "(unknown verse)"}
+                    </label>
+                  ))
+                )}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      <div style={gateSubsectionStyle}>
+        <label htmlFor="gate-mode" style={gateLabelStyle}>
+          Review mode
+        </label>
+        <select
+          id="gate-mode"
+          value={gate.mode}
+          onChange={(e) => updateGate({ mode: e.target.value as ReviewMode })}
+          style={gateSelectStyle}
+        >
+          {REVIEW_MODE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </Card>
   );
 }
