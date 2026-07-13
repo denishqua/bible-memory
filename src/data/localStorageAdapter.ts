@@ -3,6 +3,7 @@ import type { Verse } from "../types/verse";
 import type { Collection, CollectionVerseLink } from "../types/collection";
 import type { ReviewSession } from "../types/review";
 import type { Profile } from "../types/profile";
+import { defaultSettings, type Settings } from "../types/settings";
 
 const KEYS = {
   verses: "bm.verses.v1",
@@ -10,7 +11,13 @@ const KEYS = {
   collectionLinks: "bm.collectionLinks.v1",
   reviewSessions: "bm.reviewSessions.v1",
   profile: "bm.profile.v1",
+  settings: "bm.settings.v1",
 } as const;
+
+// Theme is intentionally NOT part of the Settings object — useTheme reads it
+// synchronously from localStorage on first paint to avoid a flash of the
+// wrong theme. clearAll still needs to know about it.
+const THEME_KEY = "bm.theme.v1";
 
 function readArray<T>(key: string): T[] {
   const raw = localStorage.getItem(key);
@@ -124,6 +131,18 @@ export class LocalStorageAdapter implements StorageAdapter {
     );
   }
 
+  async reorderCollectionVerses(collectionId: string, orderedVerseIds: string[]): Promise<void> {
+    const links = readArray<CollectionVerseLink>(KEYS.collectionLinks);
+    const orderByVerseId = new Map(orderedVerseIds.map((verseId, index) => [verseId, index]));
+    const next = links.map((link) => {
+      if (link.collectionId !== collectionId) return link;
+      const sortOrder = orderByVerseId.get(link.verseId);
+      if (sortOrder === undefined) return link;
+      return { ...link, sortOrder };
+    });
+    writeArray(KEYS.collectionLinks, next);
+  }
+
   async getReviewSessions(): Promise<ReviewSession[]> {
     return readArray<ReviewSession>(KEYS.reviewSessions);
   }
@@ -152,5 +171,32 @@ export class LocalStorageAdapter implements StorageAdapter {
 
   async saveProfile(p: Profile): Promise<void> {
     localStorage.setItem(KEYS.profile, JSON.stringify(p));
+  }
+
+  async getSettings(): Promise<Settings> {
+    const raw = localStorage.getItem(KEYS.settings);
+    if (!raw) {
+      const settings = defaultSettings();
+      localStorage.setItem(KEYS.settings, JSON.stringify(settings));
+      return settings;
+    }
+    try {
+      return JSON.parse(raw) as Settings;
+    } catch {
+      const settings = defaultSettings();
+      localStorage.setItem(KEYS.settings, JSON.stringify(settings));
+      return settings;
+    }
+  }
+
+  async saveSettings(s: Settings): Promise<void> {
+    localStorage.setItem(KEYS.settings, JSON.stringify(s));
+  }
+
+  async clearAll(): Promise<void> {
+    for (const key of Object.values(KEYS)) {
+      localStorage.removeItem(key);
+    }
+    localStorage.removeItem(THEME_KEY);
   }
 }

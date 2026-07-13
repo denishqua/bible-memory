@@ -3,6 +3,7 @@ import type { Verse } from "../types/verse";
 import type { Collection, CollectionVerseLink } from "../types/collection";
 import type { ReviewSession } from "../types/review";
 import type { Profile } from "../types/profile";
+import { defaultSettings, type Settings } from "../types/settings";
 
 // Same key names as localStorageAdapter.ts on purpose — a user's existing
 // localStorage data could be migrated later by simply copying these keys
@@ -13,7 +14,13 @@ const KEYS = {
   collectionLinks: "bm.collectionLinks.v1",
   reviewSessions: "bm.reviewSessions.v1",
   profile: "bm.profile.v1",
+  settings: "bm.settings.v1",
 } as const;
+
+// Theme lives in localStorage even inside the extension (useTheme reads it
+// synchronously on first paint to avoid a flash of the wrong theme), so
+// clearAll clears it from localStorage here too.
+const THEME_KEY = "bm.theme.v1";
 
 async function readArray<T>(key: string): Promise<T[]> {
   const result = await chrome.storage.local.get(key);
@@ -122,6 +129,18 @@ export class ChromeStorageAdapter implements StorageAdapter {
     );
   }
 
+  async reorderCollectionVerses(collectionId: string, orderedVerseIds: string[]): Promise<void> {
+    const links = await readArray<CollectionVerseLink>(KEYS.collectionLinks);
+    const orderByVerseId = new Map(orderedVerseIds.map((verseId, index) => [verseId, index]));
+    const next = links.map((link) => {
+      if (link.collectionId !== collectionId) return link;
+      const sortOrder = orderByVerseId.get(link.verseId);
+      if (sortOrder === undefined) return link;
+      return { ...link, sortOrder };
+    });
+    await writeArray(KEYS.collectionLinks, next);
+  }
+
   async getReviewSessions(): Promise<ReviewSession[]> {
     return readArray<ReviewSession>(KEYS.reviewSessions);
   }
@@ -145,5 +164,25 @@ export class ChromeStorageAdapter implements StorageAdapter {
 
   async saveProfile(p: Profile): Promise<void> {
     await chrome.storage.local.set({ [KEYS.profile]: p });
+  }
+
+  async getSettings(): Promise<Settings> {
+    const result = await chrome.storage.local.get(KEYS.settings);
+    const value = result[KEYS.settings];
+    if (value) {
+      return value as Settings;
+    }
+    const settings = defaultSettings();
+    await chrome.storage.local.set({ [KEYS.settings]: settings });
+    return settings;
+  }
+
+  async saveSettings(s: Settings): Promise<void> {
+    await chrome.storage.local.set({ [KEYS.settings]: s });
+  }
+
+  async clearAll(): Promise<void> {
+    await chrome.storage.local.remove(Object.values(KEYS));
+    localStorage.removeItem(THEME_KEY);
   }
 }

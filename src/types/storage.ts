@@ -2,6 +2,7 @@ import type { Verse } from "./verse";
 import type { Collection, CollectionVerseLink } from "./collection";
 import type { ReviewSession } from "./review";
 import type { Profile } from "./profile";
+import type { Settings } from "./settings";
 
 export interface StorageAdapter {
   getVerses(): Promise<Verse[]>;
@@ -13,8 +14,17 @@ export interface StorageAdapter {
   getCollectionLinks(): Promise<CollectionVerseLink[]>;
   addVerseToCollection(link: CollectionVerseLink): Promise<void>;
   removeVerseFromCollection(collectionId: string, verseId: string): Promise<void>;
+  // Persists an explicit order: each link of `collectionId` whose verseId
+  // appears in `orderedVerseIds` gets sortOrder = its index. Links of other
+  // collections (and unnamed links of this one) are left untouched.
+  reorderCollectionVerses(collectionId: string, orderedVerseIds: string[]): Promise<void>;
   getReviewSessions(): Promise<ReviewSession[]>;
   appendReviewSession(s: ReviewSession): Promise<void>;
   getProfile(): Promise<Profile>;
   saveProfile(p: Profile): Promise<void>;
+  getSettings(): Promise<Settings>;
+  saveSettings(s: Settings): Promise<void>;
+  // Removes every piece of app data this adapter owns (all `bm.*` keys,
+  // including theme + settings). Used by Settings → "Clear all data".
+  clearAll(): Promise<void>;
 }
