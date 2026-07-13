@@ -1,4 +1,4 @@
-import { BrowserRouter, NavLink, Route, Routes } from "react-router-dom";
+import { HashRouter, NavLink, Route, Routes } from "react-router-dom";
 import { StorageProvider } from "./data/storageContext";
 import { ThemeToggle } from "./components/ui/ThemeToggle";
 import { FlameStreakBadge } from "./components/ui/FlameStreakBadge";
@@ -54,7 +54,7 @@ function AppHeader() {
 function App() {
   return (
     <StorageProvider>
-      <BrowserRouter>
+      <HashRouter>
         <AppHeader />
         <main style={{ flex: 1, padding: "1.5rem", maxWidth: "72rem", margin: "0 auto", width: "100%" }}>
           <Routes>
@@ -66,7 +66,7 @@ function App() {
             <Route path="/review" element={<ReviewPage />} />
           </Routes>
         </main>
-      </BrowserRouter>
+      </HashRouter>
     </StorageProvider>
   );
 }
