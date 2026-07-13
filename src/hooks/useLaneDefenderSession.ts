@@ -30,6 +30,10 @@ export interface LaneDefenderView {
   status: LaneDefenderStatus;
   destroyedCount: number;
   totalWords: number;
+  /** Raw text of the next word the player must destroy (the verse's next
+      in-order word), or null once the queue is exhausted. Drives the Hint UI —
+      the word may or may not currently be in a lane. */
+  nextTargetWord: string | null;
   result: LaneDefenderResult | null;
 }
 
@@ -47,6 +51,7 @@ function makeView(engine: EngineState, now: number): LaneDefenderView {
     status: engine.status,
     destroyedCount: engine.nextTargetIndex,
     totalWords: engine.queue.length,
+    nextTargetWord: engine.queue[engine.nextTargetIndex]?.raw ?? null,
     result: engine.result,
   };
 }
@@ -154,6 +159,7 @@ export function useLaneDefenderSession(tokens: Token[], isCollection: boolean) {
     status: view.status,
     destroyedCount: view.destroyedCount,
     totalWords: view.totalWords,
+    nextTargetWord: view.nextTargetWord,
     result: view.result,
     handleKey,
     retry: reset,

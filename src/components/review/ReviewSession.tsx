@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useReviewSession } from "../../hooks/useReviewSession";
 import { useStorage } from "../../data/storageContext";
 import { useProfile } from "../../hooks/useProfile";
@@ -33,15 +33,55 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode }: ReviewSessi
   const { profile, updateProfile } = useProfile();
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   // Guards the append-session/streak-update effect below so it fires exactly
   // once per completed session, not once per re-render while status stays
   // "complete". Reset alongside the hook's own reset() on Retry.
   const finalizedRef = useRef(false);
   const startedAtRef = useRef(new Date().toISOString());
 
+  // Hint is pure UI-layer state: which word index has its full text revealed
+  // in the ghost style. Never touches the engine — accuracy/keystroke counting
+  // are unaffected, and the player still types the first letter to advance.
+  const [hintedIndex, setHintedIndex] = useState<number | null>(null);
+
+  // Auto-clear the hint once the player advances past the hinted word.
   useEffect(() => {
-    inputRef.current?.focus();
+    setHintedIndex((prev) => (prev !== null && prev !== currentIndex ? null : prev));
+  }, [currentIndex]);
+
+  useEffect(() => {
+    // preventScroll: without it the browser scrolls the (huge, invisible)
+    // input's center into view on focus, which for bulk sessions lands the
+    // viewport in the empty middle of the overlay — a blank page.
+    inputRef.current?.focus({ preventScroll: true });
   }, []);
+
+  // Keep the current word visible inside the scrollable words container.
+  // Scrolled manually via scrollTop math (not scrollIntoView) so only the
+  // inner container moves — scrollIntoView would also scroll the page body.
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const el = container.querySelector<HTMLElement>('[data-current="true"]');
+    if (!el) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const topInView = elRect.top - containerRect.top;
+    const bottomInView = elRect.bottom - containerRect.top;
+
+    // Small margin so we re-center slightly before the word touches an edge.
+    const margin = elRect.height;
+    const fullyVisible =
+      topInView >= margin && bottomInView <= container.clientHeight - margin;
+    if (fullyVisible) return;
+
+    // Center the current word in the container, instantly (smooth scrolling
+    // lags behind fast typing).
+    container.scrollTop +=
+      topInView - container.clientHeight / 2 + elRect.height / 2;
+  }, [currentIndex]);
 
   useEffect(() => {
     if (status !== "complete" || finalizedRef.current) return;
@@ -84,9 +124,16 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode }: ReviewSessi
 
   const handleRetry = useCallback(() => {
     reset();
+    setHintedIndex(null);
     finalizedRef.current = false;
     startedAtRef.current = new Date().toISOString();
   }, [reset]);
+
+  const handleHint = useCallback(() => {
+    setHintedIndex(currentIndex);
+    // Keep the hidden input focused so the very next keystroke still lands.
+    inputRef.current?.focus({ preventScroll: true });
+  }, [currentIndex]);
 
   const handleInputChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -105,11 +152,15 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode }: ReviewSessi
     <div>
       <div
         style={{ position: "relative", cursor: "text" }}
-        onClick={() => inputRef.current?.focus()}
+        onClick={() => inputRef.current?.focus({ preventScroll: true })}
       >
         {/* Visually hidden but focused/focusable input — drives handleKeyPress
             from onChange rather than a bare document keydown listener, so
-            mobile virtual keyboards actually work (spec-review fix #5). */}
+            mobile virtual keyboards actually work (spec-review fix #5).
+            It overlays only the visible (max-height) words viewport, not the
+            full scrolled content — pointerEvents: "none" lets clicks and
+            wheel scrolling pass through to the scroll container below, while
+            the wrapper's onClick handles focusing. */}
         <input
           ref={inputRef}
           value=""
@@ -131,24 +182,31 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode }: ReviewSessi
             background: "transparent",
             caretColor: "transparent",
             fontSize: "16px",
+            pointerEvents: "none",
           }}
         />
-        <p
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "1.15rem",
-            lineHeight: 2,
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {words.map((word, i) => (
-            <WordToken
-              key={`${word.index}-${word.attempts}`}
-              word={word}
-              isCurrent={i === currentIndex}
-            />
-          ))}
-        </p>
+        {/* Scrollable viewport: bulk sessions can render thousands of words,
+            so the words scroll inside this container instead of growing the
+            page body by thousands of pixels. */}
+        <div ref={scrollRef} style={{ maxHeight: "55vh", overflowY: "auto" }}>
+          <p
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: "1.15rem",
+              lineHeight: 2,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {words.map((word, i) => (
+              <WordToken
+                key={`${word.index}-${word.attempts}`}
+                word={word}
+                isCurrent={i === currentIndex}
+                isHinted={i === currentIndex && hintedIndex === currentIndex}
+              />
+            ))}
+          </p>
+        </div>
       </div>
 
       <div
@@ -162,9 +220,20 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode }: ReviewSessi
         <span style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>
           Accuracy: {accuracy}%
         </span>
-        <Button variant="ghost" onClick={onChangeMode}>
-          Change Mode
-        </Button>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          {/* Disabled in Type It (every word is already fully visible, so a
+              hint would be a no-op) and once a hint is already showing. */}
+          <Button
+            variant="ghost"
+            onClick={handleHint}
+            disabled={mode === "type-it" || hintedIndex === currentIndex || status === "complete"}
+          >
+            Hint
+          </Button>
+          <Button variant="ghost" onClick={onChangeMode}>
+            Change Mode
+          </Button>
+        </div>
       </div>
 
       {status === "complete" && (

@@ -5,9 +5,12 @@ interface BreachOverlayProps {
   word: Token;
   livesRemaining: number; // already clamped >= 0
   outOfLives: boolean; // collection scope hit 0 lives — softer "keep going" copy
+  /** Hint active: show the full raw word in the ghost style instead of the
+      almost-full mask. */
+  hinted?: boolean;
 }
 
-export function BreachOverlay({ word, outOfLives }: BreachOverlayProps) {
+export function BreachOverlay({ word, outOfLives, hinted }: BreachOverlayProps) {
   return (
     <div
       style={{
@@ -51,11 +54,13 @@ export function BreachOverlay({ word, outOfLives }: BreachOverlayProps) {
             fontFamily: "var(--font-serif)",
             fontSize: "1.6rem",
             fontWeight: 600,
-            letterSpacing: "0.15em",
-            color: "var(--color-ink)",
+            letterSpacing: hinted ? "normal" : "0.15em",
+            color: hinted ? "var(--color-ink-muted)" : "var(--color-ink)",
+            opacity: hinted ? 0.75 : 1,
+            fontStyle: hinted ? "italic" : "normal",
           }}
         >
-          {maskedGlyphs(word.normalized, word.normalized.length - 1)}
+          {hinted ? word.raw : maskedGlyphs(word.normalized, word.normalized.length - 1)}
         </span>
         <p
           style={{

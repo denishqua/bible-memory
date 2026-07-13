@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useLaneDefenderSession } from "../../hooks/useLaneDefenderSession";
 import { useStorage } from "../../data/storageContext";
 import { useProfile } from "../../hooks/useProfile";
@@ -32,6 +32,7 @@ export function LaneDefenderSession({ scope, tokens, onChangeMode }: LaneDefende
     status,
     destroyedCount,
     totalWords,
+    nextTargetWord,
     result,
     handleKey,
     retry,
@@ -45,6 +46,17 @@ export function LaneDefenderSession({ scope, tokens, onChangeMode }: LaneDefende
   // terminal. Reset alongside the hook's own retry() on Retry.
   const finalizedRef = useRef(false);
   const startedAtRef = useRef(new Date().toISOString());
+
+  // Hint is pure UI-layer state: while active, a chip in the header shows the
+  // verse's next target word. It never highlights the lane — spotting which
+  // lane holds the word (and firing D/F/J/K) is still the player's job.
+  // Never touches the engine — accuracy/lives are unaffected.
+  const [hintActive, setHintActive] = useState(false);
+
+  // Auto-clear the hint once the player destroys the hinted target word.
+  useEffect(() => {
+    setHintActive(false);
+  }, [destroyedCount]);
 
   // Focus on mount AND whenever a retry flips status back to "playing" — the
   // input is only mounted while playing, so a focus() call inside handleRetry
@@ -93,10 +105,17 @@ export function LaneDefenderSession({ scope, tokens, onChangeMode }: LaneDefende
 
   const handleRetry = useCallback(() => {
     retry();
+    setHintActive(false);
     finalizedRef.current = false;
     startedAtRef.current = new Date().toISOString();
     // Refocusing the (remounted) input happens in the status effect above.
   }, [retry]);
+
+  const handleHint = useCallback(() => {
+    setHintActive(true);
+    // Keep the hidden input focused so the very next keystroke still lands.
+    inputRef.current?.focus();
+  }, []);
 
   const handleInputChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -124,10 +143,33 @@ export function LaneDefenderSession({ scope, tokens, onChangeMode }: LaneDefende
         <LivesDisplay livesRemaining={livesRemaining} />
         <span style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>
           {destroyedCount} / {totalWords} words
+          {hintActive && nextTargetWord !== null && status === "playing" && (
+            <span
+              style={{
+                marginLeft: "0.6rem",
+                padding: "0.1rem 0.5rem",
+                border: "1px solid var(--color-border)",
+                borderRadius: "999px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Next:{" "}
+              <span style={{ fontStyle: "italic", opacity: 0.75 }}>{nextTargetWord}</span>
+            </span>
+          )}
         </span>
-        <Button variant="ghost" onClick={onChangeMode}>
-          Change Mode
-        </Button>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <Button
+            variant="ghost"
+            onClick={handleHint}
+            disabled={hintActive || status !== "playing"}
+          >
+            Hint
+          </Button>
+          <Button variant="ghost" onClick={onChangeMode}>
+            Change Mode
+          </Button>
+        </div>
       </div>
 
       {status === "playing" && (

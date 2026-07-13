@@ -64,6 +64,11 @@ export function VerseDefenderSession({ scope, tokens, onChangeMode }: VerseDefen
 
   // Brief cosmetic cannon recoil on every correct hit.
   const [recoiling, setRecoiling] = useState(false);
+  // Hint is pure UI-layer state: while active, the asteroid (and the breach
+  // overlay, if shown) display the current word's full text in a ghost style.
+  // Never touches the engine — the player still fires the first letter, and
+  // accuracy/lives are unaffected.
+  const [hintActive, setHintActive] = useState(false);
   // The in-flight laser effect; mirrors lastHit while its animation plays,
   // then clears so the one-shot element unmounts.
   const [laser, setLaser] = useState<typeof lastHit>(null);
@@ -77,6 +82,11 @@ export function VerseDefenderSession({ scope, tokens, onChangeMode }: VerseDefen
   useEffect(() => {
     if (!isDone) inputRef.current?.focus();
   }, [isDone]);
+
+  // Auto-clear the hint when the player advances to the next word.
+  useEffect(() => {
+    setHintActive(false);
+  }, [currentWordIndex]);
 
   useEffect(() => {
     if (correctKeystrokes === 0) return;
@@ -126,10 +136,17 @@ export function VerseDefenderSession({ scope, tokens, onChangeMode }: VerseDefen
 
   const handleRetry = useCallback(() => {
     retry();
+    setHintActive(false);
     finalizedRef.current = false;
     startedAtRef.current = new Date().toISOString();
     inputRef.current?.focus();
   }, [retry]);
+
+  const handleHint = useCallback(() => {
+    setHintActive(true);
+    // Keep the hidden input focused so the very next keystroke still lands.
+    inputRef.current?.focus();
+  }, []);
 
   const handleInputChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -159,9 +176,14 @@ export function VerseDefenderSession({ scope, tokens, onChangeMode }: VerseDefen
         <span style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>
           Word {Math.min(currentWordIndex + 1, totalWords)} of {totalWords}
         </span>
-        <Button variant="ghost" onClick={onChangeMode}>
-          Change Mode
-        </Button>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <Button variant="ghost" onClick={handleHint} disabled={hintActive || isDone}>
+            Hint
+          </Button>
+          <Button variant="ghost" onClick={onChangeMode}>
+            Change Mode
+          </Button>
+        </div>
       </div>
 
       {isDone && result !== null ? (
@@ -210,6 +232,7 @@ export function VerseDefenderSession({ scope, tokens, onChangeMode }: VerseDefen
                 progress={progress}
                 phase={phase}
                 breached={status === "breach-paused"}
+                hinted={hintActive}
               />
             )}
             {laser !== null && <LaserBeam key={laser.id} hitProgress={laser.progress} />}
@@ -219,6 +242,7 @@ export function VerseDefenderSession({ scope, tokens, onChangeMode }: VerseDefen
                 word={currentWord}
                 livesRemaining={livesRemaining}
                 outOfLives={livesRemaining === 0}
+                hinted={hintActive}
               />
             )}
           </AsteroidField>

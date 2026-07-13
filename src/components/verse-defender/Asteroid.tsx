@@ -8,6 +8,9 @@ interface AsteroidProps {
   progress: number; // 0..1 descent progress
   phase: DescentPhase;
   breached: boolean; // true while the game is breach-paused (asteroid sits at the base)
+  /** Hint active: show the full raw word in a muted/italic ghost style instead
+      of the fogged mask. The player still has to fire the first letter. */
+  hinted?: boolean;
 }
 
 const PHASE_COLOR: Record<DescentPhase, string> = {
@@ -16,7 +19,7 @@ const PHASE_COLOR: Record<DescentPhase, string> = {
   crisis: "var(--color-danger)",
 };
 
-export function Asteroid({ word, progress, phase, breached }: AsteroidProps) {
+export function Asteroid({ word, progress, phase, breached, hinted }: AsteroidProps) {
   const accent = breached ? "var(--color-danger)" : PHASE_COLOR[phase];
   const glowStrength = breached ? "45%" : phase === "crisis" ? "35%" : "20%";
   const glowSize = breached ? "26px" : phase === "crisis" ? "20px" : "12px";
@@ -61,13 +64,15 @@ export function Asteroid({ word, progress, phase, breached }: AsteroidProps) {
           fontFamily: "var(--font-serif)",
           fontSize: "1.3rem",
           fontWeight: 600,
-          letterSpacing: "0.15em",
-          color: "var(--color-ink)",
+          letterSpacing: hinted ? "normal" : "0.15em",
+          color: hinted ? "var(--color-ink-muted)" : "var(--color-ink)",
+          opacity: hinted ? 0.75 : 1,
+          fontStyle: hinted ? "italic" : "normal",
           whiteSpace: "nowrap",
           transform: "rotate(3deg)", // counter the body tilt so text stays level
         }}
       >
-        {maskedGlyphs(word.normalized, revealed)}
+        {hinted ? word.raw : maskedGlyphs(word.normalized, revealed)}
       </span>
     </div>
   );

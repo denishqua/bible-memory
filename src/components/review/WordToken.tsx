@@ -1,8 +1,12 @@
+import { memo } from "react";
 import type { WordRuntimeState } from "../../hooks/useReviewSession";
 
 interface WordTokenProps {
   word: WordRuntimeState;
   isCurrent: boolean;
+  /** Hint active for this (current) word: reveal the full text in a muted,
+      italic "ghost" style. The player still has to type the first letter. */
+  isHinted?: boolean;
 }
 
 const BLANK_CHAR = "_";
@@ -26,7 +30,13 @@ function maskedGlyphs(word: WordRuntimeState): string {
 // component by `${word.index}-${word.attempts}` so a wrong keystroke (which
 // bumps `attempts`) forces a remount and replays the flash/shake animation
 // from scratch, even on repeated misses of the same word.
-export function WordToken({ word, isCurrent }: WordTokenProps) {
+//
+// Memoized: useReviewSession keeps unchanged WordRuntimeState object
+// references stable across keystrokes, so in bulk sessions (thousands of
+// tokens) only the words whose `word` or `isCurrent` props actually changed
+// re-render. Memoization never blocks the miss animation — a key change
+// forces a remount regardless of memo.
+export const WordToken = memo(function WordToken({ word, isCurrent, isHinted }: WordTokenProps) {
   const { token } = word;
 
   if (token.isLineBreak) {
@@ -52,23 +62,31 @@ export function WordToken({ word, isCurrent }: WordTokenProps) {
   }
 
   const showFull = word.visible === "full" || word.completed;
-  const display = showFull ? token.raw : maskedGlyphs(word);
+  // A hint only applies to a still-masked, not-yet-completed word (visible ===
+  // "masked" && !completed) — exactly the !showFull case. It reveals the raw
+  // text in a distinct ghost style; it never completes the word.
+  const showHint = !showFull && isHinted === true;
+  const display = showFull || showHint ? token.raw : maskedGlyphs(word);
   const isFlashing = isCurrent && !word.completed && word.attempts > 0;
 
   return (
     <span
       className={isFlashing ? "word-token word-token--flash" : "word-token"}
+      data-current={isCurrent ? "true" : undefined}
       style={{
         display: "inline-block",
         marginRight: "0.35em",
         fontFamily: "var(--font-serif)",
         fontSize: "1.15rem",
-        letterSpacing: showFull ? "normal" : "0.08em",
+        letterSpacing: showFull || showHint ? "normal" : "0.08em",
         borderBottom: isCurrent ? "2px solid var(--color-clay)" : "2px solid transparent",
         paddingBottom: "0.1em",
+        ...(showHint
+          ? { color: "var(--color-ink-muted)", opacity: 0.75, fontStyle: "italic" }
+          : undefined),
       }}
     >
       {display}
     </span>
   );
-}
+});
