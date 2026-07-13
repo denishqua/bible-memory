@@ -28,8 +28,16 @@ interface EsvPassageResponse {
   passages?: string[];
 }
 
-export async function fetchEsvPassage(query: string): Promise<EsvPassageResult> {
-  const apiKey = import.meta.env.VITE_ESV_API_KEY as string | undefined;
+// `apiKey` is the user's own key from Settings. There is no built-in/bundled
+// key — every user supplies their own (a free token from api.esv.org).
+export async function fetchEsvPassage(query: string, apiKey?: string): Promise<EsvPassageResult> {
+  const key = apiKey?.trim();
+  if (!key) {
+    throw new EsvApiError(
+      "api-key",
+      "No ESV API key set — add your own key in Settings, or enter the verse manually.",
+    );
+  }
   const params = new URLSearchParams({
     q: query,
     "include-verse-numbers": "true",
@@ -41,14 +49,14 @@ export async function fetchEsvPassage(query: string): Promise<EsvPassageResult> 
   let response: Response;
   try {
     response = await fetch(`${ESV_API_URL}?${params.toString()}`, {
-      headers: { Authorization: `Token ${apiKey ?? ""}` },
+      headers: { Authorization: `Token ${key}` },
     });
   } catch {
     throw new EsvApiError("network", "Couldn't reach the ESV API — check your connection and try again.");
   }
 
   if (response.status === 401 || response.status === 403) {
-    throw new EsvApiError("api-key", "ESV API key issue — the app's API key looks invalid or missing.");
+    throw new EsvApiError("api-key", "ESV API key issue — the key looks invalid. Check it in Settings.");
   }
 
   if (!response.ok) {

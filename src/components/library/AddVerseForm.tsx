@@ -4,6 +4,7 @@ import type { NewVerseInput } from "../../hooks/useVerses";
 import type { Verse } from "../../types/verse";
 import { fetchEsvPassage, EsvApiError } from "../../lib/esvApi";
 import { cleanEsvText } from "../../lib/verseTextCleanup";
+import { useSettings } from "../../hooks/useSettings";
 
 interface AddVerseFormProps {
   onSubmit: (input: NewVerseInput) => void | Promise<void>;
@@ -29,6 +30,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 export function AddVerseForm({ onSubmit, onCancel }: AddVerseFormProps) {
+  const { settings } = useSettings();
   const [reference, setReference] = useState("");
   const [text, setText] = useState("");
   const [translation, setTranslation] = useState("ESV");
@@ -61,7 +63,7 @@ export function AddVerseForm({ onSubmit, onCancel }: AddVerseFormProps) {
     setLookupError(null);
     setLookupSucceeded(false);
     try {
-      const result = await fetchEsvPassage(query);
+      const result = await fetchEsvPassage(query, settings?.esvApiKey);
       setReference(result.reference);
       setText(cleanEsvText(result.rawText));
       setTranslation("ESV");

@@ -9,6 +9,8 @@ import { CollectionsPage } from "./pages/CollectionsPage";
 import { CollectionDetailPage } from "./pages/CollectionDetailPage";
 import { AddVersePage } from "./pages/AddVersePage";
 import { ReviewPage } from "./pages/ReviewPage";
+import { ImportPage } from "./pages/ImportPage";
+import { SettingsPage } from "./pages/SettingsPage";
 
 function navLinkStyle({ isActive }: { isActive: boolean }): React.CSSProperties {
   return {
@@ -44,6 +46,9 @@ function AppHeader() {
         <NavLink to="/collections" style={navLinkStyle}>
           Collections
         </NavLink>
+        <NavLink to="/settings" style={navLinkStyle}>
+          Settings
+        </NavLink>
         <FlameStreakBadge streak={profile?.streak.currentStreak ?? 0} />
         <ThemeToggle />
       </nav>
@@ -64,6 +69,8 @@ function App() {
             <Route path="/collections/:id" element={<CollectionDetailPage />} />
             <Route path="/add" element={<AddVersePage />} />
             <Route path="/review" element={<ReviewPage />} />
+            <Route path="/import" element={<ImportPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </main>
       </HashRouter>

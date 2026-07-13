@@ -9,7 +9,7 @@ import type { Profile } from "../types/profile";
 // window event is the cheapest way to keep every instance in sync: whoever
 // calls updateProfile() broadcasts it, and every mounted useProfile() instance
 // (including ones in totally different components) re-fetches from storage.
-const PROFILE_UPDATED_EVENT = "bm:profile-updated";
+export const PROFILE_UPDATED_EVENT = "bm:profile-updated";
 
 export function useProfile() {
   const storage = useStorage();
