@@ -17,6 +17,7 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
     getVerseIdsForCollection,
     removeVerseFromCollection,
     reorderCollectionVerses,
+    renameCollection,
   } = useCollections();
   const { verses, loading: versesLoading } = useVerses();
   const navigate = useNavigate();
@@ -24,6 +25,10 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
   // Selection is tracked as the set of DESELECTED ids so the default is
   // "everything selected" — including verses added while this page is open.
   const [deselectedIds, setDeselectedIds] = useState<Set<string>>(new Set());
+
+  // Inline collection-name editing. `nameDraft` is non-null only while the
+  // rename field is open.
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
 
   // Drag-to-reorder state (HTML5 drag and drop, mouse-first — touch devices
   // don't fire these events; a touch fallback can be layered on later).
@@ -73,6 +78,14 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
       }
       return next;
     });
+  };
+
+  const commitName = async () => {
+    const next = (nameDraft ?? "").trim();
+    setNameDraft(null);
+    // Ignore an empty name or a no-op rename.
+    if (!next || next === collection.name) return;
+    await renameCollection(collection.id, next);
   };
 
   const toggleSelectAll = () => {
@@ -160,7 +173,47 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
           flexWrap: "wrap",
         }}
       >
-        <h2>{collection.name}</h2>
+        {nameDraft === null ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <h2>{collection.name}</h2>
+            <Button
+              variant="ghost"
+              onClick={() => setNameDraft(collection.name)}
+              title="Rename collection"
+            >
+              Rename
+            </Button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <input
+              type="text"
+              value={nameDraft}
+              autoFocus
+              onChange={(event) => setNameDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void commitName();
+                if (event.key === "Escape") setNameDraft(null);
+              }}
+              aria-label="Collection name"
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: "1.5rem",
+                padding: "0.15rem 0.5rem",
+                border: "1px solid var(--color-border)",
+                borderRadius: "0.375rem",
+                background: "var(--color-surface)",
+                color: "var(--color-ink)",
+              }}
+            />
+            <Button variant="primary" onClick={() => void commitName()}>
+              Save
+            </Button>
+            <Button variant="ghost" onClick={() => setNameDraft(null)}>
+              Cancel
+            </Button>
+          </div>
+        )}
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <Button
             variant="secondary"

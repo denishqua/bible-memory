@@ -41,6 +41,17 @@ export function useCollections() {
     [storage, refresh],
   );
 
+  const renameCollection = useCallback(
+    async (id: string, name: string): Promise<void> => {
+      const existing = collections.find((c) => c.id === id);
+      if (!existing) return;
+      // saveCollection upserts by id, so this only changes the name.
+      await storage.saveCollection({ ...existing, name });
+      await refresh();
+    },
+    [storage, refresh, collections],
+  );
+
   const addVerseToCollection = useCallback(
     async (collectionId: string, verseId: string): Promise<void> => {
       await storage.addVerseToCollection({ collectionId, verseId, addedAt: new Date().toISOString() });
@@ -102,6 +113,7 @@ export function useCollections() {
     loading,
     createCollection,
     deleteCollection,
+    renameCollection,
     addVerseToCollection,
     removeVerseFromCollection,
     reorderCollectionVerses,
