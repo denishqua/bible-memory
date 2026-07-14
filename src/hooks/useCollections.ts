@@ -43,13 +43,16 @@ export function useCollections() {
 
   const renameCollection = useCallback(
     async (id: string, name: string): Promise<void> => {
-      const existing = collections.find((c) => c.id === id);
+      // Read the current record from storage rather than the `collections`
+      // state, so this callback's identity doesn't churn on every refresh
+      // (matching the other mutations) and it never acts on a stale copy.
+      const existing = (await storage.getCollections()).find((c) => c.id === id);
       if (!existing) return;
       // saveCollection upserts by id, so this only changes the name.
       await storage.saveCollection({ ...existing, name });
       await refresh();
     },
-    [storage, refresh, collections],
+    [storage, refresh],
   );
 
   const addVerseToCollection = useCallback(
