@@ -204,6 +204,11 @@ export function VerseDefenderSession({
             Hint
           </Button>
           {!embedded && (
+            <Button variant="ghost" onClick={handleRetry} disabled={isDone}>
+              Restart
+            </Button>
+          )}
+          {!embedded && (
             <Button variant="ghost" onClick={onChangeMode}>
               Change Mode
             </Button>

@@ -108,11 +108,11 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
     if (!profile) return;
     finalizedRef.current = true;
 
-    const correctKeystrokes = words.filter((w) => w.completed).length;
-    const totalKeystrokes = words.reduce(
-      (sum, w) => sum + w.attempts + (w.completed ? 1 : 0),
-      0,
-    );
+    // Store the word-based tallies behind accuracy: clean words (no wrong
+    // keystroke) over total matchable words, matching the displayed percentage.
+    const matchableWords = words.filter((w) => w.token.matchable);
+    const totalKeystrokes = matchableWords.length;
+    const correctKeystrokes = matchableWords.filter((w) => w.attempts === 0).length;
     const passed = accuracy >= PASS_THRESHOLD;
 
     const session: ReviewSessionRecord = {
@@ -247,6 +247,11 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
           >
             Hint
           </Button>
+          {!embedded && (
+            <Button variant="ghost" onClick={handleRetry} disabled={status === "complete"}>
+              Restart
+            </Button>
+          )}
           {!embedded && (
             <Button variant="ghost" onClick={onChangeMode}>
               Change Mode

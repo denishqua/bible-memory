@@ -24,7 +24,7 @@ export type ReviewStatus = "in-progress" | "complete";
 export interface UseReviewSessionResult {
   words: WordRuntimeState[];
   currentIndex: number;
-  accuracy: number; // correctKeystrokes / totalKeystrokes * 100
+  accuracy: number; // clean words / total words * 100 (a word missed repeatedly counts once)
   status: ReviewStatus;
   handleKeyPress: (char: string) => void;
   reset: () => void; // full reset for retry — no carried-over reveals
@@ -33,8 +33,6 @@ export interface UseReviewSessionResult {
 interface InternalState {
   words: WordRuntimeState[];
   currentIndex: number;
-  totalKeystrokes: number;
-  correctKeystrokes: number;
 }
 
 // Named keys that can reach a plain onChange/onBeforeInput-driven handler but
@@ -97,8 +95,6 @@ function initialize(tokens: Token[], mode: MaskableReviewMode): InternalState {
   return {
     words,
     currentIndex: firstPendingMatchableIndex(words, 0),
-    totalKeystrokes: 0,
-    correctKeystrokes: 0,
   };
 }
 
@@ -132,27 +128,25 @@ export function useReviewSession(
       if (isMatch) {
         words[prev.currentIndex] = { ...currentWord, completed: true };
         const nextIndex = firstPendingMatchableIndex(words, prev.currentIndex + 1);
-        return {
-          words,
-          currentIndex: nextIndex,
-          totalKeystrokes: prev.totalKeystrokes + 1,
-          correctKeystrokes: prev.correctKeystrokes + 1,
-        };
+        return { words, currentIndex: nextIndex };
       }
 
-      // Mismatch: attempts++ (drives the reveal cap), totalKeystrokes++ only —
-      // no dedup, every keystroke counts per spec.
+      // Mismatch: attempts++ drives both the progressive reveal cap and the
+      // word-based score — a word with attempts > 0 is a "wrong" word, counted
+      // once no matter how many times it's missed.
       words[prev.currentIndex] = { ...currentWord, attempts: currentWord.attempts + 1 };
-      return {
-        ...prev,
-        words,
-        totalKeystrokes: prev.totalKeystrokes + 1,
-      };
+      return { ...prev, words };
     });
   }, []);
 
   const status: ReviewStatus = state.currentIndex >= state.words.length ? "complete" : "in-progress";
-  const accuracy = calculateAccuracy(state.correctKeystrokes, state.totalKeystrokes);
+  // Word-based accuracy: matchable words completed with no wrong keystroke over
+  // the total. Missing the same word repeatedly (attempts > 1) is only counted
+  // once, so it's never double-punished. Words not yet reached count as clean,
+  // so a session starts at 100% and only drops as words are gotten wrong.
+  const matchableWords = state.words.filter((w) => w.token.matchable);
+  const cleanWords = matchableWords.filter((w) => w.attempts === 0).length;
+  const accuracy = calculateAccuracy(cleanWords, matchableWords.length);
 
   return {
     words: state.words,
