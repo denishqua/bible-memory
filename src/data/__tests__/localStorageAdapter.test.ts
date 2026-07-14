@@ -273,6 +273,24 @@ describe("LocalStorageAdapter", () => {
       expect(settings.newTabGate).toEqual(defaultNewTabGateSettings());
     });
 
+    it("deep-merges a partial newTabGate block so newly-added nested fields get defaults", async () => {
+      // Simulate a gate block saved before some nested fields existed.
+      localStorage.setItem(
+        "bm.settings.v1",
+        JSON.stringify({
+          esvApiKey: "old-key",
+          newTabGate: { enabled: true, whitelist: ["example.com"] },
+        }),
+      );
+
+      const settings = await adapter.getSettings();
+      expect(settings.newTabGate).toEqual({
+        ...defaultNewTabGateSettings(),
+        enabled: true,
+        whitelist: ["example.com"],
+      });
+    });
+
     it("falls back to defaults on corrupt stored JSON", async () => {
       localStorage.setItem("bm.settings.v1", "{not json");
       const settings = await adapter.getSettings();

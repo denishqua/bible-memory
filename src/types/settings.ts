@@ -49,3 +49,17 @@ export interface Settings {
 export function defaultSettings(): Settings {
   return { esvApiKey: "", newTabGate: defaultNewTabGateSettings() };
 }
+
+// Fills a (possibly partial) stored/imported settings object out to a full
+// Settings. `newTabGate` is DEEP-merged over its defaults so a blob saved
+// before a nested field existed still comes back fully populated — a shallow
+// `{ ...defaults, ...partial }` would keep a stale partial gate block as-is.
+export function mergeSettings(partial: Partial<Settings> | undefined | null): Settings {
+  const defaults = defaultSettings();
+  if (!partial) return defaults;
+  return {
+    ...defaults,
+    ...partial,
+    newTabGate: { ...defaultNewTabGateSettings(), ...partial.newTabGate },
+  };
+}

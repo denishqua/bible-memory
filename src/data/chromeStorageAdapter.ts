@@ -3,7 +3,7 @@ import type { Verse } from "../types/verse";
 import type { Collection, CollectionVerseLink } from "../types/collection";
 import type { ReviewSession } from "../types/review";
 import type { Profile } from "../types/profile";
-import { defaultSettings, type Settings } from "../types/settings";
+import { defaultSettings, mergeSettings, type Settings } from "../types/settings";
 
 // Same key names as localStorageAdapter.ts on purpose — a user's existing
 // localStorage data could be migrated later by simply copying these keys
@@ -171,8 +171,9 @@ export class ChromeStorageAdapter implements StorageAdapter {
     const value = result[KEYS.settings];
     if (value) {
       // Merge over defaults so settings saved before a new field existed
-      // (e.g. `newTabGate`) still come back fully populated.
-      return { ...defaultSettings(), ...(value as Partial<Settings>) };
+      // (e.g. `newTabGate`, or a new field inside it) still come back fully
+      // populated.
+      return mergeSettings(value as Partial<Settings>);
     }
     const settings = defaultSettings();
     await chrome.storage.local.set({ [KEYS.settings]: settings });

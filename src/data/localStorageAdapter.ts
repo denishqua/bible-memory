@@ -3,7 +3,7 @@ import type { Verse } from "../types/verse";
 import type { Collection, CollectionVerseLink } from "../types/collection";
 import type { ReviewSession } from "../types/review";
 import type { Profile } from "../types/profile";
-import { defaultSettings, type Settings } from "../types/settings";
+import { defaultSettings, mergeSettings, type Settings } from "../types/settings";
 
 const KEYS = {
   verses: "bm.verses.v1",
@@ -182,8 +182,9 @@ export class LocalStorageAdapter implements StorageAdapter {
     }
     try {
       // Merge over defaults so settings saved before a new field existed
-      // (e.g. `newTabGate`) still come back fully populated.
-      return { ...defaultSettings(), ...(JSON.parse(raw) as Partial<Settings>) };
+      // (e.g. `newTabGate`, or a new field inside it) still come back fully
+      // populated.
+      return mergeSettings(JSON.parse(raw) as Partial<Settings>);
     } catch {
       const settings = defaultSettings();
       localStorage.setItem(KEYS.settings, JSON.stringify(settings));

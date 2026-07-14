@@ -1,7 +1,7 @@
 import { Card } from "../ui/Card";
 import type { ReviewMode } from "../../types/review";
 
-interface ModeOption {
+export interface ModeOption {
   value: ReviewMode;
   label: string;
   description: string;
@@ -9,7 +9,9 @@ interface ModeOption {
 
 // No auto-progression logic here per the plan — just a simple selector. Which
 // mode "should" come next (e.g. by past performance) is a future concern.
-const MODE_OPTIONS: ModeOption[] = [
+// Exported as the single canonical value/label list of review modes (the
+// Settings page's gate mode picker maps over it too).
+export const MODE_OPTIONS: ModeOption[] = [
   {
     value: "type-it",
     label: "Type It",

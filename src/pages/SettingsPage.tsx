@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useStorage } from "../data/storageContext";
 import { useSettings, SETTINGS_UPDATED_EVENT } from "../hooks/useSettings";
 import { PROFILE_UPDATED_EVENT } from "../hooks/useProfile";
@@ -8,11 +8,12 @@ import { useVerses } from "../hooks/useVerses";
 import { normalizeDomain } from "../lib/domainWhitelist";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
+import { MODE_OPTIONS } from "../components/review/ModePicker";
 import type { Verse } from "../types/verse";
 import type { Collection, CollectionVerseLink } from "../types/collection";
 import type { ReviewMode, ReviewSession } from "../types/review";
 import type { Profile } from "../types/profile";
-import type { NewTabGateSettings, Settings } from "../types/settings";
+import { mergeSettings, type NewTabGateSettings, type Settings } from "../types/settings";
 
 // Full-backup file shape produced by "Export data" below. Import accepts the
 // same shape and merges it ADDITIVELY (upserts by id; never deletes).
@@ -61,12 +62,9 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "system", label: "System" },
 ];
 
-const REVIEW_MODE_OPTIONS: { value: ReviewMode; label: string }[] = [
-  { value: "type-it", label: "Type It" },
-  { value: "memorize-it", label: "Memorize It" },
-  { value: "master-it", label: "Master It" },
-  { value: "verse-defender", label: "Verse Defender" },
-  { value: "lane-defender", label: "Lane Defender" },
+const GATE_TOGGLE_OPTIONS: { value: boolean; label: string }[] = [
+  { value: false, label: "Off" },
+  { value: true, label: "On" },
 ];
 
 const SNOOZE_PRESET_HOURS = [1, 2, 4, 8];
@@ -90,6 +88,57 @@ const gateSelectStyle: React.CSSProperties = {
   width: "100%",
   cursor: "pointer",
 };
+
+// Small inline segmented control (used for the theme picker and the gate
+// On/Off toggle) — one active segment, radio-group-like.
+function SegmentedControl<T extends string | boolean>({
+  ariaLabel,
+  options,
+  value,
+  onChange,
+}: {
+  ariaLabel: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={ariaLabel}
+      style={{
+        display: "inline-flex",
+        border: "1px solid var(--color-border)",
+        borderRadius: "0.6rem",
+        overflow: "hidden",
+      }}
+    >
+      {options.map((option) => {
+        const active = value === option.value;
+        return (
+          <button
+            key={String(option.value)}
+            type="button"
+            onClick={() => onChange(option.value)}
+            aria-pressed={active}
+            style={{
+              padding: "0.5rem 1.1rem",
+              fontSize: "0.9rem",
+              fontWeight: active ? 600 : 500,
+              border: "none",
+              cursor: "pointer",
+              background: active ? "var(--color-clay)" : "transparent",
+              color: active ? "var(--color-clay-contrast)" : "var(--color-ink-muted)",
+              transition: "background 0.15s ease, color 0.15s ease",
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function isBackupFile(value: unknown): value is BackupFile {
   if (typeof value !== "object" || value === null) return false;
@@ -229,7 +278,19 @@ export function SettingsPage() {
       }
 
       if (parsed.settings && typeof parsed.settings.esvApiKey === "string") {
-        await storage.saveSettings(parsed.settings);
+        // Merge, never overwrite wholesale: a backup exported before the verse
+        // gate existed has `{ esvApiKey }` only, and writing it as-is would
+        // destroy the stored `newTabGate` config. Imported fields win over
+        // current ones; anything the backup lacks keeps its current value
+        // (and mergeSettings guarantees a fully-populated shape either way).
+        const currentSettings = await storage.getSettings();
+        await storage.saveSettings(
+          mergeSettings({
+            ...currentSettings,
+            ...parsed.settings,
+            newTabGate: { ...currentSettings.newTabGate, ...parsed.settings.newTabGate },
+          }),
+        );
         window.dispatchEvent(new Event(SETTINGS_UPDATED_EVENT));
       }
 
@@ -341,40 +402,12 @@ export function SettingsPage() {
         <p style={{ ...helperTextStyle, marginBottom: "0.75rem" }}>
           “System” follows your device’s light/dark preference.
         </p>
-        <div
-          role="group"
-          aria-label="Theme"
-          style={{
-            display: "inline-flex",
-            border: "1px solid var(--color-border)",
-            borderRadius: "0.6rem",
-            overflow: "hidden",
-          }}
-        >
-          {THEME_OPTIONS.map((option) => {
-            const active = preference === option.value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setPreference(option.value)}
-                aria-pressed={active}
-                style={{
-                  padding: "0.5rem 1.1rem",
-                  fontSize: "0.9rem",
-                  fontWeight: active ? 600 : 500,
-                  border: "none",
-                  cursor: "pointer",
-                  background: active ? "var(--color-clay)" : "transparent",
-                  color: active ? "var(--color-clay-contrast)" : "var(--color-ink-muted)",
-                  transition: "background 0.15s ease, color 0.15s ease",
-                }}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
+        <SegmentedControl
+          ariaLabel="Theme"
+          options={THEME_OPTIONS}
+          value={preference}
+          onChange={setPreference}
+        />
       </Card>
 
       {settings ? <VerseGateCard settings={settings} updateSettings={updateSettings} /> : null}
@@ -501,10 +534,17 @@ function VerseGateCard({
   // --- Verse source ---
   // Ids in the chosen collection (display order). A stored verseIds subset is
   // always intersected with this, so verses later removed from the collection
-  // silently drop out of the pool.
-  const collectionVerseIds = gate.collectionId ? getVerseIdsForCollection(gate.collectionId) : [];
-  const versesById = new Map(verses.map((v) => [v.id, v]));
-  const checkedIds = new Set(gate.verseIds ?? collectionVerseIds);
+  // silently drop out of the pool. Memoized — this card also holds controlled
+  // text inputs, so it re-renders on every keystroke.
+  const collectionVerseIds = useMemo(
+    () => (gate.collectionId ? getVerseIdsForCollection(gate.collectionId) : []),
+    [gate.collectionId, getVerseIdsForCollection],
+  );
+  const versesById = useMemo(() => new Map(verses.map((v) => [v.id, v])), [verses]);
+  const checkedIds = useMemo(
+    () => new Set(gate.verseIds ?? collectionVerseIds),
+    [gate.verseIds, collectionVerseIds],
+  );
   const checkedCount = collectionVerseIds.filter((id) => checkedIds.has(id)).length;
 
   function toggleVerse(verseId: string) {
@@ -538,40 +578,12 @@ function VerseGateCard({
         When on, every new tab must complete a verse review before it can load a non-whitelisted
         site. (Only applies in the Chrome extension.)
       </p>
-      <div
-        role="group"
-        aria-label="Verse gate"
-        style={{
-          display: "inline-flex",
-          border: "1px solid var(--color-border)",
-          borderRadius: "0.6rem",
-          overflow: "hidden",
-        }}
-      >
-        {[false, true].map((value) => {
-          const active = gate.enabled === value;
-          return (
-            <button
-              key={String(value)}
-              type="button"
-              onClick={() => updateGate({ enabled: value })}
-              aria-pressed={active}
-              style={{
-                padding: "0.5rem 1.1rem",
-                fontSize: "0.9rem",
-                fontWeight: active ? 600 : 500,
-                border: "none",
-                cursor: "pointer",
-                background: active ? "var(--color-clay)" : "transparent",
-                color: active ? "var(--color-clay-contrast)" : "var(--color-ink-muted)",
-                transition: "background 0.15s ease, color 0.15s ease",
-              }}
-            >
-              {value ? "On" : "Off"}
-            </button>
-          );
-        })}
-      </div>
+      <SegmentedControl
+        ariaLabel="Verse gate"
+        options={GATE_TOGGLE_OPTIONS}
+        value={gate.enabled}
+        onChange={(enabled) => updateGate({ enabled })}
+      />
       {warning ? (
         <p style={{ color: "var(--color-danger)", fontSize: "0.85rem", fontWeight: 600, marginTop: "0.75rem" }}>
           {warning}
@@ -765,7 +777,7 @@ function VerseGateCard({
           onChange={(e) => updateGate({ mode: e.target.value as ReviewMode })}
           style={gateSelectStyle}
         >
-          {REVIEW_MODE_OPTIONS.map((option) => (
+          {MODE_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
