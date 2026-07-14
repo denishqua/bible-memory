@@ -1,11 +1,13 @@
 import { Link } from "react-router-dom";
 import type { Verse } from "../../types/verse";
+import type { VerseScore } from "../../lib/verseScore";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import { VerseRow, VERSE_GRID_TEMPLATE } from "./VerseRow";
 
 interface VerseListProps {
   verses: Verse[];
+  scores: Map<string, VerseScore>;
   onDelete: (id: string) => void;
   onAddToCollection: (verse: Verse) => void;
 }
@@ -18,7 +20,7 @@ const headerCellStyle: React.CSSProperties = {
   color: "var(--color-ink-muted)",
 };
 
-export function VerseList({ verses, onDelete, onAddToCollection }: VerseListProps) {
+export function VerseList({ verses, scores, onDelete, onAddToCollection }: VerseListProps) {
   if (verses.length === 0) {
     return (
       <Card style={{ textAlign: "center", padding: "2.5rem 1.5rem" }}>
@@ -53,6 +55,9 @@ export function VerseList({ verses, onDelete, onAddToCollection }: VerseListProp
         <div role="columnheader" style={headerCellStyle}>
           Trans.
         </div>
+        <div role="columnheader" style={{ ...headerCellStyle, textAlign: "right" }} title="Average score across Master It / Verse Defender / Lane Defender reviews of this verse">
+          Score
+        </div>
         <div role="columnheader" style={{ ...headerCellStyle, textAlign: "right" }}>
           <span
             style={{
@@ -68,14 +73,19 @@ export function VerseList({ verses, onDelete, onAddToCollection }: VerseListProp
         </div>
       </div>
 
-      {verses.map((verse) => (
-        <VerseRow
-          key={verse.id}
-          verse={verse}
-          onDelete={onDelete}
-          onAddToCollection={onAddToCollection}
-        />
-      ))}
+      {verses.map((verse) => {
+        const verseScore = scores.get(verse.id);
+        return (
+          <VerseRow
+            key={verse.id}
+            verse={verse}
+            score={verseScore?.score ?? 0}
+            reviewCount={verseScore?.count ?? 0}
+            onDelete={onDelete}
+            onAddToCollection={onAddToCollection}
+          />
+        );
+      })}
     </Card>
   );
 }

@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useVerses } from "../hooks/useVerses";
+import { useReviewHistory } from "../hooks/useReviewHistory";
+import { computeVerseScores } from "../lib/verseScore";
 import { VerseList } from "../components/library/VerseList";
 import { AddToCollectionDialog } from "../components/library/AddToCollectionDialog";
 import { Button } from "../components/ui/Button";
@@ -8,6 +10,8 @@ import type { Verse } from "../types/verse";
 
 export function LibraryPage() {
   const { verses, loading, deleteVerse } = useVerses();
+  const { sessions } = useReviewHistory();
+  const scores = useMemo(() => computeVerseScores(sessions), [sessions]);
   const [addingToCollection, setAddingToCollection] = useState<Verse | null>(null);
 
   return (
@@ -33,6 +37,7 @@ export function LibraryPage() {
       ) : (
         <VerseList
           verses={verses}
+          scores={scores}
           onDelete={deleteVerse}
           onAddToCollection={(verse) => setAddingToCollection(verse)}
         />

@@ -1,7 +1,9 @@
-import { useState, type DragEvent } from "react";
+import { useMemo, useState, type DragEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCollections } from "../../hooks/useCollections";
 import { useVerses } from "../../hooks/useVerses";
+import { useReviewHistory } from "../../hooks/useReviewHistory";
+import { computeVerseScores } from "../../lib/verseScore";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import type { Verse } from "../../types/verse";
@@ -20,6 +22,8 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
     renameCollection,
   } = useCollections();
   const { verses, loading: versesLoading } = useVerses();
+  const { sessions } = useReviewHistory();
+  const scores = useMemo(() => computeVerseScores(sessions), [sessions]);
   const navigate = useNavigate();
 
   // Selection is tracked as the set of DESELECTED ids so the default is
@@ -324,7 +328,27 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
                   <h3 style={{ fontSize: "1rem" }}>{verse.reference}</h3>
                 </Link>
               </div>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                {(() => {
+                  const verseScore = scores.get(verse.id);
+                  return (
+                    <span
+                      style={{
+                        fontVariantNumeric: "tabular-nums",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color: verseScore ? "var(--color-ink)" : "var(--color-ink-muted)",
+                      }}
+                      title={
+                        verseScore
+                          ? `Score: average of ${verseScore.count} scored review${verseScore.count === 1 ? "" : "s"}`
+                          : "Not yet reviewed in Master It, Verse Defender, or Lane Defender"
+                      }
+                    >
+                      {verseScore?.score ?? 0}
+                    </span>
+                  );
+                })()}
                 <Link to={`/review?verseId=${verse.id}`} style={{ textDecoration: "none" }}>
                   <Button variant="ghost">Review</Button>
                 </Link>

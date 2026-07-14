@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useVerses } from "../hooks/useVerses";
 import { useCollections } from "../hooks/useCollections";
+import { useReviewHistory } from "../hooks/useReviewHistory";
+import { computeVerseScore } from "../lib/verseScore";
 import { tokenize } from "../lib/tokenize";
 import { buildCollectionReviewTokens } from "../lib/collectionReview";
 import { ModePicker } from "../components/review/ModePicker";
@@ -19,6 +21,7 @@ export function ReviewPage() {
   const random = searchParams.get("random") === "1";
   const { verses, loading: versesLoading } = useVerses();
   const { collections, loading: collectionsLoading, getVerseIdsForCollection } = useCollections();
+  const { sessions } = useReviewHistory();
   const [mode, setMode] = useState<ReviewMode | null>(null);
 
   // Verse selection handed over by CollectionDetail via router navigation
@@ -163,7 +166,12 @@ export function ReviewPage() {
       >
         ← Back to {verse.reference}
       </Link>
-      <h1 style={{ marginBottom: "1.25rem" }}>{verse.reference}</h1>
+      <div style={{ marginBottom: "1.25rem" }}>
+        <h1 style={{ marginBottom: "0.15rem" }}>{verse.reference}</h1>
+        <p style={{ color: "var(--color-ink-muted)", fontSize: "0.85rem" }}>
+          Score: {computeVerseScore(sessions, verse.id)}
+        </p>
+      </div>
       {mode === null ? (
         <ModePicker onSelect={setMode} />
       ) : (

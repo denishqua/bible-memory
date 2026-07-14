@@ -5,10 +5,14 @@ import { VerseActionsMenu } from "./VerseActionsMenu";
 
 // Shared between the header row and verse rows so the columns line up.
 // Fixed-ish tracks (no auto/max-content) keep every row's tracks identical.
-export const VERSE_GRID_TEMPLATE = "clamp(6.5rem, 24vw, 11rem) minmax(0, 1fr) 3.5rem 7.5rem";
+// Columns: Reference · Verse · Trans. · Score · Actions.
+export const VERSE_GRID_TEMPLATE =
+  "clamp(6.5rem, 22vw, 11rem) minmax(0, 1fr) 3.5rem 3.25rem 7.5rem";
 
 interface VerseRowProps {
   verse: Verse;
+  score: number; // 0–100 mastery score (0 when never reviewed in a scoring mode)
+  reviewCount: number; // contributing sessions, for the tooltip
   onDelete: (id: string) => void;
   onAddToCollection: (verse: Verse) => void;
 }
@@ -17,7 +21,7 @@ function preview(text: string): string {
   return text.replace(/\n+/g, " ").trim();
 }
 
-export function VerseRow({ verse, onDelete, onAddToCollection }: VerseRowProps) {
+export function VerseRow({ verse, score, reviewCount, onDelete, onAddToCollection }: VerseRowProps) {
   return (
     <div
       role="row"
@@ -87,6 +91,25 @@ export function VerseRow({ verse, onDelete, onAddToCollection }: VerseRowProps) 
         >
           {verse.translation}
         </span>
+      </div>
+
+      <div
+        role="cell"
+        style={{
+          minWidth: 0,
+          textAlign: "right",
+          fontVariantNumeric: "tabular-nums",
+          fontSize: "0.9rem",
+          fontWeight: 600,
+          color: reviewCount > 0 ? "var(--color-ink)" : "var(--color-ink-muted)",
+        }}
+        title={
+          reviewCount > 0
+            ? `Average of ${reviewCount} scored review${reviewCount === 1 ? "" : "s"} (Master It / Verse Defender / Lane Defender)`
+            : "Not yet reviewed in Master It, Verse Defender, or Lane Defender"
+        }
+      >
+        {score}
       </div>
 
       <div
