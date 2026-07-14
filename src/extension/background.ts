@@ -141,7 +141,9 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // lowercased domain that matches the exact host and every subdomain, with
 // "www." treated as noise.
 function isHostWhitelisted(host = "", whitelist = [""]) {
-  const h = host.toLowerCase().replace(/^www\./, "");
+  // A trailing dot is a fully-qualified form of the same host
+  // ("example.com." === "example.com") — strip it so it can't bypass a match.
+  const h = host.toLowerCase().replace(/^www\./, "").replace(/\.+$/, "");
   return whitelist.some((d) => h === d || h.endsWith("." + d));
 }
 
@@ -172,6 +174,9 @@ async function shouldGateUrl(url = "") {
     if (!Number.isNaN(until) && until > Date.now()) return false;
   }
   if (gate.collectionId === null || gate.collectionId === undefined) return false;
+  // An explicitly-empty verse subset means there is nothing to review — the
+  // gate page would just fail open anyway, so don't hijack the navigation.
+  if (Array.isArray(gate.verseIds) && gate.verseIds.length === 0) return false;
   let host = "";
   try {
     host = new URL(url).hostname;

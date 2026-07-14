@@ -19,8 +19,13 @@ export function normalizeDomain(input: string): string | null {
       return null;
     }
   }
-  // Strip any path/query the user pasted, a port, and leading "www."
-  s = s.replace(/[/?#].*$/, "").replace(/:\d+$/, "").replace(/^www\./, "");
+  // Strip any path/query the user pasted, a port, leading "www.", and any
+  // trailing dot(s) (a fully-qualified "example.com." means the same host).
+  s = s
+    .replace(/[/?#].*$/, "")
+    .replace(/:\d+$/, "")
+    .replace(/^www\./, "")
+    .replace(/\.+$/, "");
   if (!s) return null;
   if (s === "localhost") return s;
   if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(s)) return null;
@@ -28,6 +33,8 @@ export function normalizeDomain(input: string): string | null {
 }
 
 export function isHostWhitelisted(host: string, whitelist: string[]): boolean {
-  const h = host.toLowerCase().replace(/^www\./, "");
+  // A trailing dot is a fully-qualified form of the same host
+  // ("example.com." === "example.com") — strip it so it can't bypass a match.
+  const h = host.toLowerCase().replace(/^www\./, "").replace(/\.+$/, "");
   return whitelist.some((d) => h === d || h.endsWith("." + d));
 }

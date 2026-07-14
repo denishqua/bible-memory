@@ -26,6 +26,11 @@ describe("normalizeDomain", () => {
     expect(normalizeDomain("https://www.example.com")).toBe("example.com");
   });
 
+  it("strips a trailing dot (fully-qualified domain form)", () => {
+    expect(normalizeDomain("example.com.")).toBe("example.com");
+    expect(normalizeDomain("https://example.com./path")).toBe("example.com");
+  });
+
   it("allows localhost as a special case", () => {
     expect(normalizeDomain("localhost")).toBe("localhost");
     expect(normalizeDomain("http://localhost:5173/app")).toBe("localhost");
@@ -62,6 +67,13 @@ describe("isHostWhitelisted", () => {
   it("is case-insensitive on the host", () => {
     expect(isHostWhitelisted("EXAMPLE.COM", whitelist)).toBe(true);
     expect(isHostWhitelisted("Mail.Google.Com", whitelist)).toBe(true);
+  });
+
+  it("treats a trailing dot (fully-qualified form) as the same host", () => {
+    expect(isHostWhitelisted("example.com.", ["example.com"])).toBe(true);
+    expect(isHostWhitelisted("mail.google.com.", whitelist)).toBe(true);
+    // Stripping the dot must not open the suffix-attack hole.
+    expect(isHostWhitelisted("evilexample.com.", whitelist)).toBe(false);
   });
 
   it("does NOT match lookalike hosts that merely end with the domain string", () => {
