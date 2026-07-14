@@ -215,6 +215,9 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
           </div>
         )}
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <Link to={`/add?collectionId=${collectionId}`} style={{ textDecoration: "none" }}>
+            <Button variant="secondary">+ Add Verse</Button>
+          </Link>
           <Button
             variant="secondary"
             disabled={reviewDisabled}
@@ -236,8 +239,8 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
 
       {collectionVerses.length === 0 ? (
         <p style={{ color: "var(--color-ink-muted)" }}>
-          No verses in this collection yet. Add verses from the Library using "Add to
-          Collection."
+          No verses in this collection yet. Use "+ Add Verse" above, or add existing verses
+          from the Library using "Add to Collection."
         </p>
       ) : (
         <div

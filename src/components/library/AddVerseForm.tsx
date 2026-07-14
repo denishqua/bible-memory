@@ -1,14 +1,20 @@
 import { useState, type FormEvent, type KeyboardEvent } from "react";
 import { Button } from "../ui/Button";
 import type { NewVerseInput } from "../../hooks/useVerses";
+import { useCollections } from "../../hooks/useCollections";
 import type { Verse } from "../../types/verse";
 import { fetchEsvPassage, EsvApiError } from "../../lib/esvApi";
 import { cleanEsvText } from "../../lib/verseTextCleanup";
 import { useSettings } from "../../hooks/useSettings";
 
 interface AddVerseFormProps {
-  onSubmit: (input: NewVerseInput) => void | Promise<void>;
+  // Receives the new verse plus the collection ids it should be added to.
+  onSubmit: (input: NewVerseInput, collectionIds: string[]) => void | Promise<void>;
   onCancel?: () => void;
+  // Collections to pre-check (e.g. when adding from within a collection).
+  initialCollectionIds?: string[];
+  // Overrides the submit button's idle label (e.g. "Add to Psalms").
+  submitLabel?: string;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -29,13 +35,28 @@ const labelStyle: React.CSSProperties = {
   color: "var(--color-ink-muted)",
 };
 
-export function AddVerseForm({ onSubmit, onCancel }: AddVerseFormProps) {
+export function AddVerseForm({
+  onSubmit,
+  onCancel,
+  initialCollectionIds,
+  submitLabel,
+}: AddVerseFormProps) {
   const { settings } = useSettings();
+  const { collections, createCollection } = useCollections();
   const [reference, setReference] = useState("");
   const [text, setText] = useState("");
   const [translation, setTranslation] = useState("ESV");
   const [source, setSource] = useState<Verse["source"]>("manual");
   const [submitting, setSubmitting] = useState(false);
+
+  // Collections to add this verse to on save. Membership is only persisted at
+  // submit time (via onSubmit) — except a newly created collection, which is
+  // saved immediately so it can appear in the list and be pre-checked.
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState<Set<string>>(
+    () => new Set(initialCollectionIds ?? []),
+  );
+  const [newCollectionName, setNewCollectionName] = useState("");
+  const [creatingCollection, setCreatingCollection] = useState(false);
 
   const [looking, setLooking] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -90,17 +111,42 @@ export function AddVerseForm({ onSubmit, onCancel }: AddVerseFormProps) {
     }
   }
 
+  function toggleCollection(id: string) {
+    setSelectedCollectionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleCreateCollection() {
+    const name = newCollectionName.trim();
+    if (!name || creatingCollection) return;
+    setCreatingCollection(true);
+    try {
+      const collection = await createCollection(name);
+      setSelectedCollectionIds((prev) => new Set(prev).add(collection.id));
+      setNewCollectionName("");
+    } finally {
+      setCreatingCollection(false);
+    }
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      await onSubmit({
-        reference: reference.trim(),
-        text: text.trim(),
-        translation: translation.trim() || "ESV",
-        source,
-      });
+      await onSubmit(
+        {
+          reference: reference.trim(),
+          text: text.trim(),
+          translation: translation.trim() || "ESV",
+          source,
+        },
+        [...selectedCollectionIds],
+      );
     } finally {
       setSubmitting(false);
     }
@@ -171,9 +217,69 @@ export function AddVerseForm({ onSubmit, onCancel }: AddVerseFormProps) {
           style={{ ...inputStyle, maxWidth: "10rem" }}
         />
       </div>
+      <div>
+        <label style={labelStyle}>
+          Collections <span style={{ opacity: 0.7 }}>(optional)</span>
+        </label>
+        {collections.length > 0 ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.4rem",
+              marginBottom: "0.6rem",
+              maxHeight: "10rem",
+              overflowY: "auto",
+            }}
+          >
+            {collections.map((collection) => (
+              <label
+                key={collection.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                  fontSize: "0.95rem",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedCollectionIds.has(collection.id)}
+                  onChange={() => toggleCollection(collection.id)}
+                />
+                {collection.name}
+              </label>
+            ))}
+          </div>
+        ) : null}
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <input
+            type="text"
+            value={newCollectionName}
+            onChange={(e) => setNewCollectionName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleCreateCollection();
+              }
+            }}
+            placeholder="New collection name"
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleCreateCollection}
+            disabled={!newCollectionName.trim() || creatingCollection}
+          >
+            {creatingCollection ? "Creating…" : "Create"}
+          </Button>
+        </div>
+      </div>
       <div style={{ display: "flex", gap: "0.5rem" }}>
         <Button type="submit" variant="primary" disabled={!canSubmit}>
-          {submitting ? "Saving…" : "Save Verse"}
+          {submitting ? "Saving…" : (submitLabel ?? "Save Verse")}
         </Button>
         {onCancel ? (
           <Button type="button" variant="ghost" onClick={onCancel}>
