@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { LocalStorageAdapter } from "../localStorageAdapter";
 import type { Verse } from "../../types/verse";
 import type { Collection } from "../../types/collection";
+import { defaultNewTabGateSettings, defaultSettings } from "../../types/settings";
 
 function makeVerse(overrides: Partial<Verse> = {}): Verse {
   const now = new Date().toISOString();
@@ -235,6 +236,47 @@ describe("LocalStorageAdapter", () => {
       const sessions = await adapter.getReviewSessions();
       expect(sessions).toHaveLength(1);
       expect(sessions[0].mode).toBe("master-it");
+    });
+  });
+
+  describe("settings", () => {
+    it("creates and persists defaults on first access", async () => {
+      const settings = await adapter.getSettings();
+      expect(settings).toEqual(defaultSettings());
+      // Persisted, not just returned.
+      expect(localStorage.getItem("bm.settings.v1")).not.toBeNull();
+    });
+
+    it("round-trips saved settings", async () => {
+      const settings = await adapter.getSettings();
+      const updated = {
+        ...settings,
+        esvApiKey: "test-key",
+        newTabGate: {
+          ...settings.newTabGate,
+          enabled: true,
+          whitelist: ["example.com"],
+        },
+      };
+      await adapter.saveSettings(updated);
+
+      const retrieved = await adapter.getSettings();
+      expect(retrieved).toEqual(updated);
+    });
+
+    it("merges stored settings over defaults so an old install missing newTabGate gets the default block", async () => {
+      // Simulate a pre-newTabGate install: only esvApiKey was ever saved.
+      localStorage.setItem("bm.settings.v1", JSON.stringify({ esvApiKey: "old-key" }));
+
+      const settings = await adapter.getSettings();
+      expect(settings.esvApiKey).toBe("old-key");
+      expect(settings.newTabGate).toEqual(defaultNewTabGateSettings());
+    });
+
+    it("falls back to defaults on corrupt stored JSON", async () => {
+      localStorage.setItem("bm.settings.v1", "{not json");
+      const settings = await adapter.getSettings();
+      expect(settings).toEqual(defaultSettings());
     });
   });
 });
