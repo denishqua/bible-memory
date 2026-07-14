@@ -7,11 +7,15 @@
 // rename there must be mirrored here by hand.
 //
 // Beyond the toolbar-click handler, this worker implements the "verse gate":
-// when a NEW TAB is opened, its first http(s) top-frame navigation is
-// redirected to the bundled review page (#/gate) unless the destination
-// domain is whitelisted. Only the opening navigation of a freshly opened tab
-// is gated — same-tab navigations (typed URLs, clicked links, server
-// redirects), popups, and session-restore tabs all pass through untouched.
+// a top-frame http(s) navigation to a non-whitelisted domain is redirected to
+// the bundled review page (#/gate). Two gestures trigger it:
+//   1. Opening a NEW TAB (its first real navigation), and
+//   2. Typing a URL into the address bar (or picking an omnibox suggestion /
+//      bookmark) in ANY tab.
+// Everything else passes through untouched: clicked links, server redirects,
+// form submits, reloads, back/forward, popups (OAuth sign-in), and
+// session-restore tabs. The point is to gate the deliberate "go to this site"
+// gesture without making ordinary in-page browsing unusable.
 const SETTINGS_KEY = "bm.settings.v1";
 
 // New tabs whose opening navigation hasn't been handled yet — the ONLY
@@ -155,66 +159,115 @@ function defaultNewTabGateSettings() {
 
 // --- the gate itself -------------------------------------------------------
 
-chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
-  // Top-frame http(s) navigations only. The scheme check also excludes the
-  // extension's own chrome-extension:// origin, so the gate page itself (and
-  // the app) never gets intercepted. Sub-frames and the New Tab page bail
-  // here too, which importantly leaves a new tab still "pending" until its
-  // first *real* navigation.
-  if (details.frameId !== 0) return;
-  if (!details.url.startsWith("http://") && !details.url.startsWith("https://")) return;
-
-  // Gate ONLY the opening navigation of a newly opened tab. A navigation in
-  // any tab that wasn't just created is an in-tab navigation — a redirect, a
-  // typed URL, a clicked link — and passes through untouched.
-  if (!(await isTabPending(details.tabId))) return;
-  // Consumed: from here on this tab behaves like any other — its later
-  // navigations are in-tab and never gated (that's also what lets the
-  // Proceed button navigate the tab to its destination without re-gating).
-  await clearTabPending(details.tabId);
-
-  // Never gate popups / app / devtools windows (e.g. OAuth sign-in popups) —
-  // only normal browser tabs.
-  try {
-    const tab = await chrome.tabs.get(details.tabId);
-    if (tab.windowId !== undefined) {
-      const win = await chrome.windows.get(tab.windowId);
-      if (win.type && win.type !== "normal") return;
-    }
-  } catch {
-    // Tab or window already gone — nothing to gate.
-    return;
-  }
-
+// Shared gate decision for a destination URL: true means "show the gate".
+// FAILS OPEN on every disabled/unconfigured state (no settings, gate off,
+// snoozed, no collection picked, unparseable URL) so the gate can never lock
+// the user out of the web; a whitelisted host also passes.
+async function shouldGateUrl(url = "") {
   const settings = await readSettings();
   const gate = settings && settings.newTabGate;
-  // Missing settings/block or disabled gate: old installs and fresh ones
-  // behave identically — no gating.
-  if (!gate || !gate.enabled) return;
-
-  // Snoozed until a future instant.
+  if (!gate || !gate.enabled) return false;
   if (gate.snoozeUntil) {
     const until = Date.parse(gate.snoozeUntil);
-    if (!Number.isNaN(until) && until > Date.now()) return;
+    if (!Number.isNaN(until) && until > Date.now()) return false;
   }
-
-  // Unconfigured verse pool: FAIL OPEN. A gate with nothing to review must
-  // never lock the user out of the web.
-  if (gate.collectionId === null || gate.collectionId === undefined) return;
-
-  const host = new URL(details.url).hostname;
+  if (gate.collectionId === null || gate.collectionId === undefined) return false;
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return false;
+  }
   const whitelist = Array.isArray(gate.whitelist) ? gate.whitelist : [];
-  if (isHostWhitelisted(host, whitelist)) return;
+  return !isHostWhitelisted(host, whitelist);
+}
 
-  // Gate it: send the tab to the bundled review page, carrying the intended
-  // destination so the gate page can navigate there after the review.
-  await chrome.tabs.update(details.tabId, {
+// Never gate popups / app / devtools windows (e.g. OAuth sign-in popups) —
+// only normal browser tabs. Returns false if the tab/window is already gone.
+async function isGatableWindow(tabId = -1) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (tab.windowId === undefined) return true;
+    const win = await chrome.windows.get(tab.windowId);
+    return !win.type || win.type === "normal";
+  } catch {
+    return false;
+  }
+}
+
+// Send the tab to the bundled review page, carrying the intended destination
+// so the gate page can navigate there once the review is done.
+async function sendTabToGate(tabId = -1, url = "") {
+  await chrome.tabs.update(tabId, {
     url:
       chrome.runtime.getURL("index.html") +
       "?gateTarget=" +
-      encodeURIComponent(details.url) +
+      encodeURIComponent(url) +
       "#/gate",
   });
+}
+
+// True when a navigation was initiated from the address bar — a typed URL, an
+// omnibox suggestion/keyword search, or a chosen bookmark. That's the
+// deliberate "go to this site" gesture the gate exists to intercept. Link
+// clicks, redirects, form submits, reloads, and back/forward are all excluded
+// so ordinary browsing within a page is never gated. `transitionType` is only
+// available on onCommitted, which is why the address-bar case can't be handled
+// in onBeforeNavigate.
+function isAddressBarNavigation(details = loosen()) {
+  const quals = Array.isArray(details.transitionQualifiers) ? details.transitionQualifiers : [];
+  // Revisiting history (Back/Forward) isn't new browsing, even when it replays
+  // a URL that was originally typed.
+  if (quals.indexOf("forward_back") !== -1) return false;
+  if (quals.indexOf("from_address_bar") !== -1) return true;
+  const type = details.transitionType;
+  return (
+    type === "typed" ||
+    type === "generated" ||
+    type === "keyword" ||
+    type === "keyword_generated" ||
+    type === "auto_bookmark"
+  );
+}
+
+// Trigger 1: the opening navigation of a newly opened tab. Handled here (not
+// onCommitted) so a link that opens a new tab is intercepted before its
+// destination begins to load. Sub-frames and the New Tab page bail on the
+// scheme check, which leaves the tab "pending" until its first real navigation.
+chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
+  if (details.frameId !== 0) return;
+  if (!details.url.startsWith("http://") && !details.url.startsWith("https://")) return;
+
+  if (!(await isTabPending(details.tabId))) return;
+  // Consumed: from here on this tab behaves like any other — its later
+  // navigations are in-tab (only address-bar ones are re-gated, below), so the
+  // Proceed button can navigate the tab to its destination without re-gating.
+  await clearTabPending(details.tabId);
+
+  if (!(await isGatableWindow(details.tabId))) return;
+  if (await shouldGateUrl(details.url)) {
+    await sendTabToGate(details.tabId, details.url);
+  }
+});
+
+// Trigger 2: a URL typed into the address bar (or an omnibox suggestion /
+// bookmark) in ANY tab — the in-tab case new-tab tracking deliberately misses.
+// Because `transitionType` only exists on onCommitted, this fires slightly
+// later than onBeforeNavigate: the destination may begin to load before we
+// redirect to the gate. The synchronous isAddressBarNavigation() check bails
+// immediately for the overwhelmingly common link/redirect/reload navigations,
+// so only real address-bar entries pay for a settings read. A programmatic
+// tabs.update (e.g. the Proceed button's navigation) has a "link" transition,
+// so it is never re-gated here.
+chrome.webNavigation.onCommitted.addListener(async (details) => {
+  if (details.frameId !== 0) return;
+  if (!details.url.startsWith("http://") && !details.url.startsWith("https://")) return;
+  if (!isAddressBarNavigation(details)) return;
+
+  if (!(await isGatableWindow(details.tabId))) return;
+  if (await shouldGateUrl(details.url)) {
+    await sendTabToGate(details.tabId, details.url);
+  }
 });
 
 // The gate page (#/gate) reports a completed review with this message; we
