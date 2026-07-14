@@ -14,9 +14,7 @@ import { LANE_KEYS } from "../../lib/laneDefenderEngine";
 import { Button } from "../ui/Button";
 import { BuiltVerse } from "../review/BuiltVerse";
 import { Lane } from "./Lane";
-import { LivesDisplay } from "./LivesDisplay";
 import { MissionCompleteScreen } from "./MissionCompleteScreen";
-import { MissionFailedScreen } from "./MissionFailedScreen";
 
 interface LaneDefenderSessionProps {
   scope: ReviewScope;
@@ -37,10 +35,8 @@ export function LaneDefenderSession({
   onComplete,
   embedded = false,
 }: LaneDefenderSessionProps) {
-  const isCollection = scope.type === "collection";
   const {
     lanes,
-    livesRemaining,
     status,
     destroyedCount,
     totalWords,
@@ -48,7 +44,7 @@ export function LaneDefenderSession({
     result,
     handleKey,
     retry,
-  } = useLaneDefenderSession(tokens, isCollection);
+  } = useLaneDefenderSession(tokens);
   const storage = useStorage();
   const { profile, updateProfile } = useProfile();
 
@@ -101,10 +97,10 @@ export function LaneDefenderSession({
       scope,
       mode: "lane-defender",
       result: {
-        type: "lives",
-        livesRemaining: result.livesRemaining,
-        totalKeystrokes: result.totalKeystrokes,
-        correctKeystrokes: result.correctKeystrokes,
+        type: "accuracy",
+        accuracy: result.accuracy,
+        totalKeystrokes: result.totalWords,
+        correctKeystrokes: result.cleanWords,
         passed: result.passed,
       },
       startedAt: startedAtRef.current,
@@ -163,7 +159,6 @@ export function LaneDefenderSession({
           marginBottom: "0.75rem",
         }}
       >
-        <LivesDisplay livesRemaining={livesRemaining} />
         <span style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>
           {destroyedCount} / {totalWords} words
           {hintActive && nextTargetWord !== null && status === "playing" && (
@@ -189,6 +184,11 @@ export function LaneDefenderSession({
           >
             Hint
           </Button>
+          {!embedded && (
+            <Button variant="ghost" onClick={handleRetry} disabled={status !== "playing"}>
+              Restart
+            </Button>
+          )}
           {!embedded && (
             <Button variant="ghost" onClick={onChangeMode}>
               Change Mode
@@ -245,16 +245,13 @@ export function LaneDefenderSession({
             }}
           >
             Shoot the verse&rsquo;s next word before it lands — D, F, J, K fire the four lanes.
-            Hitting any other word costs a life.
+            Firing the wrong lane, or letting the target fall past, counts against your score.
           </p>
         </>
       )}
 
       {status === "complete" && result && (
         <MissionCompleteScreen result={result} onRetry={handleRetry} backTo={embedded ? null : "/"} />
-      )}
-      {status === "failed" && result && (
-        <MissionFailedScreen result={result} onRetry={handleRetry} backTo={embedded ? null : "/"} />
       )}
 
       <BuiltVerse tokens={tokens} completedWords={destroyedCount} />

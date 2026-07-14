@@ -1,7 +1,8 @@
 // "verse-defender" (tower-defense asteroids) and "lane-defender" (4-lane
-// rhythm variant) are lives-based arcade modes — they share ReviewResult's
-// "lives" branch and ReviewSession's scope/history plumbing, but do NOT use
-// the mask-based engine (see MaskableReviewMode below).
+// rhythm variant) are arcade modes that do NOT use the mask-based engine (see
+// MaskableReviewMode below). Verse Defender is lives-based (ReviewResult's
+// "lives" branch); Lane Defender scores per-word and reports an "accuracy"
+// result like the typing modes.
 export type ReviewMode = "type-it" | "memorize-it" | "master-it" | "verse-defender" | "lane-defender";
 
 // Alias of ReviewMode used specifically by the masking engine (reviewModes.ts /
@@ -18,9 +19,10 @@ export type ReviewScope =
   | { type: "verse"; verseId: string }
   | { type: "collection"; collectionId: string; verseIds: string[] };
 
-// Discriminated union on `type`. Only "accuracy" is constructed by the 3 modes in
-// this phase — "lives" exists so a future lives-based Verse Defender mode can be
-// added with zero migration of existing ReviewSession history.
+// Discriminated union on `type`. The typing modes and Lane Defender construct
+// "accuracy"; Verse Defender constructs "lives". Old Lane Defender history
+// (pre-scoring change) may still carry "lives" records — getDisplayAccuracy
+// handles both, so no migration is needed.
 export type ReviewResult =
   | {
       type: "accuracy";

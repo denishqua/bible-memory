@@ -26,7 +26,6 @@ export interface LaneWordView {
 
 export interface LaneDefenderView {
   lanes: (LaneWordView | null)[];
-  livesRemaining: number;
   status: LaneDefenderStatus;
   destroyedCount: number;
   totalWords: number;
@@ -47,7 +46,6 @@ function makeView(engine: EngineState, now: number): LaneDefenderView {
         progress: getWordProgress(word, now),
       };
     }),
-    livesRemaining: engine.livesRemaining,
     status: engine.status,
     destroyedCount: engine.nextTargetIndex,
     totalWords: engine.queue.length,
@@ -56,7 +54,7 @@ function makeView(engine: EngineState, now: number): LaneDefenderView {
   };
 }
 
-export function useLaneDefenderSession(tokens: Token[], isCollection: boolean) {
+export function useLaneDefenderSession(tokens: Token[]) {
   const engineRef = useRef<EngineState | null>(null);
   // Per-lane timestamp before which an empty lane must not spawn; null means
   // "not scheduled yet" — the frame loop assigns a fresh randomized delay.
@@ -66,18 +64,18 @@ export function useLaneDefenderSession(tokens: Token[], isCollection: boolean) {
   const [generation, setGeneration] = useState(0);
 
   const [view, setView] = useState<LaneDefenderView>(() => {
-    const engine = createEngineState(tokens, isCollection);
+    const engine = createEngineState(tokens);
     engineRef.current = engine;
     return makeView(engine, performance.now());
   });
 
   const reset = useCallback(() => {
-    const engine = createEngineState(tokens, isCollection);
+    const engine = createEngineState(tokens);
     engineRef.current = engine;
     spawnDueAtRef.current = new Array(LANE_COUNT).fill(null);
     setView(makeView(engine, performance.now()));
     setGeneration((g) => g + 1);
-  }, [tokens, isCollection]);
+  }, [tokens]);
 
   // If the token stream itself changes (new verse/collection without a
   // remount), start over — skip the initial mount, which already built state.
@@ -155,7 +153,6 @@ export function useLaneDefenderSession(tokens: Token[], isCollection: boolean) {
 
   return {
     lanes: view.lanes,
-    livesRemaining: view.livesRemaining,
     status: view.status,
     destroyedCount: view.destroyedCount,
     totalWords: view.totalWords,
