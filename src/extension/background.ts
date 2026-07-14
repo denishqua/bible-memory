@@ -7,21 +7,33 @@
 // rename there must be mirrored here by hand.
 //
 // Beyond the toolbar-click handler, this worker implements the "verse gate":
-// every NEW TAB's first http(s) top-frame navigation is redirected to the
-// bundled review page (#/gate) unless the destination domain is whitelisted.
-// Completing the review unlocks that tab for the rest of its life — in-tab
-// navigation after unlock is never gated again.
-
-// Single settings object (see src/types/settings.ts). May be absent entirely,
-// or present without the newTabGate block (older installs) — both mean the
-// gate is off.
+// when a NEW TAB is opened, its first http(s) top-frame navigation is
+// redirected to the bundled review page (#/gate) unless the destination
+// domain is whitelisted. Only the opening navigation of a freshly opened tab
+// is gated — same-tab navigations (typed URLs, clicked links, server
+// redirects), popups, and session-restore tabs all pass through untouched.
 const SETTINGS_KEY = "bm.settings.v1";
 
-// Tab ids that have passed (or been exempted from) the gate. Kept in
-// chrome.storage.session rather than a worker global so the set survives the
-// service worker being torn down, but still clears when Chrome closes —
-// exactly the "for the tab's lifetime" semantics we want.
-const UNLOCKED_TABS_KEY = "bm.unlockedTabs.v1";
+// New tabs whose opening navigation hasn't been handled yet — the ONLY
+// navigations eligible for the gate. A navigation in a tab that isn't listed
+// here is an in-tab navigation (redirect, typed URL, clicked link) and is
+// never gated: that's the "new tab opens only, never same-tab" rule.
+//
+// Tracked two ways on purpose: an in-memory Set (synchronous, so a tab that
+// navigates the instant it opens — e.g. a target=_blank link — is never
+// missed to a storage race) mirrored to chrome.storage.session (survives the
+// service worker being torn down between opening a tab and navigating it, and
+// clears when Chrome closes). A tab is removed from both the moment its
+// opening navigation is handled, so every later navigation in it is in-tab.
+const PENDING_TABS_KEY = "bm.pendingNewTabs.v1";
+const pendingNewTabs = new Set();
+
+// Session restore recreates every previously-open tab in a burst at startup;
+// those are not "new tab opens" and must not be gated. Suppress new-tab
+// tracking briefly after the browser starts. Best-effort (in-memory): if the
+// worker is recycled mid-restore the window is lost, but the failure mode is
+// only that a restored tab might get gated — never that a tab is trapped.
+let startupSuppressUntil = 0;
 
 const WHITELIST_MENU_ID = "bm-whitelist-domain";
 
@@ -66,28 +78,59 @@ async function readSettings() {
   return loosen(data[SETTINGS_KEY]);
 }
 
-async function readUnlockedTabs() {
-  const data = await chrome.storage.session.get(UNLOCKED_TABS_KEY);
-  const list = data[UNLOCKED_TABS_KEY];
+// --- new-tab tracking ------------------------------------------------------
+
+async function readPendingTabs() {
+  const data = await chrome.storage.session.get(PENDING_TABS_KEY);
+  const list = data[PENDING_TABS_KEY];
   return Array.isArray(list) ? list : [];
 }
 
-async function addUnlockedTab(tabId = -1) {
-  const list = await readUnlockedTabs();
-  if (!list.includes(tabId)) {
-    list.push(tabId);
-    await chrome.storage.session.set({ [UNLOCKED_TABS_KEY]: list });
+async function markTabPending(tabId = -1) {
+  pendingNewTabs.add(tabId);
+  const stored = await readPendingTabs();
+  if (!stored.includes(tabId)) {
+    await chrome.storage.session.set({ [PENDING_TABS_KEY]: stored.concat(tabId) });
   }
 }
 
-async function removeUnlockedTab(tabId = -1) {
-  const list = await readUnlockedTabs();
-  if (list.includes(tabId)) {
+async function isTabPending(tabId = -1) {
+  // In-memory first (race-free for a tab that navigates the moment it opens),
+  // then the persisted mirror (in case the worker restarted since onCreated).
+  if (pendingNewTabs.has(tabId)) return true;
+  const stored = await readPendingTabs();
+  return stored.includes(tabId);
+}
+
+async function clearTabPending(tabId = -1) {
+  pendingNewTabs.delete(tabId);
+  const stored = await readPendingTabs();
+  if (stored.includes(tabId)) {
     await chrome.storage.session.set({
-      [UNLOCKED_TABS_KEY]: list.filter((id) => id !== tabId),
+      [PENDING_TABS_KEY]: stored.filter((id) => id !== tabId),
     });
   }
 }
+
+// Every freshly opened tab is a candidate to be gated on its first
+// navigation. Popups/app/devtools windows and session restores are filtered
+// out later (onBeforeNavigate checks the window type; the startup window
+// suppresses restores).
+chrome.tabs.onCreated.addListener((tab) => {
+  if (tab.id === undefined) return;
+  if (Date.now() < startupSuppressUntil) return;
+  void markTabPending(tab.id);
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  startupSuppressUntil = Date.now() + 8000;
+});
+
+// Tab ids are recycled by Chrome; drop closed tabs so a future tab that
+// reuses the id doesn't inherit a stale "pending" flag.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  void clearTabPending(tabId);
+});
 
 // Mirrors isHostWhitelisted() in src/lib/domainWhitelist.ts (which this file
 // cannot import) — keep the two in sync. A whitelist entry is a bare,
@@ -115,9 +158,33 @@ function defaultNewTabGateSettings() {
 chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
   // Top-frame http(s) navigations only. The scheme check also excludes the
   // extension's own chrome-extension:// origin, so the gate page itself (and
-  // the app) never gets intercepted.
+  // the app) never gets intercepted. Sub-frames and the New Tab page bail
+  // here too, which importantly leaves a new tab still "pending" until its
+  // first *real* navigation.
   if (details.frameId !== 0) return;
   if (!details.url.startsWith("http://") && !details.url.startsWith("https://")) return;
+
+  // Gate ONLY the opening navigation of a newly opened tab. A navigation in
+  // any tab that wasn't just created is an in-tab navigation — a redirect, a
+  // typed URL, a clicked link — and passes through untouched.
+  if (!(await isTabPending(details.tabId))) return;
+  // Consumed: from here on this tab behaves like any other — its later
+  // navigations are in-tab and never gated (that's also what lets the
+  // Proceed button navigate the tab to its destination without re-gating).
+  await clearTabPending(details.tabId);
+
+  // Never gate popups / app / devtools windows (e.g. OAuth sign-in popups) —
+  // only normal browser tabs.
+  try {
+    const tab = await chrome.tabs.get(details.tabId);
+    if (tab.windowId !== undefined) {
+      const win = await chrome.windows.get(tab.windowId);
+      if (win.type && win.type !== "normal") return;
+    }
+  } catch {
+    // Tab or window already gone — nothing to gate.
+    return;
+  }
 
   const settings = await readSettings();
   const gate = settings && settings.newTabGate;
@@ -137,16 +204,7 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
 
   const host = new URL(details.url).hostname;
   const whitelist = Array.isArray(gate.whitelist) ? gate.whitelist : [];
-  if (isHostWhitelisted(host, whitelist)) {
-    // Also unlock the tab so subsequent same-tab navigations (possibly to
-    // non-whitelisted sites) skip the gate — the "first navigation" already
-    // resolved in the user's favor.
-    await addUnlockedTab(details.tabId);
-    return;
-  }
-
-  const unlocked = await readUnlockedTabs();
-  if (unlocked.includes(details.tabId)) return;
+  if (isHostWhitelisted(host, whitelist)) return;
 
   // Gate it: send the tab to the bundled review page, carrying the intended
   // destination so the gate page can navigate there after the review.
@@ -160,7 +218,9 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
 });
 
 // The gate page (#/gate) reports a completed review with this message; we
-// unlock the tab and send it on to where it was originally headed.
+// send the tab on to where it was originally headed. The gate tab is no
+// longer "pending" (its opening navigation was consumed when we redirected it
+// here), so this navigation isn't re-gated.
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || message.type !== "bm-gate-unlock") return;
   const targetUrl = typeof message.targetUrl === "string" ? message.targetUrl : "";
@@ -176,10 +236,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
   (async () => {
-    // The unlock must be persisted BEFORE the navigation starts, or the
-    // target load fires onBeforeNavigate while the tab still looks locked
-    // and we'd bounce straight back to the gate.
-    await addUnlockedTab(tabId);
+    await clearTabPending(tabId); // belt-and-suspenders
     await chrome.tabs.update(tabId, { url: targetUrl });
     sendResponse({ ok: true });
   })();
@@ -237,16 +294,4 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     settings.newTabGate.whitelist.push(host);
     await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
   }
-
-  // Unlock the tab too, so the user isn't gated on the very site they just
-  // whitelisted (the gate redirect may already have happened).
-  if (tab && tab.id !== undefined) {
-    await addUnlockedTab(tab.id);
-  }
-});
-
-// Tab ids are recycled by Chrome; drop closed tabs from the unlocked set so
-// a future tab that happens to reuse the id doesn't inherit the unlock.
-chrome.tabs.onRemoved.addListener((tabId) => {
-  removeUnlockedTab(tabId);
 });
