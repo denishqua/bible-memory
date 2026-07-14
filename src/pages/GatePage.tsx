@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSettings } from "../hooks/useSettings";
 import { useVerses } from "../hooks/useVerses";
@@ -73,9 +73,6 @@ export function GatePage() {
   }, [gate, verses, getVerseIdsForCollection]);
 
   const [currentVerseId, setCurrentVerseId] = useState<string | null>(null);
-  // Bumped on every Skip; part of the session's React key so a skip fully
-  // remounts (and thereby resets) the review session.
-  const [attempt, setAttempt] = useState(0);
   const [completed, setCompleted] = useState(false);
 
   // Pick the initial random verse once the pool has loaded. Guarded so later
@@ -91,22 +88,15 @@ export function GatePage() {
 
   const currentVerse = currentVerseId ? pool.find((v) => v.id === currentVerseId) : undefined;
 
-  const { tokens, scope } = useMemo<{ tokens: ReturnType<typeof tokenize>; scope: ReviewScope | null }>(
-    () =>
-      currentVerse
-        ? {
-            tokens: tokenize(currentVerse.text),
-            scope: { type: "verse", verseId: currentVerse.id },
-          }
-        : { tokens: [], scope: null },
-    [currentVerse],
-  );
+  const tokens = useMemo(() => (currentVerse ? tokenize(currentVerse.text) : []), [currentVerse]);
+  const scope: ReviewScope | null = currentVerse
+    ? { type: "verse", verseId: currentVerse.id }
+    : null;
 
   const handleSkip = useCallback(() => {
     const next = pickRandomVerse(pool, currentVerseId);
     if (!next) return;
     setCurrentVerseId(next.id);
-    setAttempt((n) => n + 1);
     setCompleted(false);
   }, [pool, currentVerseId]);
 
@@ -130,32 +120,29 @@ export function GatePage() {
     }
   }, [targetUrl, navigate]);
 
-  if (loading) {
-    return (
-      <p style={{ textAlign: "center", color: "var(--color-ink-muted)" }}>Loading…</p>
-    );
-  }
-
-  // FAIL-OPEN: any state where a review can't be shown (gate disabled, no
-  // collection picked, pool filtered down to nothing, verse not resolvable)
-  // offers Proceed immediately rather than trapping the user.
-  const failOpenReason = !gate?.enabled
-    ? "The verse gate is turned off."
-    : !gate.collectionId
-      ? "No collection is set up for the verse gate yet."
-      : pool.length === 0
-        ? "The verse gate's collection has no verses to review."
-        : !currentVerse || !scope
-          ? "Couldn't load a verse to review."
-          : null;
-
-  const proceedButton = (
-    <Button variant="primary" onClick={handleProceed} style={{ fontSize: "1rem", padding: "0.65rem 1.5rem" }}>
-      {targetUrl ? "Proceed to site →" : "Done"}
-    </Button>
+  const loadingScreen = (
+    <p style={{ textAlign: "center", color: "var(--color-ink-muted)" }}>Loading…</p>
   );
 
-  return (
+  if (loading) return loadingScreen;
+
+  // Proceed button + destination-host caption, shared by the fail-open and
+  // completed states.
+  const proceedBlock = (
+    <>
+      <Button variant="primary" onClick={handleProceed} style={{ fontSize: "1rem", padding: "0.65rem 1.5rem" }}>
+        {targetUrl ? "Proceed to site →" : "Done"}
+      </Button>
+      {targetHost && (
+        <p style={{ color: "var(--color-ink-muted)", fontSize: "0.85rem", marginTop: "0.6rem" }}>
+          {targetHost}
+        </p>
+      )}
+    </>
+  );
+
+  // Shared page chrome: the body plus the settings footer.
+  const page = (body: ReactNode) => (
     <div
       style={{
         display: "flex",
@@ -166,61 +153,7 @@ export function GatePage() {
         paddingTop: "1.5rem",
       }}
     >
-      {failOpenReason !== null ? (
-        <div style={{ margin: "auto", textAlign: "center" }}>
-          <p style={{ color: "var(--color-ink-muted)", marginBottom: "1.25rem" }}>
-            {failOpenReason}
-          </p>
-          {proceedButton}
-          {targetHost && (
-            <p style={{ color: "var(--color-ink-muted)", fontSize: "0.85rem", marginTop: "0.6rem" }}>
-              {targetHost}
-            </p>
-          )}
-        </div>
-      ) : (
-        <>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              justifyContent: "space-between",
-              gap: "1rem",
-              marginBottom: "1.25rem",
-            }}
-          >
-            <span style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>
-              {currentVerse!.reference}
-            </span>
-            <Button variant="ghost" onClick={handleSkip} disabled={pool.length < 2}>
-              Skip verse →
-            </Button>
-          </div>
-
-          {/* Keyed on verse + attempt so Skip fully remounts the session (its
-              engine state lives in hooks inside the session component). */}
-          <div key={`${currentVerse!.id}-${attempt}`}>
-            {renderSession(gate!.mode, scope!, tokens, () => {}, handleComplete, true)}
-          </div>
-
-          {completed && (
-            <div style={{ marginTop: "1.5rem", textAlign: "center" }}>
-              {proceedButton}
-              {targetHost && (
-                <p
-                  style={{
-                    color: "var(--color-ink-muted)",
-                    fontSize: "0.85rem",
-                    marginTop: "0.6rem",
-                  }}
-                >
-                  {targetHost}
-                </p>
-              )}
-            </div>
-          )}
-        </>
-      )}
+      {body}
 
       <footer style={{ marginTop: "auto", paddingTop: "2rem", textAlign: "center" }}>
         {/* target=_blank so adjusting settings doesn't lose the gated tab. */}
@@ -234,5 +167,59 @@ export function GatePage() {
         </a>
       </footer>
     </div>
+  );
+
+  // FAIL-OPEN: any state where a review can't be shown (gate disabled, no
+  // collection picked, pool filtered down to nothing) offers Proceed
+  // immediately rather than trapping the user.
+  const failOpen = (reason: string) =>
+    page(
+      <div style={{ margin: "auto", textAlign: "center" }}>
+        <p style={{ color: "var(--color-ink-muted)", marginBottom: "1.25rem" }}>{reason}</p>
+        {proceedBlock}
+      </div>,
+    );
+
+  if (!gate?.enabled) return failOpen("The verse gate is turned off.");
+  if (!gate.collectionId) return failOpen("No collection is set up for the verse gate yet.");
+  if (pool.length === 0) return failOpen("The verse gate's collection has no verses to review.");
+
+  // The pool is ready but the initial random pick (a post-paint effect) hasn't
+  // landed yet — keep showing the loading state for that frame rather than
+  // flashing the fail-open UI. Not a trap: the pick effect always resolves a
+  // verse from a non-empty pool.
+  if (!currentVerse || !scope) return loadingScreen;
+
+  return page(
+    <>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: "1rem",
+          marginBottom: "1.25rem",
+        }}
+      >
+        <span style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>
+          {currentVerse.reference}
+        </span>
+        <Button variant="ghost" onClick={handleSkip} disabled={pool.length < 2}>
+          Skip verse →
+        </Button>
+      </div>
+
+      {/* Keyed on the verse id so Skip fully remounts the session (its engine
+          state lives in hooks inside the session component). Skip always
+          changes the id: it's disabled when the pool has fewer than 2 verses,
+          and pickRandomVerse excludes the current verse otherwise. */}
+      <div key={currentVerse.id}>
+        {renderSession(gate.mode, scope, tokens, () => {}, handleComplete, true)}
+      </div>
+
+      {completed && (
+        <div style={{ marginTop: "1.5rem", textAlign: "center" }}>{proceedBlock}</div>
+      )}
+    </>,
   );
 }
