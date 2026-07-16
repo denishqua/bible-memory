@@ -1,18 +1,23 @@
-// Cleans raw ESV API passage text for storage/display. Per spec-review fix #4
-// (see the plan's "Fixes From Spec Review"), verse-number markers are kept —
-// never stripped — because tokenize.ts already treats a standalone "[N]"
-// (see the VERSE_NUMBER_RE convention documented there) as a non-matchable,
-// display-only context token. The ESV API's own text output already renders
-// verse numbers in exactly that "[N]" form (confirmed against a live
-// response), so no reformatting of the markers themselves is needed here —
-// this module only strips what should NOT survive into storage:
-// footnote callouts/bodies and the API's own "(ESV)" translation suffix
-// (translation is already tracked separately on Verse.translation).
+// Cleans raw ESV API passage text for storage/display. This module strips
+// everything that should NOT survive into stored verse text:
+//   - verse-number markers ("[N]"),
+//   - footnote callouts/bodies,
+//   - the API's own "(ESV)" translation suffix (translation is already
+//     tracked separately on Verse.translation).
+// We also request the API with include-verse-numbers=false, so the markers
+// normally never appear; the strip here is defensive (and covers any verses
+// pasted in from an older ESV response that still carried them).
 
 // Defensive: strips a trailing "Footnotes\n\n..." body block. In practice we
 // always call the API with include-footnotes=false so this block never
 // appears, but stripping it if present costs nothing and matches the plan's
 // explicit "strips footnote markers" requirement.
+// Verse-number markers as the ESV API renders them, e.g. "[1] In the
+// beginning". Strip the marker plus any following spaces/tabs (but not
+// newlines, so poetry line breaks survive). A marker mid-line like
+// "...day. [2] And..." collapses cleanly to "...day. And...".
+const VERSE_NUMBER_MARKER_RE = /\[\d+\][ \t]*/g;
+
 const FOOTNOTE_SECTION_RE = /\n+Footnotes\n+[\s\S]*$/;
 
 // Defensive: strips inline footnote callouts glued directly onto a word,
@@ -29,6 +34,7 @@ export function cleanEsvText(rawText: string): string {
   const stripped = rawText
     .replace(FOOTNOTE_SECTION_RE, "")
     .replace(INLINE_FOOTNOTE_MARKER_RE, "")
+    .replace(VERSE_NUMBER_MARKER_RE, "")
     .replace(TRANSLATION_SUFFIX_RE, "");
 
   // Preserve every real "\n" line break (poetry — never collapse to spaces),

@@ -136,7 +136,17 @@ export function ReviewPage() {
         ) : mode === null || scope === null ? (
           <ModePicker onSelect={setMode} />
         ) : (
-          renderSession(mode, scope, tokens, () => setMode(null))
+          // verseReferences (in review order) label the per-verse accuracy
+          // breakdown for a bulk collection review; single-verse behaves as before.
+          renderSession(
+            mode,
+            scope,
+            tokens,
+            () => setMode(null),
+            undefined,
+            false,
+            selectedCollectionVerses.map((v) => v.reference),
+          )
         )}
       </div>
     );

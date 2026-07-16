@@ -171,3 +171,121 @@ button {
 .laser-burst {
   animation: laser-burst 0.3s ease-out forwards;
 }
+
+/* Lane Defender: a laser blasts up a lane on every shot — bright clay for a
+   clean hit, danger red for a wrong-lane press — with a muzzle flash at the
+   gun and, on a wrong-lane press, a red flash washing over the fired lane.
+   All are keyed by the shot id so they replay on every keypress, even
+   repeated presses into the same lane. */
+@keyframes ld-laser-zap {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) scaleX(1.6);
+  }
+  /* Hold near full opacity for the first stretch so the beam actually
+     registers, then fade and thin out on the way down. */
+  45% {
+    opacity: 1;
+    transform: translateX(-50%) scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scaleX(0.4);
+  }
+}
+
+.ld-laser {
+  animation: ld-laser-zap 0.32s ease-out forwards;
+}
+
+@keyframes ld-muzzle-flash {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) scale(0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scale(1.7);
+  }
+}
+
+.ld-muzzle {
+  animation: ld-muzzle-flash 0.32s ease-out forwards;
+}
+
+@keyframes ld-lane-flash {
+  0% {
+    opacity: 0.7;
+  }
+  /* Hold the red wash briefly so a wrong-lane press is unmistakable, then
+     ease it away. */
+  35% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.ld-lane-flash {
+  animation: ld-lane-flash 0.45s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ld-laser,
+  .ld-muzzle,
+  .ld-lane-flash {
+    animation-duration: 0.01ms;
+  }
+}
+
+/* Verse Defender: errant "missed shot" — a red bolt fired from the cannon that
+   veers off and fizzles short of the target. Transient, keyed by miss id and
+   unmounted by the parent when the animation ends (mirrors the hit laser). */
+@keyframes vd-miss-bolt {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) rotate(0deg) scaleY(1);
+  }
+  60% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(calc(-50% + 22px)) rotate(12deg) scaleY(0.7);
+  }
+}
+
+.vd-miss-bolt {
+  animation: vd-miss-bolt 0.3s ease-out forwards;
+}
+
+@keyframes vd-miss-fizzle {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2);
+  }
+  55% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  75% {
+    opacity: 0.85;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.4);
+  }
+}
+
+.vd-miss-fizzle {
+  animation: vd-miss-fizzle 0.34s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vd-miss-bolt,
+  .vd-miss-fizzle {
+    animation-duration: 0.01ms;
+  }
+}

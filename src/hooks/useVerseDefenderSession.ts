@@ -22,6 +22,11 @@ export interface HitEvent {
   progress: number;
 }
 
+/** One wrong keystroke: `id` increments per miss (animation key). */
+export interface MissEvent {
+  id: number;
+}
+
 export interface UseVerseDefenderSessionResult {
   status: VerseDefenderStatus;
   /** The word the in-flight (or breached) asteroid represents; null once done. */
@@ -32,11 +37,15 @@ export interface UseVerseDefenderSessionResult {
   progress: number;
   phase: DescentPhase;
   livesRemaining: number;
+  /** Total shield pool for the whole run. */
+  maxLives: number;
   totalKeystrokes: number;
   correctKeystrokes: number;
   everRanOutOfLives: boolean;
   /** The most recent correct hit — drives the laser/burst effect. */
   lastHit: HitEvent | null;
+  /** Most recent wrong keystroke — drives the miss graphic. */
+  lastMiss: MissEvent | null;
   /** Non-null only once status is "complete" or "failed". */
   result: LivesResult | null;
   handleKeyPress: (char: string) => void;
@@ -61,6 +70,7 @@ export function useVerseDefenderSession(
   const [runId, setRunId] = useState(0);
   const spawnedAtRef = useRef(0);
   const [lastHit, setLastHit] = useState<HitEvent | null>(null);
+  const [lastMiss, setLastMiss] = useState<MissEvent | null>(null);
   // Mirrors the `progress` state so handleKeyPress (a stable callback) can
   // read the asteroid's position at the exact moment of a hit without
   // re-subscribing on every frame.
@@ -98,11 +108,21 @@ export function useVerseDefenderSession(
     if (!isPrintableCharacter(char)) return;
     setState((prev) => {
       const next = handleKeystroke(prev, char);
-      if (next.currentWordIndex > prev.currentWordIndex) {
+      const advanced = next.currentWordIndex > prev.currentWordIndex;
+      if (advanced) {
         // Correct hit — record where the asteroid was so the UI can fire the
         // laser at it. A breach-paused retype hits the asteroid at the base.
         const hitProgress = prev.status === "breach-paused" ? 1 : progressRef.current;
         setLastHit((h) => ({ id: (h?.id ?? 0) + 1, progress: hitProgress }));
+      } else if (
+        // A miss: the word index didn't advance but a keystroke WAS counted,
+        // i.e. a wrong letter during "spawning-playing"/"breach-paused". When
+        // the engine ignored the key (terminal state) totalKeystrokes is
+        // unchanged, so this correctly stays silent.
+        next.currentWordIndex === prev.currentWordIndex &&
+        next.totalKeystrokes > prev.totalKeystrokes
+      ) {
+        setLastMiss((m) => ({ id: (m?.id ?? 0) + 1 }));
       }
       return next;
     });
@@ -113,6 +133,7 @@ export function useVerseDefenderSession(
     setProgress(0);
     progressRef.current = 0;
     setLastHit(null);
+    setLastMiss(null);
     setRunId((id) => id + 1);
   }, [tokens, isCollection]);
 
@@ -126,10 +147,12 @@ export function useVerseDefenderSession(
     progress: state.status === "breach-paused" ? 1 : progress,
     phase: getDescentPhase(state.status === "breach-paused" ? 1 : progress),
     livesRemaining: Math.max(0, state.livesRemaining),
+    maxLives: state.maxLives,
     totalKeystrokes: state.totalKeystrokes,
     correctKeystrokes: state.correctKeystrokes,
     everRanOutOfLives: state.everRanOutOfLives,
     lastHit,
+    lastMiss,
     result: isDone ? buildSessionResult(state) : null,
     handleKeyPress,
     retry,

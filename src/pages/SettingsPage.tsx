@@ -67,6 +67,11 @@ const GATE_TOGGLE_OPTIONS: { value: boolean; label: string }[] = [
   { value: true, label: "On" },
 ];
 
+const REVIEW_INPUT_OPTIONS: { value: boolean; label: string }[] = [
+  { value: false, label: "First letter" },
+  { value: true, label: "Whole word" },
+];
+
 const SNOOZE_PRESET_HOURS = [1, 2, 4, 8];
 
 const gateSubsectionStyle: React.CSSProperties = {
@@ -409,6 +414,22 @@ export function SettingsPage() {
           onChange={setPreference}
         />
       </Card>
+
+      {settings ? (
+        <Card>
+          <h3 style={sectionTitleStyle}>Review input</h3>
+          <p style={{ ...helperTextStyle, marginBottom: "0.75rem" }}>
+            In the Type It / Memorize It / Master It modes, advance by typing just the first letter
+            of each word, or the whole word.
+          </p>
+          <SegmentedControl
+            ariaLabel="Review input style"
+            options={REVIEW_INPUT_OPTIONS}
+            value={settings.typeWholeWord}
+            onChange={(value) => updateSettings({ ...settings, typeWholeWord: value })}
+          />
+        </Card>
+      ) : null}
 
       {settings ? <VerseGateCard settings={settings} updateSettings={updateSettings} /> : null}
 

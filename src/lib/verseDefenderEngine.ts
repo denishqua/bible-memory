@@ -10,8 +10,13 @@ import type { ReviewResult } from "../types/review";
 /** How long an asteroid takes to fall from deep space to the base. */
 export const DESCENT_DURATION_MS = 6000;
 
-/** Lives per verse (collection scope resets to this at every verse boundary). */
-export const MAX_LIVES = 3;
+/**
+ * Shields (lives) contributed by each verse to a SINGLE SHARED POOL for the
+ * whole run. The pool is `SHIELDS_PER_VERSE × verseCount` and is NOT refilled
+ * between verses — shields carry over and deplete across the entire run
+ * (single verse → 2, a 5-verse collection → 10 shared across all 5).
+ */
+export const SHIELDS_PER_VERSE = 2;
 
 /**
  * Session-level status. Exactly one asteroid is in flight while
@@ -39,6 +44,8 @@ export interface VerseDefenderState {
   verseBoundaries: ReadonlySet<number>;
   isCollection: boolean;
   currentWordIndex: number;
+  /** Total shield pool for the whole run (SHIELDS_PER_VERSE × verse count). */
+  maxLives: number;
   livesRemaining: number;
   totalKeystrokes: number;
   correctKeystrokes: number;
@@ -141,12 +148,18 @@ export function createInitialState(tokens: Token[], isCollection: boolean): Vers
     }
   }
 
+  // verseBoundaries never includes index 0, so N verses → N-1 boundaries →
+  // count N. A single verse has 0 boundaries → count 1. Guard the empty queue.
+  const verseCount = queue.length === 0 ? 1 : verseBoundaries.size + 1;
+  const maxLives = SHIELDS_PER_VERSE * verseCount;
+
   return {
     queue,
     verseBoundaries,
     isCollection,
     currentWordIndex: 0,
-    livesRemaining: MAX_LIVES,
+    maxLives,
+    livesRemaining: maxLives,
     totalKeystrokes: 0,
     correctKeystrokes: 0,
     everRanOutOfLives: false,
@@ -156,8 +169,9 @@ export function createInitialState(tokens: Token[], isCollection: boolean): Vers
 
 /**
  * Correct keystroke while playing (asteroid destroyed) OR while breach-paused
- * (successful retype). Advances the queue, resets lives at a verse boundary,
- * and completes the session when the queue is exhausted.
+ * (successful retype). Advances the queue and completes the session when the
+ * queue is exhausted. Shields are a shared pool for the whole run, so they
+ * simply carry over unchanged across verse boundaries — no per-verse refill.
  */
 function advanceAfterCorrect(state: VerseDefenderState): VerseDefenderState {
   const nextIndex = state.currentWordIndex + 1;
@@ -170,13 +184,10 @@ function advanceAfterCorrect(state: VerseDefenderState): VerseDefenderState {
     return { ...state, ...counted, currentWordIndex: nextIndex, status: "complete" };
   }
 
-  const livesRemaining = state.verseBoundaries.has(nextIndex) ? MAX_LIVES : state.livesRemaining;
-
   return {
     ...state,
     ...counted,
     currentWordIndex: nextIndex,
-    livesRemaining,
     status: "spawning-playing",
   };
 }

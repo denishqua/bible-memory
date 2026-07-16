@@ -42,6 +42,7 @@ export function LaneDefenderSession({
     totalWords,
     nextTargetWord,
     result,
+    lastShot,
     handleKey,
     retry,
   } = useLaneDefenderSession(tokens);
@@ -232,7 +233,12 @@ export function LaneDefenderSession({
             />
             <div style={{ display: "flex", gap: "0.6rem", height: "min(420px, 60vh)" }}>
               {lanes.map((word, i) => (
-                <Lane key={LANE_KEYS[i]} laneKey={LANE_KEYS[i].toUpperCase()} word={word} />
+                <Lane
+                  key={LANE_KEYS[i]}
+                  laneKey={LANE_KEYS[i].toUpperCase()}
+                  word={word}
+                  shot={lastShot?.laneIndex === i ? lastShot : null}
+                />
               ))}
             </div>
           </div>

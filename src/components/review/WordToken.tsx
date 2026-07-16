@@ -7,14 +7,18 @@ interface WordTokenProps {
   /** Hint active for this (current) word: reveal the full text in a muted,
       italic "ghost" style. The player still has to type the first letter. */
   isHinted?: boolean;
+  /** Whole-word input mode: the progressive reveal shows the correctly-typed
+      prefix (first `typedCount` letters) instead of the first-letter mode's
+      `attempts`-driven reveal. Mirrors the setting in useReviewSession. */
+  wholeWord?: boolean;
 }
 
 const BLANK_CHAR = "_";
 
-// Display rule (from the plan): if visible === "masked" && !completed, render
-// `attempts` leading letters starting from index 1 (never index 0 — the real
-// first letter is only ever revealed by `completed` flipping true), capped at
-// word.length - 1.
+// First-letter mode reveal (from the plan): if visible === "masked" &&
+// !completed, render `attempts` leading letters starting from index 1 (never
+// index 0 — the real first letter is only ever revealed by `completed` flipping
+// true), capped at word.length - 1.
 function maskedGlyphs(word: WordRuntimeState): string {
   const letters = word.token.normalized;
   if (letters.length === 0) return "";
@@ -22,6 +26,20 @@ function maskedGlyphs(word: WordRuntimeState): string {
   return letters
     .split("")
     .map((letter, i) => (i > 0 && i <= revealedCount ? letter : BLANK_CHAR))
+    .join("");
+}
+
+// Whole-word mode reveal: show the correctly-typed prefix — the first
+// `typedCount` letters starting at index 0 (the real first letter IS shown
+// here, because it's a letter the player already typed correctly) — and blank
+// out the rest. Never over-reveals: a completed word takes the full-text path
+// in the component, not this one.
+function typedPrefixGlyphs(word: WordRuntimeState): string {
+  const letters = word.token.normalized;
+  if (letters.length === 0) return "";
+  return letters
+    .split("")
+    .map((letter, i) => (i < word.typedCount ? letter : BLANK_CHAR))
     .join("");
 }
 
@@ -36,7 +54,7 @@ function maskedGlyphs(word: WordRuntimeState): string {
 // tokens) only the words whose `word` or `isCurrent` props actually changed
 // re-render. Memoization never blocks the miss animation — a key change
 // forces a remount regardless of memo.
-export const WordToken = memo(function WordToken({ word, isCurrent, isHinted }: WordTokenProps) {
+export const WordToken = memo(function WordToken({ word, isCurrent, isHinted, wholeWord }: WordTokenProps) {
   const { token } = word;
 
   if (token.isLineBreak) {
@@ -66,7 +84,8 @@ export const WordToken = memo(function WordToken({ word, isCurrent, isHinted }: 
   // "masked" && !completed) — exactly the !showFull case. It reveals the raw
   // text in a distinct ghost style; it never completes the word.
   const showHint = !showFull && isHinted === true;
-  const display = showFull || showHint ? token.raw : maskedGlyphs(word);
+  const maskedDisplay = wholeWord ? typedPrefixGlyphs(word) : maskedGlyphs(word);
+  const display = showFull || showHint ? token.raw : maskedDisplay;
   const isFlashing = isCurrent && !word.completed && word.attempts > 0;
 
   return (

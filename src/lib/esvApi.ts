@@ -18,7 +18,7 @@ export class EsvApiError extends Error {
 
 export interface EsvPassageResult {
   reference: string; // API's own "canonical" field, e.g. "Psalm 23:1–3"
-  rawText: string; // uncleaned passages[0], still containing "[N]" verse markers etc.
+  rawText: string; // uncleaned passages[0], still needing cleanEsvText() before storage
 }
 
 const ESV_API_URL = "https://api.esv.org/v3/passage/text/";
@@ -40,7 +40,7 @@ export async function fetchEsvPassage(query: string, apiKey?: string): Promise<E
   }
   const params = new URLSearchParams({
     q: query,
-    "include-verse-numbers": "true",
+    "include-verse-numbers": "false",
     "include-footnotes": "false",
     "include-headings": "false",
     "include-passage-references": "false",

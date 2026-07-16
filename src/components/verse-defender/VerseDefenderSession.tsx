@@ -16,6 +16,7 @@ import { AsteroidField } from "./AsteroidField";
 import { Asteroid } from "./Asteroid";
 import { Cannon } from "./Cannon";
 import { LaserBeam } from "./LaserBeam";
+import { MissBolt } from "./MissBolt";
 import { LivesDisplay } from "./LivesDisplay";
 import { BreachOverlay } from "./BreachOverlay";
 import { MissionFailedScreen } from "./MissionFailedScreen";
@@ -25,6 +26,8 @@ const RECOIL_DURATION_MS = 150;
 // Slightly longer than the longest laser CSS animation (burst: 300ms) so the
 // element unmounts only after its one-shot animation has finished.
 const LASER_DURATION_MS = 320;
+// Long enough for the miss-bolt one-shot animation to finish before it unmounts.
+const MISS_DURATION_MS = 360;
 
 interface VerseDefenderSessionProps {
   scope: ReviewScope;
@@ -58,8 +61,10 @@ export function VerseDefenderSession({
     progress,
     phase,
     livesRemaining,
+    maxLives,
     correctKeystrokes,
     lastHit,
+    lastMiss,
     result,
     handleKeyPress,
     retry,
@@ -88,6 +93,9 @@ export function VerseDefenderSession({
   // The in-flight laser effect; mirrors lastHit while its animation plays,
   // then clears so the one-shot element unmounts.
   const [laser, setLaser] = useState<typeof lastHit>(null);
+  // The in-flight miss-bolt effect; mirrors lastMiss while its animation plays,
+  // then clears so the one-shot element unmounts.
+  const [missBolt, setMissBolt] = useState<typeof lastMiss>(null);
 
   const isDone = status === "complete" || status === "failed";
 
@@ -117,6 +125,13 @@ export function VerseDefenderSession({
     const timer = setTimeout(() => setLaser(null), LASER_DURATION_MS);
     return () => clearTimeout(timer);
   }, [lastHit]);
+
+  useEffect(() => {
+    if (lastMiss === null) return;
+    setMissBolt(lastMiss);
+    const timer = setTimeout(() => setMissBolt(null), MISS_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [lastMiss]);
 
   useEffect(() => {
     if (result === null || completeNotifiedRef.current) return;
@@ -195,7 +210,7 @@ export function VerseDefenderSession({
           gap: "0.75rem",
         }}
       >
-        <LivesDisplay livesRemaining={livesRemaining} />
+        <LivesDisplay livesRemaining={livesRemaining} maxLives={maxLives} />
         <span style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>
           Word {Math.min(currentWordIndex + 1, totalWords)} of {totalWords}
         </span>
@@ -218,9 +233,9 @@ export function VerseDefenderSession({
 
       {isDone && result !== null ? (
         status === "failed" ? (
-          <MissionFailedScreen result={result} onRetry={handleRetry} backTo={embedded ? null : "/"} />
+          <MissionFailedScreen result={result} onRetry={handleRetry} maxLives={maxLives} backTo={embedded ? null : "/"} />
         ) : (
-          <MissionCompleteScreen result={result} onRetry={handleRetry} backTo={embedded ? null : "/"} />
+          <MissionCompleteScreen result={result} onRetry={handleRetry} maxLives={maxLives} backTo={embedded ? null : "/"} />
         )
       ) : (
         <div
@@ -266,6 +281,7 @@ export function VerseDefenderSession({
               />
             )}
             {laser !== null && <LaserBeam key={laser.id} hitProgress={laser.progress} />}
+            {missBolt !== null && <MissBolt key={missBolt.id} />}
             <Cannon phase={phase} recoiling={recoiling} />
             {status === "breach-paused" && currentWord !== null && (
               <BreachOverlay

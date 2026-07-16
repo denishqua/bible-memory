@@ -15,6 +15,7 @@ import {
   type EngineState,
   type LaneDefenderResult,
   type LaneDefenderStatus,
+  type LaneKeyOutcome,
 } from "../lib/laneDefenderEngine";
 import type { Token } from "../lib/tokenize";
 
@@ -22,6 +23,16 @@ export interface LaneWordView {
   queueIndex: number;
   raw: string;
   progress: number; // 0 (top) → 1 (firing line)
+}
+
+/** One laser shot: the lane that was fired and whether it landed a clean hit,
+    a wrong-lane miss, or hit an empty lane. `id` increments per shot so the
+    laser/flash animations replay on every keypress — even repeated presses
+    into the same lane. */
+export interface ShotEvent {
+  id: number;
+  laneIndex: number;
+  outcome: LaneKeyOutcome;
 }
 
 export interface LaneDefenderView {
@@ -62,6 +73,8 @@ export function useLaneDefenderSession(tokens: Token[]) {
   const rafRef = useRef<number | null>(null);
   // Bumped on reset so the rAF-loop effect tears down and restarts cleanly.
   const [generation, setGeneration] = useState(0);
+  // The most recent laser shot — cosmetic only, never read by the engine.
+  const [lastShot, setLastShot] = useState<ShotEvent | null>(null);
 
   const [view, setView] = useState<LaneDefenderView>(() => {
     const engine = createEngineState(tokens);
@@ -73,6 +86,7 @@ export function useLaneDefenderSession(tokens: Token[]) {
     const engine = createEngineState(tokens);
     engineRef.current = engine;
     spawnDueAtRef.current = new Array(LANE_COUNT).fill(null);
+    setLastShot(null);
     setView(makeView(engine, performance.now()));
     setGeneration((g) => g + 1);
   }, [tokens]);
@@ -145,7 +159,10 @@ export function useLaneDefenderSession(tokens: Token[]) {
     if (!engine || engine.status !== "playing") return;
     const laneIndex = (LANE_KEYS as readonly string[]).indexOf(char.toLowerCase());
     if (laneIndex === -1) return;
-    handleLaneKey(engine, laneIndex);
+    const outcome = handleLaneKey(engine, laneIndex);
+    // Fire the laser on every lane key — clean hit, wrong-lane miss, or empty
+    // lane alike. id increments so the animation replays on repeated presses.
+    setLastShot((s) => ({ id: (s?.id ?? 0) + 1, laneIndex, outcome }));
     // Sync immediately so hits/misses feel instant instead of waiting a frame
     // (and so the terminal state renders even though the loop is stopping).
     setView(makeView(engine, performance.now()));
@@ -158,6 +175,7 @@ export function useLaneDefenderSession(tokens: Token[]) {
     totalWords: view.totalWords,
     nextTargetWord: view.nextTargetWord,
     result: view.result,
+    lastShot,
     handleKey,
     retry: reset,
   };

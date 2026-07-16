@@ -15,6 +15,9 @@ import { isMaskableReviewMode, type ReviewMode, type ReviewScope } from "../../t
 // `embedded` = rendered inside a host that owns its own chrome (the verse
 // gate). It suppresses the session's own "Change Mode" button and the
 // summary's "Back to Library" link, which don't make sense there.
+// `verseReferences` (bulk collection review only) labels the per-verse
+// accuracy breakdown, in review order. Forwarded only to the mask-based
+// ReviewSession — the arcade branches don't take it and are left untouched.
 export function renderSession(
   mode: ReviewMode,
   scope: ReviewScope,
@@ -22,6 +25,7 @@ export function renderSession(
   onChangeMode: () => void,
   onComplete?: () => void,
   embedded = false,
+  verseReferences?: string[],
 ) {
   if (isMaskableReviewMode(mode)) {
     return (
@@ -32,6 +36,7 @@ export function renderSession(
         onChangeMode={onChangeMode}
         onComplete={onComplete}
         embedded={embedded}
+        verseReferences={verseReferences}
       />
     );
   }

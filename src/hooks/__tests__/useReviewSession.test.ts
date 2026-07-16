@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { useReviewSession } from "../useReviewSession";
-import { tokenize } from "../../lib/tokenize";
+import { perVerseAccuracy, useReviewSession } from "../useReviewSession";
+import { tokenize, type Token } from "../../lib/tokenize";
 
-function setup(text: string, mode: "type-it" | "memorize-it" | "master-it" = "type-it") {
-  return renderHook(() => useReviewSession(tokenize(text), mode));
+function setup(
+  text: string,
+  mode: "type-it" | "memorize-it" | "master-it" = "type-it",
+  requireWholeWord = false,
+) {
+  return renderHook(() => useReviewSession(tokenize(text), mode, requireWholeWord));
+}
+
+// A bulk-review reference marker: non-matchable, and NOT a line break or verse
+// number — exactly the boundary token buildCollectionReviewTokens splices in.
+function referenceMarker(reference: string): Token {
+  return { raw: `— ${reference} —`, matchable: false, normalized: "" };
 }
 
 describe("useReviewSession", () => {
@@ -12,7 +22,7 @@ describe("useReviewSession", () => {
     const { result } = setup("For God so loved");
     expect(result.current.status).toBe("in-progress");
     expect(result.current.currentIndex).toBe(0);
-    expect(result.current.accuracy).toBe(100); // no words wrong yet
+    expect(result.current.accuracy).toBe(100); // nothing engaged yet → empty-set 100
     expect(result.current.words.every((w) => !w.completed && w.attempts === 0)).toBe(true);
   });
 
@@ -21,7 +31,7 @@ describe("useReviewSession", () => {
     act(() => result.current.handleKeyPress("f"));
     expect(result.current.words[0].completed).toBe(true);
     expect(result.current.currentIndex).toBe(1);
-    expect(result.current.accuracy).toBe(100); // no words wrong
+    expect(result.current.accuracy).toBe(100); // 1 engaged word, clean → 100
   });
 
   it("accepts the correct letter case-insensitively", () => {
@@ -36,11 +46,22 @@ describe("useReviewSession", () => {
     expect(result.current.words[0].completed).toBe(false);
     expect(result.current.words[0].attempts).toBe(1);
     expect(result.current.currentIndex).toBe(0);
-    expect(result.current.accuracy).toBe(50); // 1 of 2 words now wrong
+    // Live: 1 word engaged, 0 clean → 0% (only the touched word counts).
+    expect(result.current.accuracy).toBe(0);
 
     act(() => result.current.handleKeyPress("f"));
-    expect(result.current.accuracy).toBe(50); // completing it doesn't un-mark it wrong
+    expect(result.current.accuracy).toBe(0); // completing it doesn't un-mark it wrong
     expect(result.current.currentIndex).toBe(1);
+  });
+
+  it("live accuracy: first word wrong then second word correct → 50%", () => {
+    const { result } = setup("For God");
+    act(() => result.current.handleKeyPress("x")); // word 0 wrong
+    act(() => result.current.handleKeyPress("f")); // word 0 now completed (dirty)
+    expect(result.current.accuracy).toBe(0); // 1 engaged, 0 clean
+    act(() => result.current.handleKeyPress("g")); // word 1 clean
+    // 2 engaged (1 dirty, 1 clean) → 50%.
+    expect(result.current.accuracy).toBe(50);
   });
 
   it("counts a repeatedly-missed word as wrong only once (not double-punished)", () => {
@@ -50,11 +71,13 @@ describe("useReviewSession", () => {
     act(() => result.current.handleKeyPress("y"));
     act(() => result.current.handleKeyPress("z"));
     expect(result.current.words[0].attempts).toBe(3);
-    expect(result.current.accuracy).toBe(50); // still just 1 of 2 words wrong
+    // Live: only word 0 engaged and it's dirty → 0% (repeats still count once).
+    expect(result.current.accuracy).toBe(0);
     act(() => result.current.handleKeyPress("f"));
     // Finish the (clean) second word — final score is 1 wrong of 2 words.
     act(() => result.current.handleKeyPress("g"));
     expect(result.current.status).toBe("complete");
+    // At completion all matchable words are engaged, so live == overall = 50%.
     expect(result.current.accuracy).toBe(50);
   });
 
@@ -127,5 +150,67 @@ describe("useReviewSession", () => {
     expect(result.current.accuracy).toBe(100); // attempts cleared
     expect(result.current.words[0].completed).toBe(false);
     expect(result.current.words[0].attempts).toBe(0);
+  });
+
+  it("perVerseAccuracy segments at reference markers with per-verse live scores", () => {
+    // Two verses joined by a reference marker: For God — <marker> — so loved.
+    // tokens: For(0) God(1) marker(2) so(3) loved(4)
+    const tokens = [...tokenize("For God"), referenceMarker("B 2:2"), ...tokenize("so loved")];
+    const { result } = renderHook(() => useReviewSession(tokens, "type-it"));
+
+    // Verse 1: word 0 clean, word 1 dirty-then-complete → 1 clean of 2 = 50%.
+    act(() => result.current.handleKeyPress("f"));
+    act(() => result.current.handleKeyPress("x"));
+    act(() => result.current.handleKeyPress("g"));
+    // Verse 2: both clean → 100%.
+    act(() => result.current.handleKeyPress("s"));
+    act(() => result.current.handleKeyPress("l"));
+
+    expect(result.current.status).toBe("complete");
+    expect(perVerseAccuracy(result.current.words)).toEqual([
+      { startIndex: 0, accuracy: 50 },
+      { startIndex: 2, accuracy: 100 },
+    ]);
+  });
+
+  it("perVerseAccuracy leaves not-yet-engaged verses at empty-set 100%", () => {
+    const tokens = [...tokenize("For God"), referenceMarker("B 2:2"), ...tokenize("so loved")];
+    const { result } = renderHook(() => useReviewSession(tokens, "type-it"));
+    // Engage only the first verse's first word (wrong).
+    act(() => result.current.handleKeyPress("z"));
+    expect(perVerseAccuracy(result.current.words)).toEqual([
+      { startIndex: 0, accuracy: 0 }, // 1 engaged, dirty
+      { startIndex: 2, accuracy: 100 }, // untouched → empty-set 100
+    ]);
+  });
+
+  it("whole-word mode: typing every letter completes and advances the word", () => {
+    const { result } = setup("For God", "type-it", true);
+    act(() => result.current.handleKeyPress("f"));
+    expect(result.current.words[0].completed).toBe(false); // not done after one letter
+    expect(result.current.words[0].typedCount).toBe(1);
+    expect(result.current.currentIndex).toBe(0);
+
+    act(() => result.current.handleKeyPress("o"));
+    act(() => result.current.handleKeyPress("r"));
+    expect(result.current.words[0].completed).toBe(true);
+    expect(result.current.currentIndex).toBe(1); // advanced to the next word
+  });
+
+  it("whole-word mode: a wrong letter bumps attempts without advancing", () => {
+    const { result } = setup("For God", "type-it", true);
+    act(() => result.current.handleKeyPress("x")); // expected 'f'
+    expect(result.current.words[0].attempts).toBe(1);
+    expect(result.current.words[0].typedCount).toBe(0);
+    expect(result.current.currentIndex).toBe(0);
+    expect(result.current.accuracy).toBe(0); // engaged & dirty
+
+    // Correct letters still work afterward; the word stays marked wrong.
+    act(() => result.current.handleKeyPress("f"));
+    act(() => result.current.handleKeyPress("o"));
+    act(() => result.current.handleKeyPress("r"));
+    expect(result.current.words[0].completed).toBe(true);
+    expect(result.current.words[0].attempts).toBe(1);
+    expect(result.current.currentIndex).toBe(1);
   });
 });

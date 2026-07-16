@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
 import type { LivesResult } from "../../lib/verseDefenderEngine";
-import { MAX_LIVES } from "../../lib/verseDefenderEngine";
 import { getDisplayAccuracy } from "../../types/review";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
@@ -8,11 +7,12 @@ import { Button } from "../ui/Button";
 interface MissionFailedScreenProps {
   result: LivesResult;
   onRetry: () => void;
+  maxLives: number; // total shield pool for the run
   // null hides the "Back to Library" link (the verse gate supplies its own exit).
   backTo?: string | null;
 }
 
-export function MissionFailedScreen({ result, onRetry, backTo = "/" }: MissionFailedScreenProps) {
+export function MissionFailedScreen({ result, onRetry, maxLives, backTo = "/" }: MissionFailedScreenProps) {
   return (
     <Card style={{ marginTop: "1.5rem", textAlign: "center" }}>
       <span
@@ -47,7 +47,7 @@ export function MissionFailedScreen({ result, onRetry, backTo = "/" }: MissionFa
           marginBottom: "1.25rem",
         }}
       >
-        The verse broke through the defenses. Shields: 0 of {MAX_LIVES}
+        The verse broke through the defenses. Shields: 0 of {maxLives}
       </p>
       <div style={{ display: "flex", justifyContent: "center", gap: "0.75rem" }}>
         <Button variant="primary" onClick={onRetry}>

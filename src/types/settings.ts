@@ -43,11 +43,16 @@ export interface Settings {
   // in which case ESV lookup is unavailable (manual verse entry still works).
   // There is no bundled/built-in key — each user supplies their own.
   esvApiKey: string;
+  // Review input style for the three mask modes: false = type only the first
+  // letter of each word to advance (default), true = type the whole word.
+  // App-level (not gate-specific) — the extension background worker only reads
+  // newTabGate, so this needs no worker mirroring.
+  typeWholeWord: boolean;
   newTabGate: NewTabGateSettings;
 }
 
 export function defaultSettings(): Settings {
-  return { esvApiKey: "", newTabGate: defaultNewTabGateSettings() };
+  return { esvApiKey: "", typeWholeWord: false, newTabGate: defaultNewTabGateSettings() };
 }
 
 // Fills a (possibly partial) stored/imported settings object out to a full

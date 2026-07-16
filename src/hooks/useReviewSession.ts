@@ -10,6 +10,7 @@ export interface WordRuntimeState {
   visible: Visibility; // from initialVisibility(), constant for the session
   completed: boolean; // flips true on correct first-letter keystroke
   attempts: number; // wrong keystrokes on this word
+  typedCount: number; // letters correctly typed so far (whole-word mode); 0 in first-letter mode
 }
 // Display rule (applied by the UI layer, not stored here): if `visible ===
 // "full"`, always render the full word. If `"masked" && !completed`, render
@@ -24,7 +25,13 @@ export type ReviewStatus = "in-progress" | "complete";
 export interface UseReviewSessionResult {
   words: WordRuntimeState[];
   currentIndex: number;
-  accuracy: number; // clean words / total words * 100 (a word missed repeatedly counts once)
+  // LIVE running accuracy over only the words ENGAGED so far (completed OR
+  // attempts > 0): clean-engaged words (attempts === 0) / engaged words * 100.
+  // 100 when nothing is engaged yet (calculateAccuracy's empty-set behavior).
+  // Among engaged words, attempts === 0 implies completed, so this is exactly
+  // "clean completions / words touched". At completion every matchable word is
+  // engaged, so it collapses to the old overall value (clean / total).
+  accuracy: number;
   status: ReviewStatus;
   handleKeyPress: (char: string) => void;
   reset: () => void; // full reset for retry — no carried-over reveals
@@ -76,6 +83,7 @@ function buildInitialWords(tokens: Token[], mode: MaskableReviewMode): WordRunti
     visible: initialVisibility(mode, index),
     completed: false,
     attempts: 0,
+    typedCount: 0,
   }));
 }
 
@@ -98,55 +106,141 @@ function initialize(tokens: Token[], mode: MaskableReviewMode): InternalState {
   };
 }
 
+// A matchable word is "engaged" once the player has interacted with it —
+// either completed it or gotten it wrong at least once. Words not yet reached
+// are NOT engaged and stay out of the live-accuracy denominator.
+function isEngaged(word: WordRuntimeState): boolean {
+  return word.token.matchable && (word.completed || word.attempts > 0);
+}
+
+// Live running accuracy over a set of runtime words: clean-engaged words
+// (attempts === 0) over engaged words. Empty set → 100 (nothing typed yet).
+// Shared by the hook's headline number and by perVerseAccuracy per segment.
+function liveAccuracy(words: WordRuntimeState[]): number {
+  const engaged = words.filter(isEngaged);
+  const clean = engaged.filter((w) => w.attempts === 0).length;
+  return calculateAccuracy(clean, engaged.length);
+}
+
+// A reference marker is the non-matchable, display-only "— John 3:16 —" token
+// spliced between verses in a bulk (collection) review — distinguished from a
+// line break or a verse-number marker, which are also non-matchable but not
+// verse boundaries. (See buildCollectionReviewTokens.)
+function isReferenceMarker(word: WordRuntimeState): boolean {
+  const { token } = word;
+  return !token.matchable && !token.isLineBreak && !token.isVerseNumber;
+}
+
+// Segments a runtime word stream into per-verse groups at reference-marker
+// boundaries and returns each group's LIVE accuracy (same engaged-based formula
+// as the headline number), one entry per verse in order. The first group is
+// everything before the first reference marker (there is never a marker before
+// the first verse). `startIndex` is the token index the group begins at (0 for
+// the first group, the marker's index for each later group), so callers can map
+// a currentIndex back to the verse it falls in. Pure — used for the per-verse
+// breakdown in bulk review.
+export function perVerseAccuracy(
+  words: WordRuntimeState[],
+): { startIndex: number; accuracy: number }[] {
+  const segments: { startIndex: number; accuracy: number }[] = [];
+  let start = 0;
+  let group: WordRuntimeState[] = [];
+  for (let i = 0; i < words.length; i++) {
+    if (isReferenceMarker(words[i])) {
+      segments.push({ startIndex: start, accuracy: liveAccuracy(group) });
+      start = i;
+      group = [];
+      continue;
+    }
+    group.push(words[i]);
+  }
+  segments.push({ startIndex: start, accuracy: liveAccuracy(group) });
+  return segments;
+}
+
 // The shared engine behind all 3 modes (Type It / Memorize It / Master It):
-// every word requires exactly one correct first-letter keystroke to advance,
-// modes differ only in whether a word's text is visible beforehand. Deliberately
-// has no knowledge of <input>/focus/DOM — the UI layer owns the hidden focused
-// input and calls handleKeyPress from its change events (spec-review fix #5).
+// every word requires the player to type it correctly to advance — in
+// first-letter mode a single correct first letter, in whole-word mode every
+// letter in order. Modes differ only in whether a word's text is visible
+// beforehand. Deliberately has no knowledge of <input>/focus/DOM — the UI layer
+// owns the hidden focused input and calls handleKeyPress from its change events
+// (spec-review fix #5). `requireWholeWord` (an app-level setting, static for the
+// life of a session) selects between the two input styles.
 export function useReviewSession(
   tokens: Token[],
   mode: MaskableReviewMode,
+  requireWholeWord = false,
 ): UseReviewSessionResult {
   const [state, setState] = useState<InternalState>(() => initialize(tokens, mode));
 
+  // requireWholeWord is in the deps so toggling the setting produces a fresh
+  // reset() identity — a mode change should restart the session cleanly rather
+  // than leave a half-typed word straddling two input styles.
   const reset = useCallback(() => {
     setState(initialize(tokens, mode));
-  }, [tokens, mode]);
+  }, [tokens, mode, requireWholeWord]);
 
-  const handleKeyPress = useCallback((char: string) => {
-    if (!isPrintableCharacter(char)) return;
+  const handleKeyPress = useCallback(
+    (char: string) => {
+      if (!isPrintableCharacter(char)) return;
 
-    setState((prev) => {
-      if (prev.currentIndex >= prev.words.length) return prev; // already complete
+      setState((prev) => {
+        if (prev.currentIndex >= prev.words.length) return prev; // already complete
 
-      const currentWord = prev.words[prev.currentIndex];
-      const expected = currentWord.token.normalized[0];
-      const isMatch = expected !== undefined && char.toLowerCase() === expected.toLowerCase();
+        const currentWord = prev.words[prev.currentIndex];
+        const words = prev.words.slice();
 
-      const words = prev.words.slice();
+        if (requireWholeWord) {
+          // Whole-word mode: match the next expected char at the current typed
+          // offset. A correct char advances typedCount; the word only completes
+          // (and we advance to the next word) once every letter is typed. A
+          // wrong char marks the word (attempts++) but never rewinds progress.
+          const expected = currentWord.token.normalized[currentWord.typedCount];
+          const isMatch = expected !== undefined && char.toLowerCase() === expected.toLowerCase();
 
-      if (isMatch) {
-        words[prev.currentIndex] = { ...currentWord, completed: true };
-        const nextIndex = firstPendingMatchableIndex(words, prev.currentIndex + 1);
-        return { words, currentIndex: nextIndex };
-      }
+          if (isMatch) {
+            const typedCount = currentWord.typedCount + 1;
+            if (typedCount === currentWord.token.normalized.length) {
+              words[prev.currentIndex] = { ...currentWord, typedCount, completed: true };
+              const nextIndex = firstPendingMatchableIndex(words, prev.currentIndex + 1);
+              return { words, currentIndex: nextIndex };
+            }
+            words[prev.currentIndex] = { ...currentWord, typedCount };
+            return { ...prev, words };
+          }
 
-      // Mismatch: attempts++ drives both the progressive reveal cap and the
-      // word-based score — a word with attempts > 0 is a "wrong" word, counted
-      // once no matter how many times it's missed.
-      words[prev.currentIndex] = { ...currentWord, attempts: currentWord.attempts + 1 };
-      return { ...prev, words };
-    });
-  }, []);
+          words[prev.currentIndex] = { ...currentWord, attempts: currentWord.attempts + 1 };
+          return { ...prev, words };
+        }
+
+        // First-letter mode (default): one correct first letter completes and
+        // advances the word.
+        const expected = currentWord.token.normalized[0];
+        const isMatch = expected !== undefined && char.toLowerCase() === expected.toLowerCase();
+
+        if (isMatch) {
+          words[prev.currentIndex] = { ...currentWord, completed: true };
+          const nextIndex = firstPendingMatchableIndex(words, prev.currentIndex + 1);
+          return { words, currentIndex: nextIndex };
+        }
+
+        // Mismatch: attempts++ drives both the progressive reveal cap and the
+        // word-based score — a word with attempts > 0 is a "wrong" word, counted
+        // once no matter how many times it's missed.
+        words[prev.currentIndex] = { ...currentWord, attempts: currentWord.attempts + 1 };
+        return { ...prev, words };
+      });
+    },
+    [requireWholeWord],
+  );
 
   const status: ReviewStatus = state.currentIndex >= state.words.length ? "complete" : "in-progress";
-  // Word-based accuracy: matchable words completed with no wrong keystroke over
-  // the total. Missing the same word repeatedly (attempts > 1) is only counted
-  // once, so it's never double-punished. Words not yet reached count as clean,
-  // so a session starts at 100% and only drops as words are gotten wrong.
-  const matchableWords = state.words.filter((w) => w.token.matchable);
-  const cleanWords = matchableWords.filter((w) => w.attempts === 0).length;
-  const accuracy = calculateAccuracy(cleanWords, matchableWords.length);
+  // Live word-based accuracy over only the ENGAGED words (see liveAccuracy /
+  // UseReviewSessionResult.accuracy). Missing the same word repeatedly
+  // (attempts > 1) is still counted once. At completion every matchable word is
+  // engaged, so this equals the old overall clean/total value — the stored
+  // session record below relies on that identity.
+  const accuracy = liveAccuracy(state.words);
 
   return {
     words: state.words,

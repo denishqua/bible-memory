@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
-import { useReviewSession } from "../../hooks/useReviewSession";
+import { perVerseAccuracy, useReviewSession } from "../../hooks/useReviewSession";
 import { useStorage } from "../../data/storageContext";
 import { useProfile } from "../../hooks/useProfile";
+import { useSettings } from "../../hooks/useSettings";
 import { updateStreakOnQualifyingSession } from "../../lib/streak";
 import {
   isSessionQualifying,
@@ -28,15 +29,41 @@ interface ReviewSessionProps {
   // Rendered inside the verse gate, which owns its own chrome: hide the
   // "Change Mode" button and the summary's "Back to Library" link.
   embedded?: boolean;
+  // Bulk collection review only: the reviewed verses' references in review
+  // order, used to label the per-verse accuracy breakdown. Absent (or length
+  // <= 1) → single-verse behavior with one overall percentage, unchanged.
+  verseReferences?: string[];
 }
 
-export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, embedded = false }: ReviewSessionProps) {
+export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, embedded = false, verseReferences }: ReviewSessionProps) {
+  const { settings } = useSettings();
+  const requireWholeWord = settings?.typeWholeWord ?? false;
   const { words, currentIndex, accuracy, status, handleKeyPress, reset } = useReviewSession(
     tokens,
     mode,
+    requireWholeWord,
   );
   const storage = useStorage();
   const { profile, updateProfile } = useProfile();
+
+  // Bulk review shows an INDIVIDUAL live percentage per verse instead of one
+  // overall number. Only when there's genuinely more than one verse — a
+  // single-verse collection behaves exactly like single-verse review.
+  const isBulk =
+    scope.type === "collection" && verseReferences !== undefined && verseReferences.length > 1;
+  // Segments recomputed each render off `words` (a cheap O(n) pass, on par with
+  // the accuracy filter). Empty for the single-verse path — its display is
+  // untouched below.
+  const segments = isBulk ? perVerseAccuracy(words) : [];
+  const verseLabel = (i: number) => verseReferences?.[i] ?? `Verse ${i + 1}`;
+  // Which verse the cursor currently sits in: the last segment whose token span
+  // has started at or before currentIndex. At completion currentIndex runs past
+  // the end, so this naturally lands on the final verse.
+  let currentVerse = 0;
+  for (let i = 0; i < segments.length; i++) {
+    if (segments[i].startIndex <= currentIndex) currentVerse = i;
+    else break;
+  }
 
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -220,6 +247,7 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
                 word={word}
                 isCurrent={i === currentIndex}
                 isHinted={i === currentIndex && hintedIndex === currentIndex}
+                wholeWord={requireWholeWord}
               />
             ))}
           </p>
@@ -235,7 +263,13 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
         }}
       >
         <span style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>
-          Accuracy: {accuracy}%
+          {isBulk ? (
+            <>
+              {verseLabel(currentVerse)} — {segments[currentVerse]?.accuracy ?? 100}%
+            </>
+          ) : (
+            <>Accuracy: {accuracy}%</>
+          )}
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           {/* Disabled in Type It (every word is already fully visible, so a
@@ -266,6 +300,11 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
           passed={accuracy >= PASS_THRESHOLD}
           onRetry={handleRetry}
           backTo={embedded ? null : "/"}
+          perVerse={
+            isBulk
+              ? segments.map((s, i) => ({ reference: verseLabel(i), accuracy: s.accuracy }))
+              : undefined
+          }
         />
       )}
     </div>
