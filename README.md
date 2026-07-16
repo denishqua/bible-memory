@@ -1,9 +1,86 @@
 # Bible Memory
 
-A React + TypeScript + Vite app that also ships as an unpacked Chrome
-extension.
+Memorize Bible verses through active recall. Bible Memory is a React +
+TypeScript + Vite app that also ships as an unpacked Chrome extension — and the
+extension can **gate your browsing** until you review a verse, turning idle new
+tabs and address-bar detours into memorization reps.
 
-## Developing the extension
+Everything runs locally in your browser. There is no backend and no account:
+verses, collections, and settings live in `localStorage` (web) or
+`chrome.storage.local` (extension).
+
+## Features
+
+- **Verse library** — Add verses manually or look them up via the ESV API
+  (your own key). Each verse tracks a mastery score and per-review history.
+- **Collections** — Group verses into collections, reorder them, and launch
+  reviews over a whole collection, a selected subset, or one random verse.
+- **Five review modes** — from plain typing to arcade games (see below).
+- **First-letter or whole-word input** — practice by typing just the first
+  letter of each word, or every letter.
+- **The verse gate (extension only)** — when enabled, opening a new tab or
+  typing a URL in the address bar redirects you to a full-screen verse review.
+  Complete it to proceed. Whitelist domains you don't want gated.
+- **Starter pack & backups** — one-click import of a starter verse collection,
+  plus full export/import of all your data as JSON.
+- **Light / dark / system theme.**
+
+### Review modes
+
+Three mask-based modes (progressively harder) plus two arcade modes:
+
+| Mode | What it does |
+| --- | --- |
+| **Type It** | Whole verse visible — warm-up / typing practice. |
+| **Memorize It** | Every other word masked. |
+| **Master It** | Every word masked — full recall. |
+| **Verse Defender** | Tower-defense arcade: words descend as asteroids, type the first letter to blast them. Lives-based. |
+| **Lane Defender** | 4-lane (D/F/J/K) rhythm variant, scored on per-word accuracy. |
+
+Scoring is word-based. A word counts as "clean" if you got it with no misses;
+live accuracy is clean words ÷ engaged words. The pass threshold is 90%. A
+verse's overall **mastery score** averages your accuracy across the harder
+modes only (Master It, Verse Defender, Lane Defender).
+
+### The verse gate
+
+Available only in the extension. When enabled in Settings, the background
+service worker intercepts:
+
+- the first navigation of a **newly opened tab**, and
+- **address-bar** navigations (typed URLs, omnibox searches, chosen bookmarks).
+
+It redirects the tab to a full-screen gate that picks a random verse from your
+chosen collections and runs your configured review mode. Finishing the review
+(pass *or* fail — it rewards engagement) reveals a **Proceed to site** button.
+
+The gate deliberately **fails open**: if it's off, unconfigured, pointed at an
+empty verse set, or the destination is whitelisted, it never blocks you.
+Clicked links, redirects, reloads, and back/forward are never gated. You can
+whitelist the current domain from the right-click context menu.
+
+## Getting started (web app)
+
+Requires Node.js.
+
+```
+npm install
+npm run dev
+```
+
+This starts the Vite dev server with hot reload. To use ESV lookup, add your
+own key from [api.esv.org](https://api.esv.org/) in **Settings** — it is stored
+locally and never bundled into the app.
+
+Other scripts:
+
+```
+npm run build     # type-check (tsc -b) + production build to dist/
+npm run test      # run the Vitest suite
+npm run lint      # oxlint
+```
+
+## The Chrome extension
 
 The Chrome extension does **not** run the Vite dev server. It loads the static
 build output in `dist/` (the Vite bundle plus a copied `manifest.json` and
@@ -41,38 +118,28 @@ you edit. You still have to click reload ↻ on `chrome://extensions` after each
 rebuild — Chrome does not hot-reload unpacked extensions. (Watch mode skips the
 `tsc -b` type-check that `npm run build:extension` runs.)
 
----
+> **Note:** `src/extension/background.ts` is intentionally plain, import-free
+> TypeScript. It is copied to `dist/background.js` verbatim (not bundled), so it
+> re-implements a few helpers (domain whitelisting, gate defaults) that must be
+> kept in sync with `src/lib/domainWhitelist.ts` and `src/types/settings.ts`.
 
-## Template notes
+## Data & privacy
 
-This project was scaffolded from the React + TypeScript + Vite template with
-HMR and some Oxlint rules.
+- All data (verses, collections, review history, settings) is stored locally —
+  `localStorage` on the web, `chrome.storage.local` in the extension. Nothing is
+  sent anywhere except your own requests to the ESV API.
+- The **ESV API key is user-supplied** and lives only in your browser settings.
+  No key is bundled with the app.
+- **Backups include your ESV API key in plaintext.** The JSON produced by
+  Settings → Export contains everything, including the key — treat the file
+  accordingly and don't commit or share it.
 
-Currently, two official plugins are available:
+## Tech stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+React 19 · react-router-dom 7 (HashRouter) · TypeScript · Vite 8 · Vitest ·
+oxlint. Chrome extension is Manifest V3 (background service worker; no content
+scripts). Styling is inline CSS-variable styles — no CSS framework.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Tests (Vitest + jsdom + Testing Library) cover the review-session engine,
+storage adapter, verse scoring, domain whitelist, tokenizer, and mode
+visibility.
