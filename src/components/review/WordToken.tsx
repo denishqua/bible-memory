@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import type { WordRuntimeState } from "../../hooks/useReviewSession";
 
 interface WordTokenProps {
@@ -43,6 +43,30 @@ function typedPrefixGlyphs(word: WordRuntimeState): string {
     .join("");
 }
 
+// Whole-word mode, "given" (always-visible) words: the full raw text is shown,
+// but the letters not yet typed are dimmed and color in one at a time as the
+// player types them. `typedCount` indexes word.normalized (letters only,
+// lowercased), while the displayed text is word.raw (with capitals and
+// punctuation) — so map the typed-letter count onto a raw-string cut point.
+// `normalized` is always a subsequence of raw.toLowerCase() (normalizeWord only
+// lowercases and DROPS characters), so a greedy left-to-right walk lines each
+// normalized letter up with its raw position. Returns the length of the raw
+// prefix to render at full color; the remainder is dimmed. Trailing punctuation
+// stays dimmed until the word completes (a completed word takes the full-color
+// path, not this one).
+function revealedRawLength(raw: string, normalized: string, typedCount: number): number {
+  if (typedCount <= 0) return 0;
+  let matched = 0;
+  for (let i = 0; i < raw.length; i++) {
+    const expected = normalized[matched];
+    if (expected !== undefined && raw[i].toLowerCase() === expected) {
+      matched++;
+      if (matched === typedCount) return i + 1;
+    }
+  }
+  return raw.length;
+}
+
 // Pure presentational component — no state, no knowledge of the engine beyond
 // the WordRuntimeState it's handed. The parent is responsible for keying this
 // component by `${word.index}-${word.attempts}` so a wrong keystroke (which
@@ -84,9 +108,27 @@ export const WordToken = memo(function WordToken({ word, isCurrent, isHinted, wh
   // "masked" && !completed) — exactly the !showFull case. It reveals the raw
   // text in a distinct ghost style; it never completes the word.
   const showHint = !showFull && isHinted === true;
+  // Whole-word mode: a "given" word (always visible — every word in Type It,
+  // the shown words in Memorize It) that isn't finished yet displays its full
+  // text with the not-yet-typed letters dimmed, coloring each in as it's typed.
+  // This gives visible words the same progressive feedback masked words already
+  // get from typedPrefixGlyphs. First-letter mode can't show per-letter
+  // progress, so it keeps the plain full-color text.
+  const showGivenReveal = wholeWord && word.visible === "full" && !word.completed;
   const maskedDisplay = wholeWord ? typedPrefixGlyphs(word) : maskedGlyphs(word);
   const display = showFull || showHint ? token.raw : maskedDisplay;
   const isFlashing = isCurrent && !word.completed && word.attempts > 0;
+
+  let content: ReactNode = display;
+  if (showGivenReveal) {
+    const cut = revealedRawLength(token.raw, token.normalized, word.typedCount);
+    content = (
+      <>
+        {token.raw.slice(0, cut)}
+        <span style={{ color: "var(--color-ink-muted)" }}>{token.raw.slice(cut)}</span>
+      </>
+    );
+  }
 
   return (
     <span
@@ -105,7 +147,7 @@ export const WordToken = memo(function WordToken({ word, isCurrent, isHinted, wh
           : undefined),
       }}
     >
-      {display}
+      {content}
     </span>
   );
 });
