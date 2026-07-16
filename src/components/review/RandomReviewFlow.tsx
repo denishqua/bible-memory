@@ -28,7 +28,8 @@ interface RandomReviewFlowProps {
 // One verse at a time, in an order shuffled ONCE on mount. The mode is picked
 // once up front and applies to every verse in the run. Each verse renders the
 // existing session component with a per-verse scope, so session records and
-// streak updates flow through the components' built-in plumbing untouched.
+// practice-count updates flow through the components' built-in plumbing
+// untouched (each verse is its own session → +1 each).
 export function RandomReviewFlow({ collection, verses }: RandomReviewFlowProps) {
   // Lazy initializer: shuffled exactly once, stable across re-renders even if
   // the verses prop identity changes (e.g. a hook refresh after a session logs).

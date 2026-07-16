@@ -2,9 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "reac
 import { useLaneDefenderSession } from "../../hooks/useLaneDefenderSession";
 import { useStorage } from "../../data/storageContext";
 import { useProfile } from "../../hooks/useProfile";
-import { updateStreakOnQualifyingSession } from "../../lib/streak";
 import {
-  isSessionQualifying,
   type ReviewSession as ReviewSessionRecord,
   type ReviewScope,
 } from "../../types/review";
@@ -50,7 +48,7 @@ export function LaneDefenderSession({
   const { profile, updateProfile } = useProfile();
 
   const inputRef = useRef<HTMLInputElement>(null);
-  // Guards the append-session/streak-update effect below so it fires exactly
+  // Guards the append-session/practice-count effect below so it fires exactly
   // once per completed session, not once per re-render while status stays
   // terminal. Reset alongside the hook's own retry() on Retry.
   const finalizedRef = useRef(false);
@@ -86,10 +84,10 @@ export function LaneDefenderSession({
 
   useEffect(() => {
     if (status === "playing" || finalizedRef.current) return;
-    // Wait for the profile to have loaded before finalizing — appending the
-    // session unconditionally but only *after* profile is available means we
-    // never silently skip a streak update just because useProfile's fetch
-    // hadn't resolved yet when the run ended.
+    // Wait for the profile to have loaded before finalizing — we read
+    // profile.versesPracticed to increment it, and appending only *after*
+    // profile is available means we never silently skip the bump just because
+    // useProfile's fetch hadn't resolved yet when the run ended.
     if (!profile || !result) return;
     finalizedRef.current = true;
 
@@ -110,15 +108,10 @@ export function LaneDefenderSession({
 
     void (async () => {
       // Logged unconditionally — pass or fail, history should reflect every
-      // attempt.
+      // attempt. Every finished run bumps the cumulative practice count by
+      // exactly 1.
       await storage.appendReviewSession(session);
-      if (isSessionQualifying(session)) {
-        const nextStreak = updateStreakOnQualifyingSession(
-          profile.streak,
-          new Date(session.completedAt),
-        );
-        await updateProfile({ ...profile, streak: nextStreak });
-      }
+      await updateProfile({ ...profile, versesPracticed: profile.versesPracticed + 1 });
     })();
   }, [status, result, profile, scope, storage, updateProfile]);
 

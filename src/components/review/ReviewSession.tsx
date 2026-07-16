@@ -3,9 +3,7 @@ import { perVerseAccuracy, useReviewSession } from "../../hooks/useReviewSession
 import { useStorage } from "../../data/storageContext";
 import { useProfile } from "../../hooks/useProfile";
 import { useSettings } from "../../hooks/useSettings";
-import { updateStreakOnQualifyingSession } from "../../lib/streak";
 import {
-  isSessionQualifying,
   type ReviewSession as ReviewSessionRecord,
   type ReviewScope,
   type MaskableReviewMode,
@@ -67,7 +65,7 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
 
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Guards the append-session/streak-update effect below so it fires exactly
+  // Guards the append-session/practice-count effect below so it fires exactly
   // once per completed session, not once per re-render while status stays
   // "complete". Reset alongside the hook's own reset() on Retry.
   const finalizedRef = useRef(false);
@@ -128,10 +126,10 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
 
   useEffect(() => {
     if (status !== "complete" || finalizedRef.current) return;
-    // Wait for the profile to have loaded before finalizing — appending the
-    // session unconditionally but only *after* profile is available means we
-    // never silently skip a streak update just because useProfile's fetch
-    // hadn't resolved yet when the last keystroke landed.
+    // Wait for the profile to have loaded before finalizing — we read
+    // profile.versesPracticed to increment it, and appending only *after*
+    // profile is available means we never silently skip the bump just because
+    // useProfile's fetch hadn't resolved yet when the last keystroke landed.
     if (!profile) return;
     finalizedRef.current = true;
 
@@ -153,15 +151,10 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
 
     void (async () => {
       // Logged unconditionally — pass or fail, history should reflect every
-      // attempt.
+      // attempt. Every finished session (this whole bulk review is ONE
+      // session) bumps the cumulative practice count by exactly 1.
       await storage.appendReviewSession(session);
-      if (isSessionQualifying(session)) {
-        const nextStreak = updateStreakOnQualifyingSession(
-          profile.streak,
-          new Date(session.completedAt),
-        );
-        await updateProfile({ ...profile, streak: nextStreak });
-      }
+      await updateProfile({ ...profile, versesPracticed: profile.versesPracticed + 1 });
     })();
   }, [status, profile, words, accuracy, mode, scope, storage, updateProfile]);
 

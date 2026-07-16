@@ -2,7 +2,7 @@ import type { StorageAdapter } from "../types/storage";
 import type { Verse } from "../types/verse";
 import type { Collection, CollectionVerseLink } from "../types/collection";
 import type { ReviewSession } from "../types/review";
-import type { Profile } from "../types/profile";
+import { normalizeProfile, type Profile } from "../types/profile";
 import { defaultSettings, mergeSettings, type Settings } from "../types/settings";
 
 const KEYS = {
@@ -37,11 +37,7 @@ function writeArray<T>(key: string, value: T[]): void {
 function defaultProfile(): Profile {
   return {
     createdAt: new Date().toISOString(),
-    streak: {
-      currentStreak: 0,
-      longestStreak: 0,
-      lastQualifyingDate: null,
-    },
+    versesPracticed: 0,
   };
 }
 
@@ -161,7 +157,20 @@ export class LocalStorageAdapter implements StorageAdapter {
       return profile;
     }
     try {
-      return JSON.parse(raw) as Profile;
+      const parsed: unknown = JSON.parse(raw);
+      // Migration for returning users: a streak-era profile has no numeric
+      // `versesPracticed`, so seed it from the existing review-history count
+      // rather than resetting past practice to 0. A profile that already
+      // carries a numeric count is normalized as-is (never reseeded).
+      const hasCount =
+        typeof parsed === "object" &&
+        parsed !== null &&
+        typeof (parsed as Record<string, unknown>).versesPracticed === "number";
+      const profile = normalizeProfile(parsed);
+      if (!hasCount) {
+        profile.versesPracticed = (await this.getReviewSessions()).length;
+      }
+      return profile;
     } catch {
       const profile = defaultProfile();
       localStorage.setItem(KEYS.profile, JSON.stringify(profile));

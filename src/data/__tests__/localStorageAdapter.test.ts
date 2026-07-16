@@ -194,24 +194,88 @@ describe("LocalStorageAdapter", () => {
   describe("profile", () => {
     it("creates a default profile on first access", async () => {
       const profile = await adapter.getProfile();
-      expect(profile.streak).toEqual({
-        currentStreak: 0,
-        longestStreak: 0,
-        lastQualifyingDate: null,
-      });
+      expect(profile.versesPracticed).toBe(0);
     });
 
     it("saves and retrieves an updated profile", async () => {
       const profile = await adapter.getProfile();
-      const updated = {
-        ...profile,
-        streak: { currentStreak: 3, longestStreak: 5, lastQualifyingDate: "2026-07-12" },
-      };
+      const updated = { ...profile, versesPracticed: 7 };
       await adapter.saveProfile(updated);
 
       const retrieved = await adapter.getProfile();
-      expect(retrieved.streak.currentStreak).toBe(3);
-      expect(retrieved.streak.lastQualifyingDate).toBe("2026-07-12");
+      expect(retrieved.versesPracticed).toBe(7);
+    });
+
+    it("migrates an old streak-era profile by seeding versesPracticed from review history", async () => {
+      // A pre-versesPracticed profile: it has createdAt + streak, no count.
+      localStorage.setItem(
+        "bm.profile.v1",
+        JSON.stringify({
+          createdAt: "2026-01-01T00:00:00.000Z",
+          streak: { currentStreak: 3, longestStreak: 5, lastQualifyingDate: "2026-07-12" },
+        }),
+      );
+      // Two logged sessions in history → the migrated count seeds from that.
+      const now = new Date().toISOString();
+      for (const id of ["s1", "s2"]) {
+        await adapter.appendReviewSession({
+          id,
+          scope: { type: "verse", verseId: "v1" },
+          mode: "type-it",
+          result: {
+            type: "accuracy",
+            accuracy: 100,
+            passed: true,
+            totalKeystrokes: 5,
+            correctKeystrokes: 5,
+          },
+          startedAt: now,
+          completedAt: now,
+        });
+      }
+
+      const migrated = await adapter.getProfile();
+      expect(migrated.versesPracticed).toBe(2);
+      expect(migrated.createdAt).toBe("2026-01-01T00:00:00.000Z");
+    });
+
+    it("migrates an old streak-era profile to 0 when there is no review history", async () => {
+      localStorage.setItem(
+        "bm.profile.v1",
+        JSON.stringify({
+          createdAt: "2026-01-01T00:00:00.000Z",
+          streak: { currentStreak: 0, longestStreak: 0, lastQualifyingDate: null },
+        }),
+      );
+
+      const migrated = await adapter.getProfile();
+      expect(migrated.versesPracticed).toBe(0);
+    });
+
+    it("does not reseed a profile that already has a numeric versesPracticed", async () => {
+      localStorage.setItem(
+        "bm.profile.v1",
+        JSON.stringify({ createdAt: "2026-01-01T00:00:00.000Z", versesPracticed: 4 }),
+      );
+      // History exists, but an already-migrated profile must NOT be reseeded.
+      const now = new Date().toISOString();
+      await adapter.appendReviewSession({
+        id: "s1",
+        scope: { type: "verse", verseId: "v1" },
+        mode: "type-it",
+        result: {
+          type: "accuracy",
+          accuracy: 100,
+          passed: true,
+          totalKeystrokes: 5,
+          correctKeystrokes: 5,
+        },
+        startedAt: now,
+        completedAt: now,
+      });
+
+      const profile = await adapter.getProfile();
+      expect(profile.versesPracticed).toBe(4);
     });
   });
 

@@ -48,12 +48,8 @@ export interface ReviewSession {
   completedAt: string;
 }
 
-// Shared read-path helpers so downstream code (streak caller, history/summary UI)
-// never branches on `result.type` itself.
-export function isSessionQualifying(session: ReviewSession): boolean {
-  return session.result.passed;
-}
-
+// Shared read-path helper so downstream code (history/summary UI) never
+// branches on `result.type` itself.
 export function getDisplayAccuracy(result: ReviewResult): number {
   if (result.type === "accuracy") return result.accuracy;
   return result.totalKeystrokes === 0

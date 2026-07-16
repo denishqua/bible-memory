@@ -2,7 +2,7 @@ import type { StorageAdapter } from "../types/storage";
 import type { Verse } from "../types/verse";
 import type { Collection, CollectionVerseLink } from "../types/collection";
 import type { ReviewSession } from "../types/review";
-import type { Profile } from "../types/profile";
+import { normalizeProfile, type Profile } from "../types/profile";
 import { defaultSettings, mergeSettings, type Settings } from "../types/settings";
 
 // Same key names as localStorageAdapter.ts on purpose — a user's existing
@@ -35,11 +35,7 @@ async function writeArray<T>(key: string, value: T[]): Promise<void> {
 function defaultProfile(): Profile {
   return {
     createdAt: new Date().toISOString(),
-    streak: {
-      currentStreak: 0,
-      longestStreak: 0,
-      lastQualifyingDate: null,
-    },
+    versesPracticed: 0,
   };
 }
 
@@ -155,7 +151,19 @@ export class ChromeStorageAdapter implements StorageAdapter {
     const result = await chrome.storage.local.get(KEYS.profile);
     const value = result[KEYS.profile];
     if (value) {
-      return value as Profile;
+      // Migration for returning users: a streak-era profile has no numeric
+      // `versesPracticed`, so seed it from the existing review-history count
+      // rather than resetting past practice to 0. A profile that already
+      // carries a numeric count is normalized as-is (never reseeded).
+      const hasCount =
+        typeof value === "object" &&
+        value !== null &&
+        typeof (value as Record<string, unknown>).versesPracticed === "number";
+      const profile = normalizeProfile(value);
+      if (!hasCount) {
+        profile.versesPracticed = (await this.getReviewSessions()).length;
+      }
+      return profile;
     }
     const profile = defaultProfile();
     await chrome.storage.local.set({ [KEYS.profile]: profile });

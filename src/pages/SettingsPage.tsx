@@ -12,7 +12,7 @@ import { MODE_OPTIONS } from "../components/review/ModePicker";
 import type { Verse } from "../types/verse";
 import type { Collection, CollectionVerseLink } from "../types/collection";
 import type { ReviewMode, ReviewSession } from "../types/review";
-import type { Profile } from "../types/profile";
+import { normalizeProfile, type Profile } from "../types/profile";
 import { mergeSettings, type NewTabGateSettings, type Settings } from "../types/settings";
 
 // Full-backup file shape produced by "Export data" below. Import accepts the
@@ -156,13 +156,6 @@ function isBackupFile(value: unknown): value is BackupFile {
   );
 }
 
-// "YYYY-MM-DD" strings compare correctly as plain strings; null loses to any date.
-function laterDate(a: string | null, b: string | null): string | null {
-  if (a === null) return b;
-  if (b === null) return a;
-  return a >= b ? a : b;
-}
-
 export function SettingsPage() {
   const storage = useStorage();
   const { settings, updateSettings } = useSettings();
@@ -299,21 +292,17 @@ export function SettingsPage() {
         window.dispatchEvent(new Event(SETTINGS_UPDATED_EVENT));
       }
 
-      // Keep the CURRENT profile, but never let an older backup clobber a live
-      // streak: take the max of each streak counter (and the later date).
-      if (parsed.profile?.streak) {
+      // Keep the CURRENT profile, but never let an older backup clobber the
+      // live practice count: take the max of the two. Since the count is
+      // monotonic, re-importing a backup never double-counts and never lowers
+      // the live value. normalizeProfile tolerates old-format backups (which
+      // carry `streak` and no `versesPracticed` → treated as 0).
+      if (parsed.profile) {
         const current = await storage.getProfile();
-        const imported = parsed.profile.streak;
+        const imported = normalizeProfile(parsed.profile);
         const merged: Profile = {
           ...current,
-          streak: {
-            currentStreak: Math.max(current.streak.currentStreak, imported.currentStreak ?? 0),
-            longestStreak: Math.max(current.streak.longestStreak, imported.longestStreak ?? 0),
-            lastQualifyingDate: laterDate(
-              current.streak.lastQualifyingDate,
-              imported.lastQualifyingDate ?? null,
-            ),
-          },
+          versesPracticed: Math.max(current.versesPracticed, imported.versesPracticed),
         };
         await storage.saveProfile(merged);
         window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
@@ -436,7 +425,7 @@ export function SettingsPage() {
       <Card>
         <h3 style={sectionTitleStyle}>Data</h3>
         <p style={{ ...helperTextStyle, marginBottom: "0.75rem" }}>
-          Export everything (verses, collections, review history, streak, settings) as a JSON
+          Export everything (verses, collections, review history, verses practiced, settings) as a JSON
           backup, or restore from one. Restoring merges into your existing data — it never
           deletes anything.
         </p>

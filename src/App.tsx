@@ -1,7 +1,7 @@
 import { HashRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { StorageProvider } from "./data/storageContext";
 import { ThemeToggle } from "./components/ui/ThemeToggle";
-import { FlameStreakBadge } from "./components/ui/FlameStreakBadge";
+import { PracticeCountBadge } from "./components/ui/PracticeCountBadge";
 import { useProfile } from "./hooks/useProfile";
 import { LibraryPage } from "./pages/LibraryPage";
 import { VerseDetailPage } from "./pages/VerseDetailPage";
@@ -50,7 +50,7 @@ function AppHeader() {
         <NavLink to="/settings" style={navLinkStyle}>
           Settings
         </NavLink>
-        <FlameStreakBadge streak={profile?.streak.currentStreak ?? 0} />
+        <PracticeCountBadge count={profile?.versesPracticed ?? 0} />
         <ThemeToggle />
       </nav>
     </header>

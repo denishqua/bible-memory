@@ -3,7 +3,7 @@ import { useStorage } from "../data/storageContext";
 import type { Profile } from "../types/profile";
 
 // Multiple components mount their own useProfile() instance (the header's
-// FlameStreakBadge lives for the whole app lifetime, while a review session
+// PracticeCountBadge lives for the whole app lifetime, while a review session
 // lives inside a page far below it in the tree) but there's no shared store —
 // per the plan, "Context + hooks is enough," not a state library. This tiny
 // window event is the cheapest way to keep every instance in sync: whoever

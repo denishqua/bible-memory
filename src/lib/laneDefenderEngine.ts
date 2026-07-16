@@ -26,8 +26,8 @@ export const SPAWN_DELAY_MAX_MS = 900;
 // spawnPointer never runs more than this many words ahead of nextTargetIndex —
 // with 4 lanes this guarantees a slot is always reachable for the target.
 export const MAX_SPAWN_LEAD = 4;
-// Runs at or above this percentage extend the daily streak (same bar as the
-// other review modes).
+// Runs at or above this percentage count as a pass (same bar as the other
+// review modes).
 export const PASS_THRESHOLD = 90;
 
 export type LaneDefenderStatus = "playing" | "complete";
