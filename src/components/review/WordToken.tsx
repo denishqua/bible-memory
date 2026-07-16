@@ -7,13 +7,19 @@ interface WordTokenProps {
   /** Hint active for this (current) word: reveal the full text in a muted,
       italic "ghost" style. The player still has to type the first letter. */
   isHinted?: boolean;
-  /** Whole-word input mode: the progressive reveal shows the correctly-typed
-      prefix (first `typedCount` letters) instead of the first-letter mode's
-      `attempts`-driven reveal. Mirrors the setting in useReviewSession. */
+  /** Whole-word input mode: reveals track `typedCount` (letters typed) and
+      `revealedCount` (letters hinted on miss) per letter, rather than the
+      first-letter mode's `attempts`-driven reveal. Mirrors the setting in
+      useReviewSession. */
   wholeWord?: boolean;
 }
 
 const BLANK_CHAR = "_";
+
+// Shared faint style for not-yet-typed letters — the dimmed tail of a "given"
+// word (whole-word reveal) and the revealed-but-untyped hint letters of a
+// masked word. Colors in to full ink the moment the player types the letter.
+const FAINT_STYLE = { color: "var(--color-ink-muted)" } as const;
 
 // First-letter mode reveal (from the plan): if visible === "masked" &&
 // !completed, render `attempts` leading letters starting from index 1 (never
@@ -26,20 +32,6 @@ function maskedGlyphs(word: WordRuntimeState): string {
   return letters
     .split("")
     .map((letter, i) => (i > 0 && i <= revealedCount ? letter : BLANK_CHAR))
-    .join("");
-}
-
-// Whole-word mode reveal: show the correctly-typed prefix — the first
-// `typedCount` letters starting at index 0 (the real first letter IS shown
-// here, because it's a letter the player already typed correctly) — and blank
-// out the rest. Never over-reveals: a completed word takes the full-text path
-// in the component, not this one.
-function typedPrefixGlyphs(word: WordRuntimeState): string {
-  const letters = word.token.normalized;
-  if (letters.length === 0) return "";
-  return letters
-    .split("")
-    .map((letter, i) => (i < word.typedCount ? letter : BLANK_CHAR))
     .join("");
 }
 
@@ -111,23 +103,46 @@ export const WordToken = memo(function WordToken({ word, isCurrent, isHinted, wh
   // Whole-word mode: a "given" word (always visible — every word in Type It,
   // the shown words in Memorize It) that isn't finished yet displays its full
   // text with the not-yet-typed letters dimmed, coloring each in as it's typed.
-  // This gives visible words the same progressive feedback masked words already
-  // get from typedPrefixGlyphs. First-letter mode can't show per-letter
-  // progress, so it keeps the plain full-color text.
+  // This gives visible words the same progressive feedback masked words get from
+  // the reveal below. First-letter mode can't show per-letter progress, so it
+  // keeps the plain full-color text.
   const showGivenReveal = wholeWord && word.visible === "full" && !word.completed;
-  const maskedDisplay = wholeWord ? typedPrefixGlyphs(word) : maskedGlyphs(word);
-  const display = showFull || showHint ? token.raw : maskedDisplay;
+  // Whole-word mode: a still-masked, not-yet-completed word (not currently
+  // hinted) shows the letters typed so far in full ink, the letters revealed by
+  // misses in faint ink, and everything past the frontier as "_" blanks. This
+  // is whole-word's analogue of first-letter mode's `maskedGlyphs` reveal.
+  const showMaskedReveal =
+    wholeWord && word.visible === "masked" && !word.completed && !showHint;
   const isFlashing = isCurrent && !word.completed && word.attempts > 0;
 
-  let content: ReactNode = display;
+  let content: ReactNode;
   if (showGivenReveal) {
     const cut = revealedRawLength(token.raw, token.normalized, word.typedCount);
     content = (
       <>
         {token.raw.slice(0, cut)}
-        <span style={{ color: "var(--color-ink-muted)" }}>{token.raw.slice(cut)}</span>
+        <span style={FAINT_STYLE}>{token.raw.slice(cut)}</span>
       </>
     );
+  } else if (showMaskedReveal) {
+    // Three zones over the normalized letters: typed (full ink), revealed-but-
+    // not-yet-typed (faint), then blanks. The reveal frontier never sits behind
+    // what's already typed, so max(typedCount, revealedCount) bounds the faint
+    // zone's end and the blanks' start.
+    const letters = token.normalized;
+    const typed = word.typedCount;
+    const revealed = Math.max(word.typedCount, word.revealedCount);
+    content = (
+      <>
+        {letters.slice(0, typed)}
+        <span style={FAINT_STYLE}>{letters.slice(typed, revealed)}</span>
+        {BLANK_CHAR.repeat(letters.length - revealed)}
+      </>
+    );
+  } else {
+    // Fully-shown words (given/completed/hinted) render the raw text; first-
+    // letter mode's masked words keep their `attempts`-driven reveal.
+    content = showFull || showHint ? token.raw : maskedGlyphs(word);
   }
 
   return (

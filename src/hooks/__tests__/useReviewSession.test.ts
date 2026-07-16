@@ -213,4 +213,40 @@ describe("useReviewSession", () => {
     expect(result.current.words[0].attempts).toBe(1);
     expect(result.current.currentIndex).toBe(1);
   });
+
+  it("whole-word mode: a wrong keystroke reveals one more hint letter", () => {
+    const { result } = setup("For God", "type-it", true);
+    expect(result.current.words[0].revealedCount).toBe(0);
+    act(() => result.current.handleKeyPress("x")); // miss on "For" (expected 'f')
+    expect(result.current.words[0].revealedCount).toBe(1);
+    expect(result.current.words[0].typedCount).toBe(0);
+  });
+
+  it("whole-word mode: repeated misses keep revealing further letters, capped at length", () => {
+    const { result } = setup("For God", "type-it", true); // "For" has 3 letters
+    act(() => result.current.handleKeyPress("x"));
+    act(() => result.current.handleKeyPress("y"));
+    act(() => result.current.handleKeyPress("z"));
+    expect(result.current.words[0].revealedCount).toBe(3); // fully revealed
+    // A further miss can't push the frontier past the word length.
+    act(() => result.current.handleKeyPress("q"));
+    expect(result.current.words[0].revealedCount).toBe(3);
+    expect(result.current.words[0].attempts).toBe(4); // attempts still climb
+  });
+
+  it("whole-word mode: the reveal frontier advances from wherever typing is stuck", () => {
+    const { result } = setup("For God", "type-it", true);
+    act(() => result.current.handleKeyPress("f")); // typedCount 1, revealedCount 0
+    act(() => result.current.handleKeyPress("x")); // miss at position 1 → reveal one past typed
+    expect(result.current.words[0].typedCount).toBe(1);
+    expect(result.current.words[0].revealedCount).toBe(2); // max(0,1)+1
+  });
+
+  it("first-letter mode: misses never set revealedCount", () => {
+    const { result } = setup("For God"); // whole-word off
+    act(() => result.current.handleKeyPress("x"));
+    act(() => result.current.handleKeyPress("y"));
+    expect(result.current.words[0].revealedCount).toBe(0);
+    expect(result.current.words[0].attempts).toBe(2);
+  });
 });

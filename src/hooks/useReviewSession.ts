@@ -11,6 +11,7 @@ export interface WordRuntimeState {
   completed: boolean; // flips true on correct first-letter keystroke
   attempts: number; // wrong keystrokes on this word
   typedCount: number; // letters correctly typed so far (whole-word mode); 0 in first-letter mode
+  revealedCount: number; // letters revealed as hints so far (whole-word mode, on miss); 0 otherwise
 }
 // Display rule (applied by the UI layer, not stored here): if `visible ===
 // "full"`, always render the full word. If `"masked" && !completed`, render
@@ -84,6 +85,7 @@ function buildInitialWords(tokens: Token[], mode: MaskableReviewMode): WordRunti
     completed: false,
     attempts: 0,
     typedCount: 0,
+    revealedCount: 0,
   }));
 }
 
@@ -209,7 +211,21 @@ export function useReviewSession(
             return { ...prev, words };
           }
 
-          words[prev.currentIndex] = { ...currentWord, attempts: currentWord.attempts + 1 };
+          // A miss also advances the reveal frontier by one letter — a
+          // progressive hint mirroring first-letter mode's reveal-on-miss, but
+          // for whole-word input. It reveals from wherever the player is stuck,
+          // one letter past the current max(revealed, typed) frontier, capped at
+          // the word length. `attempts` still owns scoring/flash; `revealedCount`
+          // is purely presentational.
+          const revealedCount = Math.min(
+            currentWord.token.normalized.length,
+            Math.max(currentWord.revealedCount, currentWord.typedCount) + 1,
+          );
+          words[prev.currentIndex] = {
+            ...currentWord,
+            attempts: currentWord.attempts + 1,
+            revealedCount,
+          };
           return { ...prev, words };
         }
 
