@@ -14,12 +14,12 @@ export interface NewTabGateSettings {
   // Bare domains ("google.com") — a domain matches its host and all
   // subdomains. Normalized via normalizeDomain() in src/lib/domainWhitelist.ts.
   whitelist: string[];
-  // ISO timestamp; gate is disabled until this instant. null = not snoozed.
-  snoozeUntil: string | null;
-  // Verse pool: a collection, optionally narrowed to a subset of its verses.
-  // collectionId null = unconfigured — the gate FAILS OPEN (never blocks).
-  collectionId: string | null;
-  // null = the whole collection; otherwise the selected subset.
+  // Verse pool: one or more collections, optionally narrowed to a subset of
+  // their combined verses. An empty array = unconfigured — the gate FAILS OPEN
+  // (never blocks).
+  collectionIds: string[];
+  // null = every verse across the selected collections; otherwise the selected
+  // subset (applied to the UNION of those collections' verses).
   verseIds: string[] | null;
   // The single review mode used by the gate (verses are random, mode is not).
   mode: ReviewMode;
@@ -29,8 +29,7 @@ export function defaultNewTabGateSettings(): NewTabGateSettings {
   return {
     enabled: false,
     whitelist: [],
-    snoozeUntil: null,
-    collectionId: null,
+    collectionIds: [],
     verseIds: null,
     mode: "type-it",
   };
@@ -62,9 +61,24 @@ export function defaultSettings(): Settings {
 export function mergeSettings(partial: Partial<Settings> | undefined | null): Settings {
   const defaults = defaultSettings();
   if (!partial) return defaults;
+  // Migrate the legacy single-collection gate: blobs saved before the gate
+  // supported multiple collections carried `collectionId: string | null`
+  // instead of `collectionIds`. Lift a legacy id into the array (only when the
+  // new shape isn't already present) and drop the dead key so it can't linger.
+  const rawGate = (partial.newTabGate ?? {}) as Partial<NewTabGateSettings> & {
+    collectionId?: string | null;
+  };
+  const { collectionId: legacyCollectionId, ...gateRest } = rawGate;
+  const gate: Partial<NewTabGateSettings> = { ...gateRest };
+  // Also drop the removed `snooze` field if an old blob still carries it, so it
+  // doesn't linger in the persisted settings the same way collectionId would.
+  delete (gate as { snoozeUntil?: unknown }).snoozeUntil;
+  if (gate.collectionIds === undefined && legacyCollectionId) {
+    gate.collectionIds = [legacyCollectionId];
+  }
   return {
     ...defaults,
     ...partial,
-    newTabGate: { ...defaultNewTabGateSettings(), ...partial.newTabGate },
+    newTabGate: { ...defaultNewTabGateSettings(), ...gate },
   };
 }

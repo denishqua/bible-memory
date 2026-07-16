@@ -72,8 +72,6 @@ const REVIEW_INPUT_OPTIONS: { value: boolean; label: string }[] = [
   { value: true, label: "Whole word" },
 ];
 
-const SNOOZE_PRESET_HOURS = [1, 2, 4, 8];
-
 const gateSubsectionStyle: React.CSSProperties = {
   marginTop: "1.25rem",
   paddingTop: "1rem",
@@ -509,7 +507,6 @@ function VerseGateCard({
 
   const [domainDraft, setDomainDraft] = useState("");
   const [domainError, setDomainError] = useState<string | null>(null);
-  const [customHours, setCustomHours] = useState("");
   const [limitOpen, setLimitOpen] = useState(false);
 
   async function updateGate(patch: Partial<NewTabGateSettings>) {
@@ -529,27 +526,24 @@ function VerseGateCard({
     updateGate({ whitelist: [...gate.whitelist, domain] });
   }
 
-  // --- Snooze ---
-  function pauseForHours(hours: number) {
-    updateGate({ snoozeUntil: new Date(Date.now() + hours * 3_600_000).toISOString() });
-  }
-
-  const parsedCustomHours = Number(customHours);
-  const customHoursValid = Number.isFinite(parsedCustomHours) && parsedCustomHours > 0;
-
-  // A snooze in the past is treated as "not snoozed" (the worker does the same).
-  const snoozeDate = gate.snoozeUntil ? new Date(gate.snoozeUntil) : null;
-  const activeSnooze = snoozeDate && snoozeDate.getTime() > Date.now() ? snoozeDate : null;
-
   // --- Verse source ---
-  // Ids in the chosen collection (display order). A stored verseIds subset is
-  // always intersected with this, so verses later removed from the collection
-  // silently drop out of the pool. Memoized — this card also holds controlled
-  // text inputs, so it re-renders on every keystroke.
-  const collectionVerseIds = useMemo(
-    () => (gate.collectionId ? getVerseIdsForCollection(gate.collectionId) : []),
-    [gate.collectionId, getVerseIdsForCollection],
-  );
+  // The deduped union of ids across every selected collection, in a stable
+  // order (collection order, then verse order within each). A stored verseIds
+  // subset is always intersected with this, so verses later removed from a
+  // collection silently drop out of the pool. Memoized — this card also holds
+  // controlled text inputs, so it re-renders on every keystroke.
+  const collectionVerseIds = useMemo(() => {
+    const seen = new Set<string>();
+    const ids: string[] = [];
+    for (const collectionId of gate.collectionIds) {
+      for (const id of getVerseIdsForCollection(collectionId)) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        ids.push(id);
+      }
+    }
+    return ids;
+  }, [gate.collectionIds, getVerseIdsForCollection]);
   const versesById = useMemo(() => new Map(verses.map((v) => [v.id, v])), [verses]);
   const checkedIds = useMemo(
     () => new Set(gate.verseIds ?? collectionVerseIds),
@@ -570,13 +564,28 @@ function VerseGateCard({
     updateGate({ verseIds: subset.length === collectionVerseIds.length ? null : subset });
   }
 
+  // Toggle a collection in/out of the gate's source set. Changing the set of
+  // selected collections invalidates any verse subset (it belonged to the old
+  // selection), so reset verseIds to null (the whole selection).
+  function toggleCollection(collectionId: string) {
+    const next = gate.collectionIds.includes(collectionId)
+      ? gate.collectionIds.filter((id) => id !== collectionId)
+      : [...gate.collectionIds, collectionId];
+    updateGate({ collectionIds: next, verseIds: null });
+  }
+
   // --- Warnings ---
   // The gate FAILS OPEN when unconfigured; make that loud.
   let warning: string | null = null;
-  if (gate.enabled && !gate.collectionId) {
+  if (gate.enabled && gate.collectionIds.length === 0) {
     warning =
       "Gate is on but no collection is selected — navigation will NOT be blocked until you pick one.";
-  } else if (gate.enabled && gate.collectionId && gate.verseIds !== null && checkedCount === 0) {
+  } else if (
+    gate.enabled &&
+    gate.collectionIds.length > 0 &&
+    gate.verseIds !== null &&
+    checkedCount === 0
+  ) {
     warning =
       "Gate is on but no verses are selected — navigation will NOT be blocked until you check at least one.";
   }
@@ -648,72 +657,38 @@ function VerseGateCard({
       </div>
 
       <div style={gateSubsectionStyle}>
-        <span style={gateLabelStyle}>Snooze</span>
-        {activeSnooze ? (
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.6rem" }}>
-            <span style={{ color: "var(--color-clay)", fontSize: "0.9rem", fontWeight: 600 }}>
-              Paused until{" "}
-              {activeSnooze.toLocaleString([], {
-                month: "short",
-                day: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-              })}
-            </span>
-            <Button type="button" variant="secondary" onClick={() => updateGate({ snoozeUntil: null })}>
-              Resume now
-            </Button>
-          </div>
-        ) : null}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-          {SNOOZE_PRESET_HOURS.map((hours) => (
-            <Button key={hours} type="button" variant="ghost" onClick={() => pauseForHours(hours)}>
-              Pause {hours} hr
-            </Button>
-          ))}
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={customHours}
-            onChange={(e) => setCustomHours(e.target.value)}
-            placeholder="Hours"
-            aria-label="Custom snooze hours"
-            style={{ ...inputStyle, flex: undefined, width: "5rem" }}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => pauseForHours(parsedCustomHours)}
-            disabled={!customHoursValid}
+        <span style={gateLabelStyle}>Verse source</span>
+        {/* Multiple collections can feed the gate; their verses are pooled
+            (deduped) into one review set. */}
+        {collections.length === 0 ? (
+          <p style={helperTextStyle}>Create a collection first — the gate draws its verses from one.</p>
+        ) : (
+          <div
+            style={{
+              border: "1px solid var(--color-border)",
+              borderRadius: "0.5rem",
+              padding: "0.6rem 0.75rem",
+              maxHeight: "14rem",
+              overflowY: "auto",
+            }}
           >
-            Pause
-          </Button>
-        </div>
-      </div>
-
-      <div style={gateSubsectionStyle}>
-        <label htmlFor="gate-collection" style={gateLabelStyle}>
-          Verse source
-        </label>
-        <select
-          id="gate-collection"
-          value={gate.collectionId ?? ""}
-          onChange={(e) =>
-            // Switching collections resets any verse subset — it belonged to
-            // the old collection.
-            updateGate({ collectionId: e.target.value || null, verseIds: null })
-          }
-          style={gateSelectStyle}
-        >
-          <option value="">— Pick a collection —</option>
-          {collections.map((collection) => (
-            <option key={collection.id} value={collection.id}>
-              {collection.name}
-            </option>
-          ))}
-        </select>
-        {gate.collectionId ? (
+            {collections.map((collection) => (
+              <label
+                key={collection.id}
+                style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", padding: "0.15rem 0" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={gate.collectionIds.includes(collection.id)}
+                  onChange={() => toggleCollection(collection.id)}
+                  style={{ accentColor: "var(--color-clay)" }}
+                />
+                {collection.name}
+              </label>
+            ))}
+          </div>
+        )}
+        {gate.collectionIds.length > 0 ? (
           <div style={{ marginTop: "0.6rem" }}>
             <button
               type="button"

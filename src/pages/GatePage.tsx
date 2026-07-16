@@ -58,14 +58,29 @@ export function GatePage() {
   const loading = settingsLoading || versesLoading || collectionsLoading;
   const gate = settings?.newTabGate;
 
-  // The verse pool: the configured collection's verses (in collection order),
-  // narrowed to the selected subset when one is set, keeping only verses that
-  // still exist. Empty when the gate is unconfigured.
+  // The verse pool: the union of every selected collection's verses (in
+  // collection order, then verse order within each), deduped so a verse in two
+  // selected collections appears once, narrowed to the selected subset when one
+  // is set, keeping only verses that still exist. Empty when no collection is
+  // selected.
   const pool = useMemo<Verse[]>(() => {
-    if (!gate?.collectionId) return [];
+    // Legacy fallback: data stored before the gate supported multiple
+    // collections carried a single `collectionId` (no longer in the type, so
+    // read it through a widened view).
+    const legacyId = (gate as { collectionId?: string | null } | undefined)?.collectionId;
+    const collectionIds = gate?.collectionIds ?? (legacyId ? [legacyId] : []);
+    if (collectionIds.length === 0) return [];
     const byId = new Map(verses.map((v) => [v.id, v] as const));
-    let ids = getVerseIdsForCollection(gate.collectionId);
-    if (gate.verseIds !== null) {
+    const seen = new Set<string>();
+    let ids: string[] = [];
+    for (const collectionId of collectionIds) {
+      for (const id of getVerseIdsForCollection(collectionId)) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        ids.push(id);
+      }
+    }
+    if (gate?.verseIds != null) {
       const wanted = new Set(gate.verseIds);
       ids = ids.filter((id) => wanted.has(id));
     }
@@ -181,8 +196,10 @@ export function GatePage() {
     );
 
   if (!gate?.enabled) return failOpen("The verse gate is turned off.");
-  if (!gate.collectionId) return failOpen("No collection is set up for the verse gate yet.");
-  if (pool.length === 0) return failOpen("The verse gate's collection has no verses to review.");
+  if (gate.collectionIds.length === 0)
+    return failOpen("No collection is set up for the verse gate yet.");
+  if (pool.length === 0)
+    return failOpen("The verse gate's collections have no verses to review.");
 
   // The pool is ready but the initial random pick (a post-paint effect) hasn't
   // landed yet — keep showing the loading state for that frame rather than

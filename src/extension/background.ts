@@ -152,8 +152,7 @@ function defaultNewTabGateSettings() {
   return {
     enabled: false,
     whitelist: [],
-    snoozeUntil: null,
-    collectionId: null,
+    collectionIds: [],
     verseIds: null,
     mode: "type-it",
   };
@@ -163,17 +162,21 @@ function defaultNewTabGateSettings() {
 
 // Shared gate decision for a destination URL: true means "show the gate".
 // FAILS OPEN on every disabled/unconfigured state (no settings, gate off,
-// snoozed, no collection picked, unparseable URL) so the gate can never lock
-// the user out of the web; a whitelisted host also passes.
+// no collection picked, unparseable URL) so the gate can never lock the user
+// out of the web; a whitelisted host also passes.
 async function shouldGateUrl(url = "") {
   const settings = await readSettings();
   const gate = settings && settings.newTabGate;
   if (!gate || !gate.enabled) return false;
-  if (gate.snoozeUntil) {
-    const until = Date.parse(gate.snoozeUntil);
-    if (!Number.isNaN(until) && until > Date.now()) return false;
-  }
-  if (gate.collectionId === null || gate.collectionId === undefined) return false;
+  // Read collections defensively: the current shape is `collectionIds` (an
+  // array), but data stored before the multi-collection change carried a single
+  // `collectionId`. Support both; an empty result means unconfigured.
+  const collectionIds = Array.isArray(gate.collectionIds)
+    ? gate.collectionIds
+    : gate.collectionId
+      ? [gate.collectionId]
+      : [];
+  if (collectionIds.length === 0) return false;
   // An explicitly-empty verse subset means there is nothing to review — the
   // gate page would just fail open anyway, so don't hijack the navigation.
   if (Array.isArray(gate.verseIds) && gate.verseIds.length === 0) return false;
