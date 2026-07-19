@@ -12,6 +12,11 @@ const KEYS = {
   reviewSessions: "bm.reviewSessions.v1",
   profile: "bm.profile.v1",
   settings: "bm.settings.v1",
+  // Runtime state (not user config): epoch ms of the last completed verse
+  // review, used by the verse gate's cooldown. (Only the Chrome extension
+  // enforces the gate, but the web app writes this too so the flow is testable
+  // in plain `npm run dev`.)
+  gateCooldown: "bm.gateCooldown.v1",
 } as const;
 
 // Theme is intentionally NOT part of the Settings object — useTheme reads it
@@ -149,6 +154,11 @@ export class LocalStorageAdapter implements StorageAdapter {
     writeArray(KEYS.reviewSessions, sessions);
   }
 
+  async recordLiveReview(s: ReviewSession): Promise<void> {
+    await this.appendReviewSession(s);
+    await this.touchGateReview();
+  }
+
   async getProfile(): Promise<Profile> {
     const raw = localStorage.getItem(KEYS.profile);
     if (!raw) {
@@ -203,6 +213,10 @@ export class LocalStorageAdapter implements StorageAdapter {
 
   async saveSettings(s: Settings): Promise<void> {
     localStorage.setItem(KEYS.settings, JSON.stringify(s));
+  }
+
+  async touchGateReview(): Promise<void> {
+    localStorage.setItem(KEYS.gateCooldown, JSON.stringify(Date.now()));
   }
 
   async clearAll(): Promise<void> {

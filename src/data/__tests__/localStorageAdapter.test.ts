@@ -361,4 +361,77 @@ describe("LocalStorageAdapter", () => {
       expect(settings).toEqual(defaultSettings());
     });
   });
+
+  describe("gate cooldown", () => {
+    it("touchGateReview stamps the current time (epoch ms) under its own key", async () => {
+      const before = Date.now();
+      await adapter.touchGateReview();
+      const after = Date.now();
+
+      const raw = localStorage.getItem("bm.gateCooldown.v1");
+      expect(raw).not.toBeNull();
+      const stamped = JSON.parse(raw as string) as number;
+      expect(typeof stamped).toBe("number");
+      expect(stamped).toBeGreaterThanOrEqual(before);
+      expect(stamped).toBeLessThanOrEqual(after);
+    });
+
+    it("does not touch the settings blob (cooldown state is stored separately)", async () => {
+      await adapter.getSettings(); // seed defaults
+      const settingsBefore = localStorage.getItem("bm.settings.v1");
+      await adapter.touchGateReview();
+      expect(localStorage.getItem("bm.settings.v1")).toBe(settingsBefore);
+    });
+
+    it("clearAll removes the cooldown timestamp", async () => {
+      await adapter.touchGateReview();
+      expect(localStorage.getItem("bm.gateCooldown.v1")).not.toBeNull();
+      await adapter.clearAll();
+      expect(localStorage.getItem("bm.gateCooldown.v1")).toBeNull();
+    });
+
+    it("recordLiveReview both appends the record and stamps the cooldown", async () => {
+      const now = new Date().toISOString();
+      await adapter.recordLiveReview({
+        id: "live1",
+        scope: { type: "verse", verseId: "v1" },
+        mode: "type-it",
+        result: {
+          type: "accuracy",
+          accuracy: 100,
+          passed: true,
+          totalKeystrokes: 5,
+          correctKeystrokes: 5,
+        },
+        startedAt: now,
+        completedAt: now,
+      });
+
+      const sessions = await adapter.getReviewSessions();
+      expect(sessions.map((s) => s.id)).toContain("live1");
+      expect(localStorage.getItem("bm.gateCooldown.v1")).not.toBeNull();
+    });
+
+    it("appendReviewSession appends WITHOUT stamping (import must not reset the cooldown)", async () => {
+      const now = new Date().toISOString();
+      await adapter.appendReviewSession({
+        id: "import1",
+        scope: { type: "verse", verseId: "v1" },
+        mode: "type-it",
+        result: {
+          type: "accuracy",
+          accuracy: 100,
+          passed: true,
+          totalKeystrokes: 5,
+          correctKeystrokes: 5,
+        },
+        startedAt: now,
+        completedAt: now,
+      });
+
+      const sessions = await adapter.getReviewSessions();
+      expect(sessions.map((s) => s.id)).toContain("import1");
+      expect(localStorage.getItem("bm.gateCooldown.v1")).toBeNull();
+    });
+  });
 });

@@ -109,8 +109,9 @@ export function LaneDefenderSession({
     void (async () => {
       // Logged unconditionally — pass or fail, history should reflect every
       // attempt. Every finished run bumps the cumulative practice count by
-      // exactly 1.
-      await storage.appendReviewSession(session);
+      // exactly 1. recordLiveReview both logs history and restarts the verse
+      // gate's browsing cooldown (a live completion, not an import).
+      await storage.recordLiveReview(session);
       await updateProfile({ ...profile, versesPracticed: profile.versesPracticed + 1 });
     })();
   }, [status, result, profile, scope, storage, updateProfile]);

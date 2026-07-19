@@ -509,8 +509,26 @@ function VerseGateCard({
   const [domainError, setDomainError] = useState<string | null>(null);
   const [limitOpen, setLimitOpen] = useState(false);
 
+  // Cooldown minutes is a free-typed field: keep a draft so the user can clear
+  // and retype, and only commit a valid whole number >= 1 (reverting the draft
+  // on anything else). Re-seeded whenever the stored value changes.
+  const [minutesDraft, setMinutesDraft] = useState(String(gate.cooldownMinutes));
+  useEffect(() => {
+    setMinutesDraft(String(gate.cooldownMinutes));
+  }, [gate.cooldownMinutes]);
+
   async function updateGate(patch: Partial<NewTabGateSettings>) {
     await updateSettings({ ...settings, newTabGate: { ...gate, ...patch } });
+  }
+
+  function commitMinutes() {
+    const parsed = Math.floor(Number(minutesDraft));
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      setMinutesDraft(String(gate.cooldownMinutes));
+      return;
+    }
+    if (parsed !== gate.cooldownMinutes) updateGate({ cooldownMinutes: parsed });
+    else setMinutesDraft(String(parsed));
   }
 
   // --- Whitelist ---
@@ -768,6 +786,42 @@ function VerseGateCard({
             </option>
           ))}
         </select>
+      </div>
+
+      <div style={gateSubsectionStyle}>
+        <span style={gateLabelStyle}>Review cooldown</span>
+        <p style={{ ...helperTextStyle, marginBottom: "0.6rem" }}>
+          When on, completing any verse review (here at the gate or in a normal review or game)
+          unlocks browsing for a set time — new tabs load without a review until it runs out. Each
+          review you finish restarts the timer. When off, every new tab needs its own review.
+        </p>
+        <SegmentedControl
+          ariaLabel="Review cooldown"
+          options={GATE_TOGGLE_OPTIONS}
+          value={gate.cooldownEnabled}
+          onChange={(cooldownEnabled) => updateGate({ cooldownEnabled })}
+        />
+        {gate.cooldownEnabled ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.75rem" }}>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              value={minutesDraft}
+              onChange={(e) => setMinutesDraft(e.target.value)}
+              onBlur={commitMinutes}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+              aria-label="Cooldown duration in minutes"
+              style={{ ...inputStyle, flex: undefined, width: "6rem" }}
+            />
+            <span style={{ fontSize: "0.9rem", color: "var(--color-ink-muted)" }}>
+              minutes between reviews
+            </span>
+          </div>
+        ) : null}
       </div>
     </Card>
   );

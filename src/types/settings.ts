@@ -23,6 +23,15 @@ export interface NewTabGateSettings {
   verseIds: string[] | null;
   // The single review mode used by the gate (verses are random, mode is not).
   mode: ReviewMode;
+  // Cooldown: once ANY verse review is completed (at the gate OR in a normal
+  // review/game session), browsing is un-gated for `cooldownMinutes`; every
+  // completed review restarts that window. When off, every gated navigation
+  // requires its own review (the original behavior). The last-review timestamp
+  // itself is NOT stored here — it lives under its own storage key
+  // (`bm.gateCooldown.v1`) so it can't be clobbered by a settings save or
+  // carried around in exported backups.
+  cooldownEnabled: boolean;
+  cooldownMinutes: number;
 }
 
 export function defaultNewTabGateSettings(): NewTabGateSettings {
@@ -32,6 +41,8 @@ export function defaultNewTabGateSettings(): NewTabGateSettings {
     collectionIds: [],
     verseIds: null,
     mode: "type-it",
+    cooldownEnabled: false,
+    cooldownMinutes: 15,
   };
 }
 

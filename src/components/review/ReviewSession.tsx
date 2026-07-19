@@ -153,7 +153,9 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
       // Logged unconditionally — pass or fail, history should reflect every
       // attempt. Every finished session (this whole bulk review is ONE
       // session) bumps the cumulative practice count by exactly 1.
-      await storage.appendReviewSession(session);
+      // recordLiveReview both logs history and restarts the verse gate's
+      // browsing cooldown (a live completion, not an import).
+      await storage.recordLiveReview(session);
       await updateProfile({ ...profile, versesPracticed: profile.versesPracticed + 1 });
     })();
   }, [status, profile, words, accuracy, mode, scope, storage, updateProfile]);

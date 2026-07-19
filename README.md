@@ -20,7 +20,9 @@ verses, collections, and settings live in `localStorage` (web) or
   letter of each word, or every letter.
 - **The verse gate (extension only)** — when enabled, opening a new tab or
   typing a URL in the address bar redirects you to a full-screen verse review.
-  Complete it to proceed. Whitelist domains you don't want gated.
+  Complete it to proceed. Whitelist domains you don't want gated, and
+  optionally set a **cooldown** so one review buys you a stretch of gate-free
+  browsing.
 - **Starter pack & backups** — one-click import of a starter verse collection,
   plus full export/import of all your data as JSON.
 - **Light / dark / system theme.**
@@ -58,6 +60,12 @@ The gate deliberately **fails open**: if it's off, unconfigured, pointed at an
 empty verse set, or the destination is whitelisted, it never blocks you.
 Clicked links, redirects, reloads, and back/forward are never gated. You can
 whitelist the current domain from the right-click context menu.
+
+**Cooldown.** Optionally set a review cooldown (in minutes) in Settings. While
+it's active, completing *any* verse review — at the gate itself or in a normal
+review or game — unlocks browsing for that window, so new tabs load without a
+review until it lapses. Every review you finish restarts the timer. With the
+cooldown off, each new tab needs its own review.
 
 ## Getting started (web app)
 

@@ -18,6 +18,12 @@
 // gesture without making ordinary in-page browsing unusable.
 const SETTINGS_KEY = "bm.settings.v1";
 
+// Epoch ms of the last completed verse review, written by the app's storage
+// adapters (touchGateReview) and read here to enforce the gate's cooldown:
+// while the window is open, browsing is un-gated. Mirrors KEYS.gateCooldown in
+// the storage adapters — this file cannot import, so keep the string in sync.
+const COOLDOWN_KEY = "bm.gateCooldown.v1";
+
 // New tabs whose opening navigation hasn't been handled yet — the ONLY
 // navigations eligible for the gate. A navigation in a tab that isn't listed
 // here is an in-tab navigation (redirect, typed URL, clicked link) and is
@@ -155,7 +161,16 @@ function defaultNewTabGateSettings() {
     collectionIds: [],
     verseIds: null,
     mode: "type-it",
+    cooldownEnabled: false,
+    cooldownMinutes: 15,
   };
+}
+
+// Epoch ms of the last completed review, or null if none / unreadable.
+async function readGateCooldownAt() {
+  const data = await chrome.storage.local.get(COOLDOWN_KEY);
+  const value = data[COOLDOWN_KEY];
+  return typeof value === "number" ? value : null;
 }
 
 // --- the gate itself -------------------------------------------------------
@@ -168,6 +183,26 @@ async function shouldGateUrl(url = "") {
   const settings = await readSettings();
   const gate = settings && settings.newTabGate;
   if (!gate || !gate.enabled) return false;
+  // Cooldown: once any review is completed, browsing is un-gated for a
+  // configurable window; every completed review restarts it (touchGateReview
+  // rewrites the timestamp). While the window is still open, let every
+  // navigation through. Guarded on both the toggle and a positive duration so a
+  // stale/zero value can never silently disable the gate.
+  const cooldownMinutes = Number(gate.cooldownMinutes);
+  if (gate.cooldownEnabled && cooldownMinutes > 0) {
+    const lastReviewAt = await readGateCooldownAt();
+    if (lastReviewAt !== null) {
+      // Guard the elapsed time on BOTH ends. A negative elapsed means the
+      // stored stamp is in the future (clock moved back, NTP correction, a
+      // stamp written while the clock ran fast) — treat that as "cooldown not
+      // active" rather than letting it silently disable the gate until the
+      // clock catches up.
+      const elapsed = Date.now() - lastReviewAt;
+      if (elapsed >= 0 && elapsed < cooldownMinutes * 60000) {
+        return false;
+      }
+    }
+  }
   // Read collections defensively: the current shape is `collectionIds` (an
   // array), but data stored before the multi-collection change carried a single
   // `collectionId`. Support both; an empty result means unconfigured.

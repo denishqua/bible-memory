@@ -15,6 +15,10 @@ const KEYS = {
   reviewSessions: "bm.reviewSessions.v1",
   profile: "bm.profile.v1",
   settings: "bm.settings.v1",
+  // Runtime state (not user config): epoch ms of the last completed verse
+  // review, read by the background worker to enforce the gate's cooldown. The
+  // worker hardcodes this same string (it cannot import) — keep in sync.
+  gateCooldown: "bm.gateCooldown.v1",
 } as const;
 
 // Theme lives in localStorage even inside the extension (useTheme reads it
@@ -147,6 +151,11 @@ export class ChromeStorageAdapter implements StorageAdapter {
     await writeArray(KEYS.reviewSessions, sessions);
   }
 
+  async recordLiveReview(s: ReviewSession): Promise<void> {
+    await this.appendReviewSession(s);
+    await this.touchGateReview();
+  }
+
   async getProfile(): Promise<Profile> {
     const result = await chrome.storage.local.get(KEYS.profile);
     const value = result[KEYS.profile];
@@ -190,6 +199,10 @@ export class ChromeStorageAdapter implements StorageAdapter {
 
   async saveSettings(s: Settings): Promise<void> {
     await chrome.storage.local.set({ [KEYS.settings]: s });
+  }
+
+  async touchGateReview(): Promise<void> {
+    await chrome.storage.local.set({ [KEYS.gateCooldown]: Date.now() });
   }
 
   async clearAll(): Promise<void> {

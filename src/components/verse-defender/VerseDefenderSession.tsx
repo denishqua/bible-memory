@@ -158,8 +158,10 @@ export function VerseDefenderSession({
     void (async () => {
       // Logged unconditionally — mission complete or failed, history should
       // reflect every attempt. Every finished mission bumps the cumulative
-      // practice count by exactly 1.
-      await storage.appendReviewSession(session);
+      // practice count by exactly 1. recordLiveReview both logs history and
+      // restarts the verse gate's browsing cooldown (a live completion, not an
+      // import).
+      await storage.recordLiveReview(session);
       await updateProfile({ ...profile, versesPracticed: profile.versesPracticed + 1 });
     })();
   }, [result, profile, scope, storage, updateProfile]);
