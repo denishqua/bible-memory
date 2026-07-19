@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { useStorage } from "../data/storageContext";
 import { useSettings } from "../hooks/useSettings";
 import { useVerses } from "../hooks/useVerses";
 import { useCollections } from "../hooks/useCollections";
@@ -41,7 +40,6 @@ function pickRandomVerse(pool: Verse[], excludeId: string | null): Verse | null 
 }
 
 export function GatePage() {
-  const storage = useStorage();
   const { settings, loading: settingsLoading } = useSettings();
   const { verses, loading: versesLoading } = useVerses();
   const { loading: collectionsLoading, getVerseIdsForCollection } = useCollections();
@@ -118,12 +116,11 @@ export function GatePage() {
   }, [pool, currentVerseId]);
 
   const handleComplete = useCallback(() => {
+    // Just reveal Proceed — the embedded review session already stamps the
+    // browsing cooldown via recordLiveReview when it completes, so there's no
+    // need to touch it again here.
     setCompleted(true);
-    // Completing the gate review restarts the browsing cooldown (if enabled),
-    // so subsequent new tabs pass through until it lapses. Stamped on complete
-    // rather than on Proceed so the window opens the moment the review is done.
-    void storage.touchGateReview();
-  }, [storage]);
+  }, []);
 
   const handleProceed = useCallback(() => {
     if (!targetUrl) {

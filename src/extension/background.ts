@@ -183,26 +183,6 @@ async function shouldGateUrl(url = "") {
   const settings = await readSettings();
   const gate = settings && settings.newTabGate;
   if (!gate || !gate.enabled) return false;
-  // Cooldown: once any review is completed, browsing is un-gated for a
-  // configurable window; every completed review restarts it (touchGateReview
-  // rewrites the timestamp). While the window is still open, let every
-  // navigation through. Guarded on both the toggle and a positive duration so a
-  // stale/zero value can never silently disable the gate.
-  const cooldownMinutes = Number(gate.cooldownMinutes);
-  if (gate.cooldownEnabled && cooldownMinutes > 0) {
-    const lastReviewAt = await readGateCooldownAt();
-    if (lastReviewAt !== null) {
-      // Guard the elapsed time on BOTH ends. A negative elapsed means the
-      // stored stamp is in the future (clock moved back, NTP correction, a
-      // stamp written while the clock ran fast) — treat that as "cooldown not
-      // active" rather than letting it silently disable the gate until the
-      // clock catches up.
-      const elapsed = Date.now() - lastReviewAt;
-      if (elapsed >= 0 && elapsed < cooldownMinutes * 60000) {
-        return false;
-      }
-    }
-  }
   // Read collections defensively: the current shape is `collectionIds` (an
   // array), but data stored before the multi-collection change carried a single
   // `collectionId`. Support both; an empty result means unconfigured.
@@ -222,7 +202,28 @@ async function shouldGateUrl(url = "") {
     return false;
   }
   const whitelist = Array.isArray(gate.whitelist) ? gate.whitelist : [];
-  return !isHostWhitelisted(host, whitelist);
+  if (isHostWhitelisted(host, whitelist)) return false;
+  // The navigation would be gated. Last check — the cooldown: once any review
+  // is completed, browsing is un-gated for a configurable window; every
+  // completed review restarts it (touchGateReview rewrites the timestamp).
+  // While the window is still open, let every navigation through. Done last so
+  // the storage read is skipped entirely for the disabled/unconfigured/
+  // whitelisted cases above. Guarded on both the toggle and a positive duration
+  // so a stale/zero value can never silently disable the gate.
+  const cooldownMinutes = Number(gate.cooldownMinutes);
+  if (gate.cooldownEnabled && cooldownMinutes > 0) {
+    const lastReviewAt = await readGateCooldownAt();
+    if (lastReviewAt !== null) {
+      // Guard the elapsed time on BOTH ends. A negative elapsed means the
+      // stored stamp is in the future (clock moved back, NTP correction, a
+      // stamp written while the clock ran fast) — treat that as "cooldown not
+      // active" rather than letting it silently disable the gate until the
+      // clock catches up.
+      const elapsed = Date.now() - lastReviewAt;
+      if (elapsed >= 0 && elapsed < cooldownMinutes * 60000) return false;
+    }
+  }
+  return true;
 }
 
 // Never gate popups / app / devtools windows (e.g. OAuth sign-in popups) —

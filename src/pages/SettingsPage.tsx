@@ -527,8 +527,9 @@ function VerseGateCard({
       setMinutesDraft(String(gate.cooldownMinutes));
       return;
     }
+    // Normalize the visible draft ("15.7" → "15") and commit only a real change.
+    setMinutesDraft(String(parsed));
     if (parsed !== gate.cooldownMinutes) updateGate({ cooldownMinutes: parsed });
-    else setMinutesDraft(String(parsed));
   }
 
   // --- Whitelist ---
