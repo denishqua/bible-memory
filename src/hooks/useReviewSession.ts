@@ -81,7 +81,10 @@ function buildInitialWords(tokens: Token[], mode: MaskableReviewMode): WordRunti
   return tokens.map((token, index) => ({
     index,
     token,
-    visible: initialVisibility(mode, index),
+    // The appended reference words are ALWAYS masked, whatever the mode — so
+    // recalling the reference is a genuine challenge even in Type It (where the
+    // verse words are fully visible). Everything else follows the mode.
+    visible: token.isReference && token.matchable ? "masked" : initialVisibility(mode, index),
     completed: false,
     attempts: 0,
     typedCount: 0,
@@ -130,7 +133,11 @@ function liveAccuracy(words: WordRuntimeState[]): number {
 // verse boundaries. (See buildCollectionReviewTokens.)
 function isReferenceMarker(word: WordRuntimeState): boolean {
   const { token } = word;
-  return !token.matchable && !token.isLineBreak && !token.isVerseNumber;
+  // `!token.isReference` excludes the single-verse reference delimiter, which
+  // shares this "non-matchable, non-break, non-number" shape but is NOT a
+  // between-verse boundary (bulk review, the only caller of perVerseAccuracy,
+  // never appends a reference — this just keeps the two concepts from colliding).
+  return !token.matchable && !token.isLineBreak && !token.isVerseNumber && !token.isReference;
 }
 
 // Segments a runtime word stream into per-verse groups at reference-marker

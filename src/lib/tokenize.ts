@@ -14,6 +14,16 @@ export interface Token {
   // covers that uniformly for line breaks, verse-number markers, and stray
   // punctuation-only tokens alike.
   isVerseNumber?: boolean;
+  // Marks tokens that belong to the reference appended after the verse (see
+  // buildVerseReviewTokens): both the appended reference WORDS (matchable — the
+  // player recalls them) and the subtle delimiter between the verse and the
+  // reference (non-matchable). Set only by the review-token builder, never by
+  // tokenize() itself. Two consumers key off it: buildInitialWords forces the
+  // matchable reference words to masked visibility regardless of mode, and the
+  // verse-boundary detectors (perVerseAccuracy / the arcade engines) ignore the
+  // non-matchable delimiter so it's never mistaken for a between-verse
+  // collection reference marker.
+  isReference?: boolean;
 }
 
 // Convention assumed for verse-number markers in the *input* to tokenize():

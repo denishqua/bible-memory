@@ -9,9 +9,9 @@ import {
 import { createId } from "../../data/ids";
 import type { Token } from "../../lib/tokenize";
 import { LANE_KEYS } from "../../lib/laneDefenderEngine";
+import { shouldHideReference } from "../../lib/verseReview";
 import { Button } from "../ui/Button";
 import { BuiltVerse } from "../review/BuiltVerse";
-import { ReferencePrompt, type ReferenceRecallResult } from "../review/ReferencePrompt";
 import { Lane } from "./Lane";
 import { MissionCompleteScreen } from "./MissionCompleteScreen";
 
@@ -25,13 +25,11 @@ interface LaneDefenderSessionProps {
   // Rendered inside the verse gate: hide the "Change Mode" button and the
   // mission screen's "Back to Library" link (the gate owns its own exit).
   embedded?: boolean;
-  // The verse's reference. When present, a first-letter "type the reference"
-  // recall step runs after the run completes (Lane Defender always plays
-  // through to "complete" — there is no failure state to skip).
-  reference?: string;
-  // Fired whenever the recall step becomes active/inactive, so a host (page
-  // heading / gate) can hide the reference while it's being recalled.
-  onReferenceStepChange?: (active: boolean) => void;
+  // Fired once the player is ~25% through the verse words, so a host (page
+  // heading / gate) can hide the reference. The reference itself is appended to
+  // `tokens` (buildVerseReviewTokens) and streams into the lanes as ordinary
+  // falling words after the verse.
+  onHideReference?: (hidden: boolean) => void;
 }
 
 export function LaneDefenderSession({
@@ -40,8 +38,7 @@ export function LaneDefenderSession({
   onChangeMode,
   onComplete,
   embedded = false,
-  reference,
-  onReferenceStepChange,
+  onHideReference,
 }: LaneDefenderSessionProps) {
   const {
     lanes,
@@ -74,25 +71,29 @@ export function LaneDefenderSession({
   // Never touches the engine — accuracy/lives are unaffected.
   const [hintActive, setHintActive] = useState(false);
 
-  // Recall-step state: null until the "type the reference" step finishes.
-  const [referenceResult, setReferenceResult] = useState<ReferenceRecallResult | null>(null);
-  const needsReference = status === "complete" && !!result && reference != null;
-  const showReferencePrompt = needsReference && referenceResult === null;
-  // The whole run is truly done once any recall step is finished — this (not
-  // raw completion) drives onComplete, so the gate's Proceed appears only after
-  // the reference is recalled too.
-  const sessionFullyDone = status !== "playing" && !!result && !showReferencePrompt;
+  // The run is terminal — drives onComplete. The reference is appended to the
+  // queue, so a completed run has already streamed it through the lanes.
+  const sessionFullyDone = status !== "playing" && !!result;
+
+  // Hide the host's reference chrome once ~25% of the VERSE words (excluding the
+  // appended reference words) are destroyed. destroyedCount is the in-order
+  // count of cleared words and the verse words come first, so it doubles as the
+  // completed-verse-word count for this threshold.
+  const verseMatchableCount = tokens.filter((t) => t.matchable && !t.isReference).length;
+  const hasReference = tokens.some((t) => t.isReference);
+  const hideReference =
+    hasReference && shouldHideReference(verseMatchableCount, destroyedCount);
 
   // Auto-clear the hint once the player destroys the hinted target word.
   useEffect(() => {
     setHintActive(false);
   }, [destroyedCount]);
 
-  // Tell the host to hide its own reference chrome while the recall step is up.
+  // Tell the host to hide its own reference chrome once the threshold is crossed.
   useEffect(() => {
-    onReferenceStepChange?.(showReferencePrompt);
-    return () => onReferenceStepChange?.(false);
-  }, [showReferencePrompt, onReferenceStepChange]);
+    onHideReference?.(hideReference);
+    return () => onHideReference?.(false);
+  }, [hideReference, onHideReference]);
 
   // Focus on mount AND whenever a retry flips status back to "playing" — the
   // input is only mounted while playing, so a focus() call inside handleRetry
@@ -144,7 +145,6 @@ export function LaneDefenderSession({
   const handleRetry = useCallback(() => {
     retry();
     setHintActive(false);
-    setReferenceResult(null);
     finalizedRef.current = false;
     completeNotifiedRef.current = false;
     startedAtRef.current = new Date().toISOString();
@@ -276,17 +276,11 @@ export function LaneDefenderSession({
         </>
       )}
 
-      {showReferencePrompt && reference != null && (
-        <ReferencePrompt reference={reference} wholeWord={false} onDone={setReferenceResult} />
-      )}
-
-      {status === "complete" && result && !showReferencePrompt && (
+      {status === "complete" && result && (
         <MissionCompleteScreen
           result={result}
           onRetry={handleRetry}
           backTo={embedded ? null : "/"}
-          reference={reference}
-          referenceResult={referenceResult}
         />
       )}
 

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ModePicker } from "./ModePicker";
 import { renderSession } from "./renderSession";
-import { tokenize } from "../../lib/tokenize";
+import { buildVerseReviewTokens } from "../../lib/verseReview";
 import { Button } from "../ui/Button";
 import type { Verse } from "../../types/verse";
 import type { Collection } from "../../types/collection";
@@ -37,9 +37,10 @@ export function RandomReviewFlow({ collection, verses }: RandomReviewFlowProps) 
   const [mode, setMode] = useState<ReviewMode | null>(null);
   const [index, setIndex] = useState(0);
   const [finished, setFinished] = useState(false);
-  // True while the current verse's "type the reference" recall step is active —
-  // hide the reference in the progress line so it can't be read while recalling.
-  const [referenceStep, setReferenceStep] = useState(false);
+  // Set true once the player is ~25% through the current verse — from then on
+  // hide the reference in the progress line so the appended reference can't be
+  // read while it's being recalled.
+  const [hideReference, setHideReference] = useState(false);
 
   const versesById = useMemo(() => new Map(verses.map((v) => [v.id, v] as const)), [verses]);
 
@@ -47,7 +48,10 @@ export function RandomReviewFlow({ collection, verses }: RandomReviewFlowProps) 
   const verse = currentVerseId ? versesById.get(currentVerseId) : undefined;
   const isLast = index >= shuffledIds.length - 1;
 
-  const tokens = useMemo(() => (verse ? tokenize(verse.text) : []), [verse]);
+  const tokens = useMemo(
+    () => (verse ? buildVerseReviewTokens(verse.text, verse.reference) : []),
+    [verse],
+  );
   const scope = useMemo<ReviewScope | null>(
     () => (verse ? { type: "verse", verseId: verse.id } : null),
     [verse],
@@ -92,7 +96,7 @@ export function RandomReviewFlow({ collection, verses }: RandomReviewFlowProps) 
     <div>
       <p style={{ color: "var(--color-ink-muted)", marginBottom: "1rem", fontSize: "0.95rem" }}>
         Verse {index + 1} of {shuffledIds.length}
-        {verse && !referenceStep ? ` — ${verse.reference}` : ""}
+        {verse && !hideReference ? ` — ${verse.reference}` : ""}
       </p>
       {verse && scope ? (
         // Keyed by verseId so the session component fully unmounts/remounts
@@ -106,8 +110,7 @@ export function RandomReviewFlow({ collection, verses }: RandomReviewFlowProps) 
             undefined,
             false,
             undefined,
-            verse.reference,
-            setReferenceStep,
+            setHideReference,
           )}
         </div>
       ) : (

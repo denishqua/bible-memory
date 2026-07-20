@@ -8,9 +8,9 @@ import {
 } from "../../types/review";
 import { createId } from "../../data/ids";
 import type { Token } from "../../lib/tokenize";
+import { shouldHideReference } from "../../lib/verseReview";
 import { Button } from "../ui/Button";
 import { BuiltVerse } from "../review/BuiltVerse";
-import { ReferencePrompt, type ReferenceRecallResult } from "../review/ReferencePrompt";
 import { AsteroidField } from "./AsteroidField";
 import { Asteroid } from "./Asteroid";
 import { Cannon } from "./Cannon";
@@ -38,12 +38,10 @@ interface VerseDefenderSessionProps {
   // Rendered inside the verse gate: hide the "Change Mode" button and the
   // mission screen's "Back to Library" link (the gate owns its own exit).
   embedded?: boolean;
-  // The verse's reference. When present, a first-letter "type the reference"
-  // recall step runs after a COMPLETED mission (never after a failed one).
-  reference?: string;
-  // Fired whenever the recall step becomes active/inactive, so a host (page
-  // heading / gate) can hide the reference while it's being recalled.
-  onReferenceStepChange?: (active: boolean) => void;
+  // Fired once the player is ~25% through the verse words, so a host (page
+  // heading / gate) can hide the reference. The reference itself is appended to
+  // `tokens` (buildVerseReviewTokens) and played through as ordinary targets.
+  onHideReference?: (hidden: boolean) => void;
 }
 
 // Top-level orchestrator for the Verse Defender arcade mode: wires the
@@ -57,8 +55,7 @@ export function VerseDefenderSession({
   onChangeMode,
   onComplete,
   embedded = false,
-  reference,
-  onReferenceStepChange,
+  onHideReference,
 }: VerseDefenderSessionProps) {
   const {
     status,
@@ -103,24 +100,26 @@ export function VerseDefenderSession({
   // The in-flight miss-bolt effect; mirrors lastMiss while its animation plays,
   // then clears so the one-shot element unmounts.
   const [missBolt, setMissBolt] = useState<typeof lastMiss>(null);
-  // Recall-step state: null until the "type the reference" step finishes. The
-  // step runs only after a COMPLETED mission — a failed mission skips it (they
-  // didn't finish the verse).
-  const [referenceResult, setReferenceResult] = useState<ReferenceRecallResult | null>(null);
 
   const isDone = status === "complete" || status === "failed";
-  const needsReference = status === "complete" && reference != null;
-  const showReferencePrompt = needsReference && referenceResult === null;
-  // The whole session is truly done once any recall step is finished — this
-  // (not raw mission end) drives onComplete, so the gate's Proceed appears only
-  // after the reference is recalled too.
-  const sessionFullyDone = isDone && result !== null && !showReferencePrompt;
+  // Terminal mission (complete or failed) — this drives onComplete. The
+  // reference is folded into the queue, so a completed mission has already
+  // played it through; a failed one never reaches it (fail-open in the gate).
+  const sessionFullyDone = isDone && result !== null;
 
-  // Tell the host to hide its own reference chrome while the recall step is up.
+  // Hide the host's reference chrome once ~25% of the VERSE words (excluding the
+  // appended reference targets) are destroyed. currentWordIndex counts cleared
+  // words in queue order and the verse words come first, so it doubles as the
+  // completed-verse-word count for this threshold.
+  const verseMatchableCount = tokens.filter((t) => t.matchable && !t.isReference).length;
+  const hasReference = tokens.some((t) => t.isReference);
+  const hideReference =
+    hasReference && shouldHideReference(verseMatchableCount, currentWordIndex);
+
   useEffect(() => {
-    onReferenceStepChange?.(showReferencePrompt);
-    return () => onReferenceStepChange?.(false);
-  }, [showReferencePrompt, onReferenceStepChange]);
+    onHideReference?.(hideReference);
+    return () => onHideReference?.(false);
+  }, [hideReference, onHideReference]);
 
   // Focus on mount AND whenever play (re)starts. The hidden input is unmounted
   // while an end screen is shown, so a plain mount-only effect (or calling
@@ -194,7 +193,6 @@ export function VerseDefenderSession({
   const handleRetry = useCallback(() => {
     retry();
     setHintActive(false);
-    setReferenceResult(null);
     finalizedRef.current = false;
     completeNotifiedRef.current = false;
     startedAtRef.current = new Date().toISOString();
@@ -255,16 +253,12 @@ export function VerseDefenderSession({
       {isDone && result !== null ? (
         status === "failed" ? (
           <MissionFailedScreen result={result} onRetry={handleRetry} maxLives={maxLives} backTo={embedded ? null : "/"} />
-        ) : showReferencePrompt && reference != null ? (
-          <ReferencePrompt reference={reference} wholeWord={false} onDone={setReferenceResult} />
         ) : (
           <MissionCompleteScreen
             result={result}
             onRetry={handleRetry}
             maxLives={maxLives}
             backTo={embedded ? null : "/"}
-            reference={reference}
-            referenceResult={referenceResult}
           />
         )
       ) : (

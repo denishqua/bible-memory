@@ -3,7 +3,6 @@ import type { LivesResult } from "../../lib/verseDefenderEngine";
 import { getDisplayAccuracy } from "../../types/review";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
-import { ReferenceRecallSummary, type ReferenceRecallResult } from "../review/ReferencePrompt";
 
 interface MissionCompleteScreenProps {
   result: LivesResult;
@@ -11,13 +10,9 @@ interface MissionCompleteScreenProps {
   maxLives: number; // total shield pool for the run
   // null hides the "Back to Library" link (the verse gate supplies its own exit).
   backTo?: string | null;
-  // Recall-step outcome (single-verse only). When both present, the reference
-  // is revealed here with whether it was recalled.
-  reference?: string;
-  referenceResult?: ReferenceRecallResult | null;
 }
 
-export function MissionCompleteScreen({ result, onRetry, maxLives, backTo = "/", reference, referenceResult }: MissionCompleteScreenProps) {
+export function MissionCompleteScreen({ result, onRetry, maxLives, backTo = "/" }: MissionCompleteScreenProps) {
   return (
     <Card style={{ marginTop: "1.5rem", textAlign: "center" }}>
       <span
@@ -54,9 +49,6 @@ export function MissionCompleteScreen({ result, onRetry, maxLives, backTo = "/",
       >
         Shields left: {result.livesRemaining} of {maxLives}
       </p>
-      {reference && referenceResult && (
-        <ReferenceRecallSummary reference={reference} result={referenceResult} />
-      )}
       <div style={{ display: "flex", justifyContent: "center", gap: "0.75rem" }}>
         <Button variant="primary" onClick={onRetry}>
           Retry

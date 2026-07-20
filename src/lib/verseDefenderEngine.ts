@@ -131,7 +131,11 @@ export function isPrintableCharacter(char: string): boolean {
  * collectionReview.ts — "— Romans 8:28 —" spliced between verses).
  */
 function isReferenceMarker(token: Token): boolean {
-  return !token.matchable && !token.isLineBreak && !token.isVerseNumber;
+  // `!token.isReference` excludes the single-verse reference delimiter: it has
+  // this same non-matchable shape but must NOT open a new verse (which would
+  // inflate the shield pool). The appended reference WORDS are matchable and
+  // simply join the destroy queue as ordinary targets.
+  return !token.matchable && !token.isLineBreak && !token.isVerseNumber && !token.isReference;
 }
 
 export function createInitialState(tokens: Token[], isCollection: boolean): VerseDefenderState {

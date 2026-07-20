@@ -4,8 +4,8 @@ import { useVerses } from "../hooks/useVerses";
 import { useCollections } from "../hooks/useCollections";
 import { useReviewHistory } from "../hooks/useReviewHistory";
 import { computeVerseScore } from "../lib/verseScore";
-import { tokenize } from "../lib/tokenize";
 import { buildCollectionReviewTokens } from "../lib/collectionReview";
+import { buildVerseReviewTokens } from "../lib/verseReview";
 import { ModePicker } from "../components/review/ModePicker";
 import { RandomReviewFlow } from "../components/review/RandomReviewFlow";
 import { renderSession } from "../components/review/renderSession";
@@ -23,10 +23,10 @@ export function ReviewPage() {
   const { collections, loading: collectionsLoading, getVerseIdsForCollection } = useCollections();
   const { sessions } = useReviewHistory();
   const [mode, setMode] = useState<ReviewMode | null>(null);
-  // True while the single-verse "type the reference" recall step is active — we
-  // hide the reference from the page chrome (heading + back link) so it can't
-  // be read off the screen while the player is recalling it.
-  const [referenceStep, setReferenceStep] = useState(false);
+  // Set true once the player is ~25% through a single-verse review — from then
+  // on we hide the reference from the page chrome (heading + back link) so the
+  // appended reference can't be read off the screen while it's being recalled.
+  const [hideReference, setHideReference] = useState(false);
 
   // Verse selection handed over by CollectionDetail via router navigation
   // state. Absent on deep links / refreshes — in that case we review ALL
@@ -77,7 +77,12 @@ export function ReviewPage() {
       };
     }
     if (verse) {
-      return { tokens: tokenize(verse.text), scope: { type: "verse", verseId: verse.id } };
+      // Single-verse review appends the reference to the token stream so it's
+      // recalled inline as part of the same session (buildVerseReviewTokens).
+      return {
+        tokens: buildVerseReviewTokens(verse.text, verse.reference),
+        scope: { type: "verse", verseId: verse.id },
+      };
     }
     return { tokens: [], scope: null };
   }, [collectionId, selectedCollectionVerses, verse]);
@@ -178,9 +183,9 @@ export function ReviewPage() {
           fontSize: "0.9rem",
         }}
       >
-        {referenceStep ? "← Back" : `← Back to ${verse.reference}`}
+        {hideReference ? "← Back" : `← Back to ${verse.reference}`}
       </Link>
-      {!referenceStep && (
+      {!hideReference && (
         <div style={{ marginBottom: "1.25rem" }}>
           <h1 style={{ marginBottom: "0.15rem" }}>{verse.reference}</h1>
           <p style={{ color: "var(--color-ink-muted)", fontSize: "0.85rem" }}>
@@ -199,8 +204,7 @@ export function ReviewPage() {
           undefined,
           false,
           undefined,
-          verse.reference,
-          setReferenceStep,
+          setHideReference,
         )
       )}
     </div>

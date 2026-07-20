@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useSettings } from "../hooks/useSettings";
 import { useVerses } from "../hooks/useVerses";
 import { useCollections } from "../hooks/useCollections";
-import { tokenize } from "../lib/tokenize";
+import { buildVerseReviewTokens } from "../lib/verseReview";
 import { renderSession } from "../components/review/renderSession";
 import { Button } from "../components/ui/Button";
 import type { Verse } from "../types/verse";
@@ -89,12 +89,12 @@ export function GatePage() {
 
   const [currentVerseId, setCurrentVerseId] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
-  // True while the embedded session's "type the reference" recall step is
-  // active — the gate hides its always-visible reference so the answer can't be
-  // read off the screen while the player is recalling it. onComplete (which
-  // reveals Proceed) fires only AFTER the recall step, so finishing the gate
-  // requires typing the reference too.
-  const [referenceStep, setReferenceStep] = useState(false);
+  // Set true once the player is ~25% through the verse — the gate then hides its
+  // always-visible reference so the appended reference can't be read off the
+  // screen while it's being recalled. onComplete (which reveals Proceed) fires
+  // only once the whole stream — verse AND reference — is done, so finishing the
+  // gate requires typing the reference too.
+  const [hideReference, setHideReference] = useState(false);
 
   // Pick the initial random verse once the pool has loaded. Guarded so later
   // pool identity churn (storage refreshes) never swaps the verse mid-review.
@@ -109,7 +109,10 @@ export function GatePage() {
 
   const currentVerse = currentVerseId ? pool.find((v) => v.id === currentVerseId) : undefined;
 
-  const tokens = useMemo(() => (currentVerse ? tokenize(currentVerse.text) : []), [currentVerse]);
+  const tokens = useMemo(
+    () => (currentVerse ? buildVerseReviewTokens(currentVerse.text, currentVerse.reference) : []),
+    [currentVerse],
+  );
   const scope: ReviewScope | null = currentVerse
     ? { type: "verse", verseId: currentVerse.id }
     : null;
@@ -119,7 +122,7 @@ export function GatePage() {
     if (!next) return;
     setCurrentVerseId(next.id);
     setCompleted(false);
-    setReferenceStep(false);
+    setHideReference(false);
   }, [pool, currentVerseId]);
 
   const handleComplete = useCallback(() => {
@@ -229,7 +232,7 @@ export function GatePage() {
         }}
       >
         <span style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>
-          {referenceStep ? "" : currentVerse.reference}
+          {hideReference ? "" : currentVerse.reference}
         </span>
         <Button variant="ghost" onClick={handleSkip} disabled={pool.length < 2}>
           Skip verse →
@@ -249,8 +252,7 @@ export function GatePage() {
           handleComplete,
           true,
           undefined,
-          currentVerse.reference,
-          setReferenceStep,
+          setHideReference,
         )}
       </div>
 

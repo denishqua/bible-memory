@@ -2,23 +2,18 @@ import { Link } from "react-router-dom";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import type { LaneDefenderResult } from "../../lib/laneDefenderEngine";
-import { ReferenceRecallSummary, type ReferenceRecallResult } from "../review/ReferencePrompt";
 
 interface MissionCompleteScreenProps {
   result: LaneDefenderResult;
   onRetry: () => void;
   // null hides the "Back to Library" link (the verse gate supplies its own exit).
   backTo?: string | null;
-  // Recall-step outcome (single-verse only). When both present, the reference
-  // is revealed here with whether it was recalled.
-  reference?: string;
-  referenceResult?: ReferenceRecallResult | null;
 }
 
 // Every word in the queue was destroyed. The percentage is the per-word
 // clean-shot score, so a run can complete below the pass bar (fumbles /
 // dropped targets along the way); the badge reflects `result.passed`.
-export function MissionCompleteScreen({ result, onRetry, backTo = "/", reference, referenceResult }: MissionCompleteScreenProps) {
+export function MissionCompleteScreen({ result, onRetry, backTo = "/" }: MissionCompleteScreenProps) {
   return (
     <Card style={{ marginTop: "1.5rem", textAlign: "center" }}>
       <span
@@ -49,9 +44,6 @@ export function MissionCompleteScreen({ result, onRetry, backTo = "/", reference
       <p style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem", marginBottom: "1.25rem" }}>
         {result.cleanWords} of {result.totalWords} words shot cleanly.
       </p>
-      {reference && referenceResult && (
-        <ReferenceRecallSummary reference={reference} result={referenceResult} />
-      )}
       <div style={{ display: "flex", justifyContent: "center", gap: "0.75rem" }}>
         <Button variant="primary" onClick={onRetry}>
           Retry
