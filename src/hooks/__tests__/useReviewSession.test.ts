@@ -339,6 +339,23 @@ describe("useReviewSession", () => {
     expect(result.current.accuracy).toBe(80); // 4 clean of 5 matchable words
   });
 
+  it("whole-word mode: a reference number run is typed with no spaces between digits", () => {
+    // Reference "Ps 16" → Ps(word) 1(digit, attachNext) 6(digit). In whole-word
+    // mode the book name still takes a trailing space, but the digit run flows
+    // continuously: typing "1" then "6" (no space between) completes it.
+    const tokens = buildVerseReviewTokens("Go", "Ps 16");
+    const { result } = renderHook(() => useReviewSession(tokens, "type-it", true));
+    // Verse word "Go" then the book "Ps" each need a space (real word boundary).
+    ["g", "o", " ", "p", "s", " "].forEach((c) => act(() => result.current.handleKeyPress(c)));
+    // "1" attaches to "6": it auto-advances on its final letter, no space.
+    act(() => result.current.handleKeyPress("1"));
+    expect(result.current.status).toBe("in-progress");
+    act(() => result.current.handleKeyPress("6")); // last digit completes the session
+    expect(result.current.status).toBe("complete");
+    // Every matchable word was typed cleanly — no stray space was needed.
+    expect(result.current.accuracy).toBe(100);
+  });
+
   it("first-letter mode: misses never set revealedCount", () => {
     const { result } = setup("For God"); // whole-word off
     act(() => result.current.handleKeyPress("x"));

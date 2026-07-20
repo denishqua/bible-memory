@@ -229,14 +229,17 @@ export function useReviewSession(
 
           if (isMatch) {
             const typedCount = currentWord.typedCount + 1;
-            // Only the very last matchable word completes on its final letter:
-            // there is no next word to space into, so demanding a trailing
-            // space would be a dead keystroke (the input is already disabled
-            // once the session flips complete). Every other finished word waits
-            // for space, so it merely records the letter and stays current.
+            // A finished word normally waits for the player to press space (the
+            // separator) before advancing. Two cases auto-advance on the final
+            // letter with no space:
+            //   1. the very last matchable word — there's no next word to space
+            //      into, and the input is disabled once the session completes;
+            //   2. a token that ATTACHES to the next (a reference number run like
+            //      "16:2-3" renders with no gaps, so its digits are typed
+            //      continuously — "1623" — rather than "1 6 2 3").
             if (typedCount === currentWord.token.normalized.length) {
               const nextIndex = firstPendingMatchableIndex(words, prev.currentIndex + 1);
-              if (nextIndex >= words.length) {
+              if (nextIndex >= words.length || currentWord.token.attachNext) {
                 words[prev.currentIndex] = { ...currentWord, typedCount, completed: true };
                 return { words, currentIndex: nextIndex };
               }
