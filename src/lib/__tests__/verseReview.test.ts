@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   REFERENCE_DELIMITER_RAW,
   buildVerseReviewTokens,
+  mergeReferenceNumbers,
   referenceHideThreshold,
   shouldHideReference,
 } from "../verseReview";
@@ -86,6 +87,37 @@ describe("buildVerseReviewTokens", () => {
     const tokens = buildVerseReviewTokens("For God", "   ");
     expect(tokens.map((t) => t.raw)).toEqual(["For", "God"]);
     expect(tokens.some((t) => t.isReference)).toBe(false);
+  });
+});
+
+describe("mergeReferenceNumbers (arcade targets)", () => {
+  it("merges a reference's digit runs into whole numbers", () => {
+    // Arcade plays 16:12-15 as three targets (16, 12, 15), not six digits.
+    const merged = mergeReferenceNumbers(buildVerseReviewTokens("word", "Psalm 16:12-15"));
+    expect(merged.filter((t) => t.matchable).map((t) => t.raw)).toEqual([
+      "word",
+      "Psalm",
+      "16",
+      "12",
+      "15",
+    ]);
+    // The colon and dash remain as non-matchable context.
+    expect(merged.filter((t) => !t.matchable && t.isReference).map((t) => t.raw)).toEqual([
+      REFERENCE_DELIMITER_RAW,
+      ":",
+      "-",
+    ]);
+  });
+
+  it("keeps space-separated numbers apart and leaves the verse untouched", () => {
+    const merged = mergeReferenceNumbers(buildVerseReviewTokens("For God", "Ps 16 2"));
+    expect(merged.filter((t) => t.matchable).map((t) => t.raw)).toEqual([
+      "For",
+      "God",
+      "Ps",
+      "16",
+      "2",
+    ]);
   });
 });
 

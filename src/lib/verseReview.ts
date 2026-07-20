@@ -76,6 +76,35 @@ export function buildVerseReviewTokens(text: string, reference: string): Token[]
   ];
 }
 
+// For the ARCADE modes (Verse Defender / Lane Defender), a reference number is
+// played as ONE target rather than digit-by-digit: "16:12-15" → targets 16, 12,
+// 15 (not 1,6,1,2,1,5). Merge each run of adjacent single-digit reference tokens
+// back into one number token. The text modes keep the per-digit tokens (typed
+// 1,6,… individually, or continuously in whole-word), so this runs only on the
+// arcade branch of renderSession — it's never baked into the shared stream.
+export function mergeReferenceNumbers(tokens: Token[]): Token[] {
+  const isRefNumber = (token: Token | undefined, re: RegExp): boolean =>
+    token !== undefined && token.isReference === true && token.matchable && re.test(token.normalized);
+  const out: Token[] = [];
+  for (const token of tokens) {
+    const prev = out[out.length - 1];
+    // Fold a digit into the previous number only when that number's tail was
+    // marked to attach to it (same whitespace-free group) — so a "16" and a
+    // separate "2" (e.g. "Ps 16 2") stay apart.
+    if (isRefNumber(token, /^\d$/) && isRefNumber(prev, /^\d+$/) && prev.attachNext) {
+      out[out.length - 1] = {
+        ...prev,
+        raw: prev.raw + token.raw,
+        normalized: prev.normalized + token.normalized,
+        attachNext: token.attachNext,
+      };
+    } else {
+      out.push(token);
+    }
+  }
+  return out;
+}
+
 // The number of completed VERSE words (the verse's matchable words, NOT the
 // appended reference) after which the reference heading is hidden from the host
 // chrome. ceil(25%) — e.g. a 10-word verse hides after the 3rd word
