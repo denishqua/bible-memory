@@ -28,7 +28,36 @@ const REFERENCE_DELIMITER_TOKEN: Token = {
   matchable: false,
   normalized: "",
   isReference: true,
+  isReferenceDelimiter: true,
 };
+
+// Tokenize a reference (e.g. "Psalm 16:2-3") for inline recall. Unlike the verse
+// tokenizer, a reference is recalled digit-by-digit: each DIGIT is its own
+// matchable token (so first-letter typing is 1,6,2,3 — not just "1" for the
+// whole "16:2-3" chunk), each letter run is one matchable word (the book name,
+// typed first-letter / whole-word like any verse word), and punctuation (":",
+// "-", ".") is non-matchable context shown but never typed. `attachNext` keeps a
+// whitespace-free run (the number group) rendering tight as "16:2-3".
+function tokenizeReference(reference: string): Token[] {
+  const tokens: Token[] = [];
+  // Whitespace-separated chunks mark where real spaces belong; within a chunk,
+  // every piece attaches to the next so the group renders with no gaps.
+  for (const chunk of reference.match(/\S+/g) ?? []) {
+    const pieces = chunk.match(/\p{L}+|\d|[^\p{L}\p{N}]+/gu) ?? [];
+    pieces.forEach((piece, i) => {
+      const attachNext = i < pieces.length - 1;
+      if (/^\d$/.test(piece)) {
+        tokens.push({ raw: piece, matchable: true, normalized: piece, attachNext });
+      } else if (/^\p{L}+$/u.test(piece)) {
+        tokens.push({ raw: piece, matchable: true, normalized: piece.toLowerCase(), attachNext });
+      } else {
+        // Punctuation between numbers (":", "-"): shown as context, never typed.
+        tokens.push({ raw: piece, matchable: false, normalized: "", attachNext });
+      }
+    });
+  }
+  return tokens;
+}
 
 // Verse tokens + delimiter + the reference tokens (each flagged isReference).
 // A blank/whitespace-only reference tokenizes to nothing, in which case the
@@ -36,7 +65,7 @@ const REFERENCE_DELIMITER_TOKEN: Token = {
 // no-op so a reference-less verse behaves exactly like plain review.
 export function buildVerseReviewTokens(text: string, reference: string): Token[] {
   const verseTokens = tokenize(text);
-  const referenceTokens = tokenize(reference).map((token) => ({ ...token, isReference: true }));
+  const referenceTokens = tokenizeReference(reference).map((token) => ({ ...token, isReference: true }));
   if (referenceTokens.length === 0) return verseTokens;
   return [
     ...verseTokens,

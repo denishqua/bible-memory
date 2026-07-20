@@ -84,7 +84,7 @@ export const WordToken = memo(function WordToken({ word, isCurrent, isHinted, wh
       <span
         style={{
           display: "inline-block",
-          marginRight: "0.3em",
+          marginRight: token.attachNext ? 0 : "0.3em",
           fontSize: token.isVerseNumber ? "0.7em" : "1.15rem",
           verticalAlign: token.isVerseNumber ? "super" : "baseline",
           color: "var(--color-ink-muted)",
@@ -151,7 +151,7 @@ export const WordToken = memo(function WordToken({ word, isCurrent, isHinted, wh
       data-current={isCurrent ? "true" : undefined}
       style={{
         display: "inline-block",
-        marginRight: "0.35em",
+        marginRight: token.attachNext ? 0 : "0.35em",
         fontFamily: "var(--font-serif)",
         fontSize: "1.15rem",
         letterSpacing: showFull || showHint ? "normal" : "0.08em",

@@ -9,12 +9,15 @@ interface BuiltVerseProps {
 }
 
 /**
- * Reference-marker tokens are the only tokens in a collection stream that are
- * non-matchable but neither line breaks nor verse numbers (see
- * collectionReview.ts — "— Romans 8:28 —" spliced between verses).
+ * Divider tokens render as their own block line rather than inline: the
+ * collection between-verse markers ("— Romans 8:28 —", non-matchable and not a
+ * line break / verse number / reference) and the single verse→reference
+ * delimiter. A reference's own punctuation tokens (":", "-") are non-matchable +
+ * isReference but must stay inline, so they are deliberately excluded.
  */
-function isReferenceMarker(token: Token): boolean {
-  return !token.matchable && !token.isLineBreak && !token.isVerseNumber;
+function isDivider(token: Token): boolean {
+  if (token.isReferenceDelimiter) return true;
+  return !token.matchable && !token.isLineBreak && !token.isVerseNumber && !token.isReference;
 }
 
 // The verse "rebuilding" itself as the player destroys words in the arcade
@@ -43,7 +46,7 @@ export function BuiltVerse({ tokens, completedWords }: BuiltVerseProps) {
       parts.push(<br key={key} />);
       return;
     }
-    if (isReferenceMarker(token)) {
+    if (isDivider(token)) {
       // A verse boundary in a collection run — set it off as a divider line
       // instead of flowing inline with the words around it.
       parts.push(
@@ -74,7 +77,8 @@ export function BuiltVerse({ tokens, completedWords }: BuiltVerseProps) {
           color: "var(--color-ink-muted)",
         }}
       >
-        {(token.isVerseNumber ? token.raw.replace(/[[\]]/g, "") : token.raw) + " "}
+        {(token.isVerseNumber ? token.raw.replace(/[[\]]/g, "") : token.raw) +
+          (token.attachNext ? "" : " ")}
       </span>,
     );
   };
@@ -92,13 +96,13 @@ export function BuiltVerse({ tokens, completedWords }: BuiltVerseProps) {
       (p, j) =>
         !(
           p.isLineBreak &&
-          ((j > 0 && isReferenceMarker(pending[j - 1])) ||
-            (j < pending.length - 1 && isReferenceMarker(pending[j + 1])))
+          ((j > 0 && isDivider(pending[j - 1])) ||
+            (j < pending.length - 1 && isDivider(pending[j + 1])))
         ),
     );
     flushable.forEach((p, j) => pushContext(p, `ctx-${i}-${j}`));
     pending = [];
-    parts.push(<span key={`word-${i}`}>{token.raw + " "}</span>);
+    parts.push(<span key={`word-${i}`}>{token.raw + (token.attachNext ? "" : " ")}</span>);
     matchableSeen++;
   }
 

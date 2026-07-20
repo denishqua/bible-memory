@@ -9,7 +9,8 @@ import {
 describe("buildVerseReviewTokens", () => {
   it("appends the reference after the verse, separated by a delimiter", () => {
     const tokens = buildVerseReviewTokens("For God", "John 3:16");
-    // For(0) God(1) \n(2) —reference—(3) \n(4) John(5) 3:16(6)
+    // The reference is recalled digit-by-digit: "3:16" splits into 3, :, 1, 6
+    // (punctuation kept as non-typed context) so first-letter typing is 3,1,6.
     expect(tokens.map((t) => t.raw)).toEqual([
       "For",
       "God",
@@ -17,7 +18,10 @@ describe("buildVerseReviewTokens", () => {
       REFERENCE_DELIMITER_RAW,
       "\n",
       "John",
-      "3:16",
+      "3",
+      ":",
+      "1",
+      "6",
     ]);
   });
 
@@ -27,26 +31,55 @@ describe("buildVerseReviewTokens", () => {
     expect(tokens[1].isReference).toBeUndefined();
   });
 
-  it("flags the appended reference WORD tokens as matchable references", () => {
+  it("flags the appended reference book + digit tokens as matchable references", () => {
     const tokens = buildVerseReviewTokens("For God", "John 3:16");
     const john = tokens.find((t) => t.raw === "John")!;
-    const ref = tokens.find((t) => t.raw === "3:16")!;
     expect(john.isReference).toBe(true);
     expect(john.matchable).toBe(true);
-    expect(ref.isReference).toBe(true);
-    expect(ref.matchable).toBe(true);
-    // "3:16" normalizes to "316" (colon stripped like other punctuation), so it
-    // is one word: first-letter typing clears it with "3", whole-word with 316.
-    expect(ref.normalized).toBe("316");
+    expect(john.normalized).toBe("john");
+    // Each digit is its own matchable token (recalled 3, then 1, then 6).
+    const digits = tokens.filter((t) => /^\d$/.test(t.raw));
+    expect(digits.map((t) => t.raw)).toEqual(["3", "1", "6"]);
+    for (const d of digits) {
+      expect(d.isReference).toBe(true);
+      expect(d.matchable).toBe(true);
+      expect(d.normalized).toBe(d.raw);
+    }
+    // The colon is shown as context but never typed.
+    const colon = tokens.find((t) => t.raw === ":")!;
+    expect(colon.matchable).toBe(false);
+    expect(colon.isReference).toBe(true);
   });
 
-  it("flags the delimiter as a non-matchable reference marker", () => {
+  it("splits a chapter:verse-range reference into per-digit tokens (dash not typed)", () => {
+    const tokens = buildVerseReviewTokens("word", "Psalm 16:2-3");
+    const start = tokens.findIndex((t) => t.raw === REFERENCE_DELIMITER_RAW) + 2;
+    const ref = tokens.slice(start);
+    expect(ref.map((t) => t.raw)).toEqual(["Psalm", "1", "6", ":", "2", "-", "3"]);
+    // Only the book + digits are typed; ":" and "-" are shown, not typed.
+    expect(ref.filter((t) => t.matchable).map((t) => t.raw)).toEqual(["Psalm", "1", "6", "2", "3"]);
+    expect(ref.filter((t) => !t.matchable).map((t) => t.raw)).toEqual([":", "-"]);
+  });
+
+  it("keeps a whitespace-free number group compact via attachNext", () => {
+    const tokens = buildVerseReviewTokens("word", "Psalm 16:2-3");
+    // "Psalm" is its own chunk → a space follows it (no attach).
+    expect(tokens.find((t) => t.raw === "Psalm")!.attachNext).toBeFalsy();
+    // Within "16:2-3" every piece but the last attaches to the next.
+    const group = tokens.slice(tokens.findIndex((t) => t.raw === "Psalm") + 1);
+    expect(group.map((t) => t.attachNext ?? false)).toEqual([true, true, true, true, true, false]);
+  });
+
+  it("flags the delimiter as a non-matchable reference divider", () => {
     const tokens = buildVerseReviewTokens("For God", "John 3:16");
     const delimiter = tokens.find((t) => t.raw === REFERENCE_DELIMITER_RAW)!;
     expect(delimiter.matchable).toBe(false);
     expect(delimiter.isReference).toBe(true);
+    expect(delimiter.isReferenceDelimiter).toBe(true);
     expect(delimiter.isLineBreak).toBeUndefined();
     expect(delimiter.isVerseNumber).toBeUndefined();
+    // The reference's own punctuation is NOT flagged as the divider.
+    expect(tokens.find((t) => t.raw === ":")!.isReferenceDelimiter).toBeUndefined();
   });
 
   it("returns the verse unchanged when the reference is blank (no delimiter)", () => {

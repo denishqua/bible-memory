@@ -309,7 +309,8 @@ describe("useReviewSession", () => {
 
   it("forces the appended reference words masked even in Type It (verse visible)", () => {
     // Verse "For God" is Type It (all visible); the appended reference "John
-    // 3:16" must be masked regardless so it's a genuine recall challenge.
+    // 3:16" must be masked regardless so it's a genuine recall challenge. The
+    // reference is split into per-digit tokens (John, 3, 1, 6).
     const tokens = buildVerseReviewTokens("For God", "John 3:16");
     const { result } = renderHook(() => useReviewSession(tokens, "type-it"));
     const visibilityByRaw = new Map(
@@ -318,20 +319,24 @@ describe("useReviewSession", () => {
     expect(visibilityByRaw.get("For")).toBe("full");
     expect(visibilityByRaw.get("God")).toBe("full");
     expect(visibilityByRaw.get("John")).toBe("masked");
-    expect(visibilityByRaw.get("3:16")).toBe("masked");
+    expect(visibilityByRaw.get("3")).toBe("masked");
+    expect(visibilityByRaw.get("1")).toBe("masked");
+    expect(visibilityByRaw.get("6")).toBe("masked");
   });
 
   it("counts the appended reference words in accuracy (no special-casing)", () => {
-    // "For" verse (1 word) + "John 3:16" reference (2 words) = 3 matchable
-    // words. Miss on the reference word drops the final accuracy to 2/3 = 67%.
+    // "For" verse (1 word) + "John 3:16" reference (John,3,1,6 = 4 words) = 5
+    // matchable words. One miss on the reference drops accuracy to 4/5 = 80%.
     const tokens = buildVerseReviewTokens("For", "John 3:16");
     const { result } = renderHook(() => useReviewSession(tokens, "type-it"));
     act(() => result.current.handleKeyPress("f")); // verse "For" clean
     act(() => result.current.handleKeyPress("x")); // miss on "John"
     act(() => result.current.handleKeyPress("j")); // "John" now dirty-complete
-    act(() => result.current.handleKeyPress("3")); // "3:16" (normalized 316) clean
+    act(() => result.current.handleKeyPress("3")); // digit 3 clean (colon auto-skipped)
+    act(() => result.current.handleKeyPress("1")); // digit 1 clean
+    act(() => result.current.handleKeyPress("6")); // digit 6 clean → session complete
     expect(result.current.status).toBe("complete");
-    expect(result.current.accuracy).toBe(67); // 2 clean of 3 matchable words
+    expect(result.current.accuracy).toBe(80); // 4 clean of 5 matchable words
   });
 
   it("first-letter mode: misses never set revealedCount", () => {

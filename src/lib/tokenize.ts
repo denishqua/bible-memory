@@ -24,6 +24,16 @@ export interface Token {
   // non-matchable delimiter so it's never mistaken for a between-verse
   // collection reference marker.
   isReference?: boolean;
+  // The single "— reference —" separator between the verse and its appended
+  // reference (see buildVerseReviewTokens). Distinguishes that divider from the
+  // reference's own punctuation tokens (":", "-"), which are also non-matchable
+  // + isReference but must render inline, not as a block divider.
+  isReferenceDelimiter?: boolean;
+  // Render this token flush against the NEXT one with no trailing gap. Keeps a
+  // reference's number group compact — "16:2-3" is typed as separate digit
+  // tokens (1, 6, 2, 3) yet still displays as "16:2-3", not "1 6 : 2 - 3".
+  // Set only by the reference tokenizer.
+  attachNext?: boolean;
 }
 
 // Convention assumed for verse-number markers in the *input* to tokenize():
