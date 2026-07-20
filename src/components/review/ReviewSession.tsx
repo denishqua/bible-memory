@@ -85,12 +85,18 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
     setHintedIndex((prev) => (prev !== null && prev !== currentIndex ? null : prev));
   }, [currentIndex]);
 
+  // Focus the hidden input whenever the session is active — on first mount AND
+  // when Retry flips status back to "in-progress". The input is disabled at
+  // completion, so the browser drops focus; without re-focusing here the first
+  // post-Retry keystroke lands nowhere until the player clicks or hits Hint.
+  // preventScroll: without it the browser scrolls the (huge, invisible) input's
+  // center into view on focus, which for bulk sessions lands the viewport in
+  // the empty middle of the overlay — a blank page.
   useEffect(() => {
-    // preventScroll: without it the browser scrolls the (huge, invisible)
-    // input's center into view on focus, which for bulk sessions lands the
-    // viewport in the empty middle of the overlay — a blank page.
-    inputRef.current?.focus({ preventScroll: true });
-  }, []);
+    if (status === "in-progress") {
+      inputRef.current?.focus({ preventScroll: true });
+    }
+  }, [status]);
 
   // Keep the current word visible inside the scrollable words container.
   // Scrolled manually via scrollTop math (not scrollIntoView) so only the
@@ -204,7 +210,11 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
           ref={inputRef}
           value=""
           onChange={handleInputChange}
-          aria-label="Type the first letter of each word to advance"
+          aria-label={
+            requireWholeWord
+              ? "Type each word, then press space to advance"
+              : "Type the first letter of each word to advance"
+          }
           autoComplete="off"
           autoCapitalize="off"
           autoCorrect="off"

@@ -55,7 +55,7 @@ export function VerseList({ verses, scores, onDelete, onAddToCollection }: Verse
         <div role="columnheader" style={headerCellStyle}>
           Trans.
         </div>
-        <div role="columnheader" style={{ ...headerCellStyle, textAlign: "right" }} title="Average score across Master It / Verse Defender / Lane Defender reviews of this verse">
+        <div role="columnheader" style={{ ...headerCellStyle, textAlign: "right" }} title="Mastery score (0–100): each verse's average accuracy across its Master It, Verse Defender, and Lane Defender reviews.">
           Score
         </div>
         <div role="columnheader" style={{ ...headerCellStyle, textAlign: "right" }}>

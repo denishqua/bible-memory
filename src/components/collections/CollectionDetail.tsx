@@ -12,6 +12,12 @@ interface CollectionDetailProps {
   collectionId: string;
 }
 
+// Collapse newlines to a single line so the preview truncates cleanly,
+// mirroring the Library's verse preview.
+function preview(text: string): string {
+  return text.replace(/\n+/g, " ").trim();
+}
+
 export function CollectionDetail({ collectionId }: CollectionDetailProps) {
   const {
     collections,
@@ -33,6 +39,12 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
   // Inline collection-name editing. `nameDraft` is non-null only while the
   // rename field is open.
   const [nameDraft, setNameDraft] = useState<string | null>(null);
+
+  // Two-step remove confirmation: the id of the verse whose "Remove" button is
+  // awaiting confirmation (null = none), mirroring the delete pattern used by
+  // CollectionCard and the Library's VerseActionsMenu so a stray click can't
+  // silently drop a verse from the collection.
+  const [confirmingRemoveId, setConfirmingRemoveId] = useState<string | null>(null);
 
   // Drag-to-reorder state (HTML5 drag and drop, mouse-first — touch devices
   // don't fire these events; a touch fallback can be layered on later).
@@ -302,7 +314,7 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
                   : undefined,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1, minWidth: 0 }}>
                 <span
                   onMouseDown={() => setArmedIndex(index)}
                   title={`Drag to reorder ${verse.reference}`}
@@ -324,9 +336,46 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
                   onChange={() => toggleVerseSelected(verse.id)}
                   aria-label={`Include ${verse.reference} in review`}
                 />
-                <Link to={`/verse/${verse.id}`} style={{ textDecoration: "none" }}>
-                  <h3 style={{ fontSize: "1rem" }}>{verse.reference}</h3>
+                {/* Reference and preview sit side by side on one row, mirroring
+                    the Library table (fixed reference column + flexible,
+                    single-line verse preview). */}
+                <Link
+                  to={`/verse/${verse.id}`}
+                  title={verse.reference}
+                  style={{
+                    textDecoration: "none",
+                    flexShrink: 0,
+                    width: "clamp(6.5rem, 22vw, 11rem)",
+                    minWidth: 0,
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: "1rem",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {verse.reference}
+                  </h3>
                 </Link>
+                <p
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    margin: 0,
+                    fontFamily: "var(--font-serif)",
+                    fontSize: "0.9rem",
+                    color: "var(--color-ink-muted)",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                  title={preview(verse.text)}
+                >
+                  {preview(verse.text)}
+                </p>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                 {(() => {
@@ -341,8 +390,8 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
                       }}
                       title={
                         verseScore
-                          ? `Score: average of ${verseScore.count} scored review${verseScore.count === 1 ? "" : "s"}`
-                          : "Not yet reviewed in Master It, Verse Defender, or Lane Defender"
+                          ? `Mastery score (0–100): your average accuracy across ${verseScore.count} recall review${verseScore.count === 1 ? "" : "s"} of this verse — Master It, Verse Defender, and Lane Defender.`
+                          : "Mastery score (0–100): your average recall accuracy for this verse. Review it in Master It, Verse Defender, or Lane Defender to build a score."
                       }
                     >
                       {verseScore?.score ?? 0}
@@ -352,12 +401,27 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
                 <Link to={`/review?verseId=${verse.id}`} style={{ textDecoration: "none" }}>
                   <Button variant="ghost">Review</Button>
                 </Link>
-                <Button
-                  variant="danger"
-                  onClick={() => removeVerseFromCollection(collectionId, verse.id)}
-                >
-                  Remove
-                </Button>
+                {confirmingRemoveId === verse.id ? (
+                  <>
+                    <Button
+                      variant="danger"
+                      onClick={() => {
+                        void removeVerseFromCollection(collectionId, verse.id);
+                        setConfirmingRemoveId(null);
+                      }}
+                      title={`Remove ${verse.reference} from this collection`}
+                    >
+                      Confirm Remove
+                    </Button>
+                    <Button variant="ghost" onClick={() => setConfirmingRemoveId(null)}>
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="danger" onClick={() => setConfirmingRemoveId(verse.id)}>
+                    Remove
+                  </Button>
+                )}
               </div>
             </Card>
           ))}

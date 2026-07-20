@@ -105,8 +105,8 @@ export function VerseRow({ verse, score, reviewCount, onDelete, onAddToCollectio
         }}
         title={
           reviewCount > 0
-            ? `Average of ${reviewCount} scored review${reviewCount === 1 ? "" : "s"} (Master It / Verse Defender / Lane Defender)`
-            : "Not yet reviewed in Master It, Verse Defender, or Lane Defender"
+            ? `Mastery score (0–100): your average accuracy across ${reviewCount} recall review${reviewCount === 1 ? "" : "s"} of this verse — Master It, Verse Defender, and Lane Defender.`
+            : "Mastery score (0–100): your average recall accuracy for this verse. Review it in Master It, Verse Defender, or Lane Defender to build a score."
         }
       >
         {score}

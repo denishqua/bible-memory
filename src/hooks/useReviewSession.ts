@@ -163,8 +163,10 @@ export function perVerseAccuracy(
 // The shared engine behind all 3 modes (Type It / Memorize It / Master It):
 // every word requires the player to type it correctly to advance — in
 // first-letter mode a single correct first letter, in whole-word mode every
-// letter in order. Modes differ only in whether a word's text is visible
-// beforehand. Deliberately has no knowledge of <input>/focus/DOM — the UI layer
+// letter in order followed by a space (typed like a real sentence — see the
+// requireWholeWord branch in handleKeyPress). Modes differ only in whether a
+// word's text is visible beforehand. Deliberately has no knowledge of
+// <input>/focus/DOM — the UI layer
 // owns the hidden focused input and calls handleKeyPress from its change events
 // (spec-review fix #5). `requireWholeWord` (an app-level setting, static for the
 // life of a session) selects between the two input styles.
@@ -193,19 +195,44 @@ export function useReviewSession(
         const words = prev.words.slice();
 
         if (requireWholeWord) {
-          // Whole-word mode: match the next expected char at the current typed
-          // offset. A correct char advances typedCount; the word only completes
-          // (and we advance to the next word) once every letter is typed. A
-          // wrong char marks the word (attempts++) but never rewinds progress.
+          // Whole-word mode types the verse out like a real sentence: letters
+          // fill in the current word, and SPACE is the separator that commits a
+          // finished word and moves to the next. Typing the last letter does
+          // NOT auto-advance (the sole exception is the final matchable word,
+          // below) — the player hits space, just as they would between words.
+          const fullyTyped = currentWord.typedCount === currentWord.token.normalized.length;
+
+          if (char === " ") {
+            // Space is a control key here, not a character to match. It only
+            // acts once the current word is fully typed; a space on an empty or
+            // half-typed word is ignored (no miss, no reveal) so a stray or
+            // leading space can never score against the player.
+            if (!fullyTyped) return prev;
+            words[prev.currentIndex] = { ...currentWord, completed: true };
+            const nextIndex = firstPendingMatchableIndex(words, prev.currentIndex + 1);
+            return { words, currentIndex: nextIndex };
+          }
+
+          // Match the next expected char at the current typed offset. A correct
+          // char advances typedCount but — unlike first-letter mode — does not
+          // by itself complete the word; that waits for space (above). A wrong
+          // char marks the word (attempts++) but never rewinds progress.
           const expected = currentWord.token.normalized[currentWord.typedCount];
           const isMatch = expected !== undefined && char.toLowerCase() === expected.toLowerCase();
 
           if (isMatch) {
             const typedCount = currentWord.typedCount + 1;
+            // Only the very last matchable word completes on its final letter:
+            // there is no next word to space into, so demanding a trailing
+            // space would be a dead keystroke (the input is already disabled
+            // once the session flips complete). Every other finished word waits
+            // for space, so it merely records the letter and stays current.
             if (typedCount === currentWord.token.normalized.length) {
-              words[prev.currentIndex] = { ...currentWord, typedCount, completed: true };
               const nextIndex = firstPendingMatchableIndex(words, prev.currentIndex + 1);
-              return { words, currentIndex: nextIndex };
+              if (nextIndex >= words.length) {
+                words[prev.currentIndex] = { ...currentWord, typedCount, completed: true };
+                return { words, currentIndex: nextIndex };
+              }
             }
             words[prev.currentIndex] = { ...currentWord, typedCount };
             return { ...prev, words };

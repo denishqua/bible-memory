@@ -184,7 +184,7 @@ describe("useReviewSession", () => {
     ]);
   });
 
-  it("whole-word mode: typing every letter completes and advances the word", () => {
+  it("whole-word mode: a finished word waits for space, then space advances", () => {
     const { result } = setup("For God", "type-it", true);
     act(() => result.current.handleKeyPress("f"));
     expect(result.current.words[0].completed).toBe(false); // not done after one letter
@@ -193,8 +193,70 @@ describe("useReviewSession", () => {
 
     act(() => result.current.handleKeyPress("o"));
     act(() => result.current.handleKeyPress("r"));
+    // Every letter typed, but the word stays current until space commits it —
+    // "For" is not the last word, so its final letter does not auto-advance.
+    expect(result.current.words[0].typedCount).toBe(3);
+    expect(result.current.words[0].completed).toBe(false);
+    expect(result.current.currentIndex).toBe(0);
+
+    act(() => result.current.handleKeyPress(" "));
     expect(result.current.words[0].completed).toBe(true);
-    expect(result.current.currentIndex).toBe(1); // advanced to the next word
+    expect(result.current.currentIndex).toBe(1); // space advanced to the next word
+  });
+
+  it("whole-word mode: space on an empty or half-typed word is ignored", () => {
+    const { result } = setup("For God", "type-it", true);
+    // Leading space with nothing typed: a no-op, never a miss.
+    act(() => result.current.handleKeyPress(" "));
+    expect(result.current.words[0].attempts).toBe(0);
+    expect(result.current.words[0].typedCount).toBe(0);
+    expect(result.current.currentIndex).toBe(0);
+    expect(result.current.accuracy).toBe(100); // nothing engaged
+
+    // Space part-way through the word is ignored too (only "f" is typed).
+    act(() => result.current.handleKeyPress("f"));
+    act(() => result.current.handleKeyPress(" "));
+    expect(result.current.words[0].attempts).toBe(0);
+    expect(result.current.words[0].typedCount).toBe(1);
+    expect(result.current.currentIndex).toBe(0);
+  });
+
+  it("whole-word mode: the final word auto-completes on its last letter (no trailing space)", () => {
+    const { result } = setup("For God", "type-it", true);
+    act(() => result.current.handleKeyPress("f"));
+    act(() => result.current.handleKeyPress("o"));
+    act(() => result.current.handleKeyPress("r"));
+    act(() => result.current.handleKeyPress(" ")); // advance off the first word
+    // "God" is the last matchable word — its final letter finishes the session
+    // without needing a trailing space.
+    act(() => result.current.handleKeyPress("g"));
+    act(() => result.current.handleKeyPress("o"));
+    act(() => result.current.handleKeyPress("d"));
+    expect(result.current.words[1].completed).toBe(true);
+    expect(result.current.status).toBe("complete");
+  });
+
+  it("whole-word mode: the last matchable word before trailing punctuation auto-completes", () => {
+    // "loved —": the em-dash is a non-matchable trailing token, so "loved" is
+    // effectively the last word and completes without a space.
+    const { result } = setup("loved —", "type-it", true);
+    for (const ch of "loved") {
+      act(() => result.current.handleKeyPress(ch));
+    }
+    expect(result.current.status).toBe("complete");
+  });
+
+  it("whole-word mode: typing on past a finished word (no space) counts as a miss", () => {
+    const { result } = setup("For God", "type-it", true);
+    act(() => result.current.handleKeyPress("f"));
+    act(() => result.current.handleKeyPress("o"));
+    act(() => result.current.handleKeyPress("r"));
+    // Typing the next word's letter instead of space marks the finished word
+    // wrong — forgetting the space is a typing error, and it stays put.
+    act(() => result.current.handleKeyPress("g"));
+    expect(result.current.words[0].attempts).toBe(1);
+    expect(result.current.words[0].completed).toBe(false);
+    expect(result.current.currentIndex).toBe(0);
   });
 
   it("whole-word mode: a wrong letter bumps attempts without advancing", () => {
@@ -205,10 +267,12 @@ describe("useReviewSession", () => {
     expect(result.current.currentIndex).toBe(0);
     expect(result.current.accuracy).toBe(0); // engaged & dirty
 
-    // Correct letters still work afterward; the word stays marked wrong.
+    // Correct letters still work afterward; the word stays marked wrong. "For"
+    // is not the last word, so space is what finally commits and advances it.
     act(() => result.current.handleKeyPress("f"));
     act(() => result.current.handleKeyPress("o"));
     act(() => result.current.handleKeyPress("r"));
+    act(() => result.current.handleKeyPress(" "));
     expect(result.current.words[0].completed).toBe(true);
     expect(result.current.words[0].attempts).toBe(1);
     expect(result.current.currentIndex).toBe(1);

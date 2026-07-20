@@ -7,7 +7,7 @@ interface PracticeCountBadgeProps {
 export function PracticeCountBadge({ count }: PracticeCountBadgeProps) {
   return (
     <span
-      title={count === 1 ? "1 verse practiced" : `${count} verses practiced`}
+      title="Verses practiced — the total number of reviews you've completed so far (each finished review, including a whole collection, counts once)."
       style={{
         display: "inline-flex",
         alignItems: "center",
