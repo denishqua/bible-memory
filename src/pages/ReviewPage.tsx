@@ -23,6 +23,10 @@ export function ReviewPage() {
   const { collections, loading: collectionsLoading, getVerseIdsForCollection } = useCollections();
   const { sessions } = useReviewHistory();
   const [mode, setMode] = useState<ReviewMode | null>(null);
+  // True while the single-verse "type the reference" recall step is active — we
+  // hide the reference from the page chrome (heading + back link) so it can't
+  // be read off the screen while the player is recalling it.
+  const [referenceStep, setReferenceStep] = useState(false);
 
   // Verse selection handed over by CollectionDetail via router navigation
   // state. Absent on deep links / refreshes — in that case we review ALL
@@ -174,18 +178,30 @@ export function ReviewPage() {
           fontSize: "0.9rem",
         }}
       >
-        ← Back to {verse.reference}
+        {referenceStep ? "← Back" : `← Back to ${verse.reference}`}
       </Link>
-      <div style={{ marginBottom: "1.25rem" }}>
-        <h1 style={{ marginBottom: "0.15rem" }}>{verse.reference}</h1>
-        <p style={{ color: "var(--color-ink-muted)", fontSize: "0.85rem" }}>
-          Score: {computeVerseScore(sessions, verse.id)}
-        </p>
-      </div>
+      {!referenceStep && (
+        <div style={{ marginBottom: "1.25rem" }}>
+          <h1 style={{ marginBottom: "0.15rem" }}>{verse.reference}</h1>
+          <p style={{ color: "var(--color-ink-muted)", fontSize: "0.85rem" }}>
+            Score: {computeVerseScore(sessions, verse.id)}
+          </p>
+        </div>
+      )}
       {mode === null ? (
         <ModePicker onSelect={setMode} />
       ) : (
-        renderSession(mode, scope, tokens, () => setMode(null))
+        renderSession(
+          mode,
+          scope,
+          tokens,
+          () => setMode(null),
+          undefined,
+          false,
+          undefined,
+          verse.reference,
+          setReferenceStep,
+        )
       )}
     </div>
   );

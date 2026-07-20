@@ -37,6 +37,9 @@ export function RandomReviewFlow({ collection, verses }: RandomReviewFlowProps) 
   const [mode, setMode] = useState<ReviewMode | null>(null);
   const [index, setIndex] = useState(0);
   const [finished, setFinished] = useState(false);
+  // True while the current verse's "type the reference" recall step is active —
+  // hide the reference in the progress line so it can't be read while recalling.
+  const [referenceStep, setReferenceStep] = useState(false);
 
   const versesById = useMemo(() => new Map(verses.map((v) => [v.id, v] as const)), [verses]);
 
@@ -89,12 +92,24 @@ export function RandomReviewFlow({ collection, verses }: RandomReviewFlowProps) 
     <div>
       <p style={{ color: "var(--color-ink-muted)", marginBottom: "1rem", fontSize: "0.95rem" }}>
         Verse {index + 1} of {shuffledIds.length}
-        {verse ? ` — ${verse.reference}` : ""}
+        {verse && !referenceStep ? ` — ${verse.reference}` : ""}
       </p>
       {verse && scope ? (
         // Keyed by verseId so the session component fully unmounts/remounts
         // (and resets its state) between verses.
-        <div key={verse.id}>{renderSession(mode, scope, tokens, () => setMode(null))}</div>
+        <div key={verse.id}>
+          {renderSession(
+            mode,
+            scope,
+            tokens,
+            () => setMode(null),
+            undefined,
+            false,
+            undefined,
+            verse.reference,
+            setReferenceStep,
+          )}
+        </div>
       ) : (
         <p style={{ color: "var(--color-ink-muted)" }}>
           This verse is no longer in your library — skip ahead.

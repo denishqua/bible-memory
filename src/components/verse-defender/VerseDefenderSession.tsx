@@ -10,6 +10,7 @@ import { createId } from "../../data/ids";
 import type { Token } from "../../lib/tokenize";
 import { Button } from "../ui/Button";
 import { BuiltVerse } from "../review/BuiltVerse";
+import { ReferencePrompt, type ReferenceRecallResult } from "../review/ReferencePrompt";
 import { AsteroidField } from "./AsteroidField";
 import { Asteroid } from "./Asteroid";
 import { Cannon } from "./Cannon";
@@ -37,6 +38,12 @@ interface VerseDefenderSessionProps {
   // Rendered inside the verse gate: hide the "Change Mode" button and the
   // mission screen's "Back to Library" link (the gate owns its own exit).
   embedded?: boolean;
+  // The verse's reference. When present, a first-letter "type the reference"
+  // recall step runs after a COMPLETED mission (never after a failed one).
+  reference?: string;
+  // Fired whenever the recall step becomes active/inactive, so a host (page
+  // heading / gate) can hide the reference while it's being recalled.
+  onReferenceStepChange?: (active: boolean) => void;
 }
 
 // Top-level orchestrator for the Verse Defender arcade mode: wires the
@@ -50,6 +57,8 @@ export function VerseDefenderSession({
   onChangeMode,
   onComplete,
   embedded = false,
+  reference,
+  onReferenceStepChange,
 }: VerseDefenderSessionProps) {
   const {
     status,
@@ -94,8 +103,24 @@ export function VerseDefenderSession({
   // The in-flight miss-bolt effect; mirrors lastMiss while its animation plays,
   // then clears so the one-shot element unmounts.
   const [missBolt, setMissBolt] = useState<typeof lastMiss>(null);
+  // Recall-step state: null until the "type the reference" step finishes. The
+  // step runs only after a COMPLETED mission — a failed mission skips it (they
+  // didn't finish the verse).
+  const [referenceResult, setReferenceResult] = useState<ReferenceRecallResult | null>(null);
 
   const isDone = status === "complete" || status === "failed";
+  const needsReference = status === "complete" && reference != null;
+  const showReferencePrompt = needsReference && referenceResult === null;
+  // The whole session is truly done once any recall step is finished — this
+  // (not raw mission end) drives onComplete, so the gate's Proceed appears only
+  // after the reference is recalled too.
+  const sessionFullyDone = isDone && result !== null && !showReferencePrompt;
+
+  // Tell the host to hide its own reference chrome while the recall step is up.
+  useEffect(() => {
+    onReferenceStepChange?.(showReferencePrompt);
+    return () => onReferenceStepChange?.(false);
+  }, [showReferencePrompt, onReferenceStepChange]);
 
   // Focus on mount AND whenever play (re)starts. The hidden input is unmounted
   // while an end screen is shown, so a plain mount-only effect (or calling
@@ -132,10 +157,10 @@ export function VerseDefenderSession({
   }, [lastMiss]);
 
   useEffect(() => {
-    if (result === null || completeNotifiedRef.current) return;
+    if (!sessionFullyDone || completeNotifiedRef.current) return;
     completeNotifiedRef.current = true;
     onComplete?.();
-  }, [result, onComplete]);
+  }, [sessionFullyDone, onComplete]);
 
   useEffect(() => {
     if (result === null || finalizedRef.current) return;
@@ -169,6 +194,7 @@ export function VerseDefenderSession({
   const handleRetry = useCallback(() => {
     retry();
     setHintActive(false);
+    setReferenceResult(null);
     finalizedRef.current = false;
     completeNotifiedRef.current = false;
     startedAtRef.current = new Date().toISOString();
@@ -229,8 +255,17 @@ export function VerseDefenderSession({
       {isDone && result !== null ? (
         status === "failed" ? (
           <MissionFailedScreen result={result} onRetry={handleRetry} maxLives={maxLives} backTo={embedded ? null : "/"} />
+        ) : showReferencePrompt && reference != null ? (
+          <ReferencePrompt reference={reference} wholeWord={false} onDone={setReferenceResult} />
         ) : (
-          <MissionCompleteScreen result={result} onRetry={handleRetry} maxLives={maxLives} backTo={embedded ? null : "/"} />
+          <MissionCompleteScreen
+            result={result}
+            onRetry={handleRetry}
+            maxLives={maxLives}
+            backTo={embedded ? null : "/"}
+            reference={reference}
+            referenceResult={referenceResult}
+          />
         )
       ) : (
         <div

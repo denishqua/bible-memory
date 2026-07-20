@@ -18,6 +18,10 @@ import { isMaskableReviewMode, type ReviewMode, type ReviewScope } from "../../t
 // `verseReferences` (bulk collection review only) labels the per-verse
 // accuracy breakdown, in review order. Forwarded only to the mask-based
 // ReviewSession — the arcade branches don't take it and are left untouched.
+// `reference` (single-verse review only) enables the "type the reference"
+// recall step at the end of the session; forwarded to all five modes.
+// `onReferenceStepChange` lets the host hide its own reference chrome (page
+// heading, gate) while that recall step is active.
 export function renderSession(
   mode: ReviewMode,
   scope: ReviewScope,
@@ -26,6 +30,8 @@ export function renderSession(
   onComplete?: () => void,
   embedded = false,
   verseReferences?: string[],
+  reference?: string,
+  onReferenceStepChange?: (active: boolean) => void,
 ) {
   if (isMaskableReviewMode(mode)) {
     return (
@@ -37,6 +43,8 @@ export function renderSession(
         onComplete={onComplete}
         embedded={embedded}
         verseReferences={verseReferences}
+        reference={reference}
+        onReferenceStepChange={onReferenceStepChange}
       />
     );
   }
@@ -48,6 +56,8 @@ export function renderSession(
         onChangeMode={onChangeMode}
         onComplete={onComplete}
         embedded={embedded}
+        reference={reference}
+        onReferenceStepChange={onReferenceStepChange}
       />
     );
   }
@@ -58,6 +68,8 @@ export function renderSession(
       onChangeMode={onChangeMode}
       onComplete={onComplete}
       embedded={embedded}
+      reference={reference}
+      onReferenceStepChange={onReferenceStepChange}
     />
   );
 }

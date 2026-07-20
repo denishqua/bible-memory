@@ -89,6 +89,12 @@ export function GatePage() {
 
   const [currentVerseId, setCurrentVerseId] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
+  // True while the embedded session's "type the reference" recall step is
+  // active — the gate hides its always-visible reference so the answer can't be
+  // read off the screen while the player is recalling it. onComplete (which
+  // reveals Proceed) fires only AFTER the recall step, so finishing the gate
+  // requires typing the reference too.
+  const [referenceStep, setReferenceStep] = useState(false);
 
   // Pick the initial random verse once the pool has loaded. Guarded so later
   // pool identity churn (storage refreshes) never swaps the verse mid-review.
@@ -113,6 +119,7 @@ export function GatePage() {
     if (!next) return;
     setCurrentVerseId(next.id);
     setCompleted(false);
+    setReferenceStep(false);
   }, [pool, currentVerseId]);
 
   const handleComplete = useCallback(() => {
@@ -222,7 +229,7 @@ export function GatePage() {
         }}
       >
         <span style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>
-          {currentVerse.reference}
+          {referenceStep ? "" : currentVerse.reference}
         </span>
         <Button variant="ghost" onClick={handleSkip} disabled={pool.length < 2}>
           Skip verse →
@@ -234,7 +241,17 @@ export function GatePage() {
           changes the id: it's disabled when the pool has fewer than 2 verses,
           and pickRandomVerse excludes the current verse otherwise. */}
       <div key={currentVerse.id}>
-        {renderSession(gate.mode, scope, tokens, () => {}, handleComplete, true)}
+        {renderSession(
+          gate.mode,
+          scope,
+          tokens,
+          () => {},
+          handleComplete,
+          true,
+          undefined,
+          currentVerse.reference,
+          setReferenceStep,
+        )}
       </div>
 
       {completed && (

@@ -11,6 +11,7 @@ import type { Token } from "../../lib/tokenize";
 import { LANE_KEYS } from "../../lib/laneDefenderEngine";
 import { Button } from "../ui/Button";
 import { BuiltVerse } from "../review/BuiltVerse";
+import { ReferencePrompt, type ReferenceRecallResult } from "../review/ReferencePrompt";
 import { Lane } from "./Lane";
 import { MissionCompleteScreen } from "./MissionCompleteScreen";
 
@@ -24,6 +25,13 @@ interface LaneDefenderSessionProps {
   // Rendered inside the verse gate: hide the "Change Mode" button and the
   // mission screen's "Back to Library" link (the gate owns its own exit).
   embedded?: boolean;
+  // The verse's reference. When present, a first-letter "type the reference"
+  // recall step runs after the run completes (Lane Defender always plays
+  // through to "complete" — there is no failure state to skip).
+  reference?: string;
+  // Fired whenever the recall step becomes active/inactive, so a host (page
+  // heading / gate) can hide the reference while it's being recalled.
+  onReferenceStepChange?: (active: boolean) => void;
 }
 
 export function LaneDefenderSession({
@@ -32,6 +40,8 @@ export function LaneDefenderSession({
   onChangeMode,
   onComplete,
   embedded = false,
+  reference,
+  onReferenceStepChange,
 }: LaneDefenderSessionProps) {
   const {
     lanes,
@@ -64,10 +74,25 @@ export function LaneDefenderSession({
   // Never touches the engine — accuracy/lives are unaffected.
   const [hintActive, setHintActive] = useState(false);
 
+  // Recall-step state: null until the "type the reference" step finishes.
+  const [referenceResult, setReferenceResult] = useState<ReferenceRecallResult | null>(null);
+  const needsReference = status === "complete" && !!result && reference != null;
+  const showReferencePrompt = needsReference && referenceResult === null;
+  // The whole run is truly done once any recall step is finished — this (not
+  // raw completion) drives onComplete, so the gate's Proceed appears only after
+  // the reference is recalled too.
+  const sessionFullyDone = status !== "playing" && !!result && !showReferencePrompt;
+
   // Auto-clear the hint once the player destroys the hinted target word.
   useEffect(() => {
     setHintActive(false);
   }, [destroyedCount]);
+
+  // Tell the host to hide its own reference chrome while the recall step is up.
+  useEffect(() => {
+    onReferenceStepChange?.(showReferencePrompt);
+    return () => onReferenceStepChange?.(false);
+  }, [showReferencePrompt, onReferenceStepChange]);
 
   // Focus on mount AND whenever a retry flips status back to "playing" — the
   // input is only mounted while playing, so a focus() call inside handleRetry
@@ -77,10 +102,10 @@ export function LaneDefenderSession({
   }, [status]);
 
   useEffect(() => {
-    if (status === "playing" || !result || completeNotifiedRef.current) return;
+    if (!sessionFullyDone || completeNotifiedRef.current) return;
     completeNotifiedRef.current = true;
     onComplete?.();
-  }, [status, result, onComplete]);
+  }, [sessionFullyDone, onComplete]);
 
   useEffect(() => {
     if (status === "playing" || finalizedRef.current) return;
@@ -119,6 +144,7 @@ export function LaneDefenderSession({
   const handleRetry = useCallback(() => {
     retry();
     setHintActive(false);
+    setReferenceResult(null);
     finalizedRef.current = false;
     completeNotifiedRef.current = false;
     startedAtRef.current = new Date().toISOString();
@@ -250,8 +276,18 @@ export function LaneDefenderSession({
         </>
       )}
 
-      {status === "complete" && result && (
-        <MissionCompleteScreen result={result} onRetry={handleRetry} backTo={embedded ? null : "/"} />
+      {showReferencePrompt && reference != null && (
+        <ReferencePrompt reference={reference} wholeWord={false} onDone={setReferenceResult} />
+      )}
+
+      {status === "complete" && result && !showReferencePrompt && (
+        <MissionCompleteScreen
+          result={result}
+          onRetry={handleRetry}
+          backTo={embedded ? null : "/"}
+          reference={reference}
+          referenceResult={referenceResult}
+        />
       )}
 
       <BuiltVerse tokens={tokens} completedWords={destroyedCount} />

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
+import { ReferenceRecallSummary, type ReferenceRecallResult } from "./ReferencePrompt";
 
 interface SessionSummaryProps {
   accuracy: number;
@@ -9,6 +10,10 @@ interface SessionSummaryProps {
   // Destination for the "Back to Library" link. null hides the link entirely
   // (the verse gate has its own "Proceed to site" exit instead).
   backTo: string | null;
+  // Recall-step outcome (single-verse review only). When both are present, the
+  // reference is revealed here with whether it was recalled. Absent → unchanged.
+  reference?: string;
+  referenceResult?: ReferenceRecallResult | null;
   // Bulk collection review only: a per-verse accuracy breakdown, in review
   // order. When present it REPLACES the single large overall percentage with a
   // list of "{reference} — {pct}%" rows. Absent → the single-number rendering
@@ -17,7 +22,7 @@ interface SessionSummaryProps {
   perVerse?: { reference: string; accuracy: number }[];
 }
 
-export function SessionSummary({ accuracy, passed, onRetry, backTo, perVerse }: SessionSummaryProps) {
+export function SessionSummary({ accuracy, passed, onRetry, backTo, perVerse, reference, referenceResult }: SessionSummaryProps) {
   return (
     <Card style={{ marginTop: "1.5rem", textAlign: "center" }}>
       <span
@@ -76,6 +81,9 @@ export function SessionSummary({ accuracy, passed, onRetry, backTo, perVerse }: 
         >
           {accuracy}%
         </p>
+      )}
+      {reference && referenceResult && (
+        <ReferenceRecallSummary reference={reference} result={referenceResult} />
       )}
       <div style={{ display: "flex", justifyContent: "center", gap: "0.75rem" }}>
         <Button variant="primary" onClick={onRetry}>

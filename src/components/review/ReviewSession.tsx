@@ -13,6 +13,7 @@ import type { Token } from "../../lib/tokenize";
 import { Button } from "../ui/Button";
 import { WordToken } from "./WordToken";
 import { SessionSummary } from "./SessionSummary";
+import { ReferencePrompt, type ReferenceRecallResult } from "./ReferencePrompt";
 
 const PASS_THRESHOLD = 90;
 
@@ -31,9 +32,18 @@ interface ReviewSessionProps {
   // order, used to label the per-verse accuracy breakdown. Absent (or length
   // <= 1) → single-verse behavior with one overall percentage, unchanged.
   verseReferences?: string[];
+  // Single-verse review only: the verse's reference. When present, a "type the
+  // reference" recall step runs AFTER the verse is finished (matching the
+  // session's own input style via `typeWholeWord`). Absent → no recall step
+  // (bulk multi-verse review, where there's no single reference to ask for).
+  reference?: string;
+  // Fired whenever the recall step becomes active/inactive, so a host that
+  // shows the reference in its own chrome (the page heading, the gate) can hide
+  // it while the player is recalling it. No-op when there's no recall step.
+  onReferenceStepChange?: (active: boolean) => void;
 }
 
-export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, embedded = false, verseReferences }: ReviewSessionProps) {
+export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, embedded = false, verseReferences, reference, onReferenceStepChange }: ReviewSessionProps) {
   const { settings } = useSettings();
   const requireWholeWord = settings?.typeWholeWord ?? false;
   const { words, currentIndex, accuracy, status, handleKeyPress, reset } = useReviewSession(
@@ -80,6 +90,22 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
   // are unaffected, and the player still types the first letter to advance.
   const [hintedIndex, setHintedIndex] = useState<number | null>(null);
 
+  // Recall-step state: null until the "type the reference" step finishes. The
+  // step runs after the verse is complete, only when a single reference exists.
+  const [referenceResult, setReferenceResult] = useState<ReferenceRecallResult | null>(null);
+  const needsReference = status === "complete" && reference != null;
+  const showReferencePrompt = needsReference && referenceResult === null;
+  // The whole session (verse + optional recall) is truly done — this, not raw
+  // completion, is what fires onComplete (so the gate's Proceed only appears
+  // after the reference is recalled too).
+  const sessionFullyDone = status === "complete" && (!needsReference || referenceResult !== null);
+
+  // Tell the host to hide its own reference chrome while the recall step is up.
+  useEffect(() => {
+    onReferenceStepChange?.(showReferencePrompt);
+    return () => onReferenceStepChange?.(false);
+  }, [showReferencePrompt, onReferenceStepChange]);
+
   // Auto-clear the hint once the player advances past the hinted word.
   useEffect(() => {
     setHintedIndex((prev) => (prev !== null && prev !== currentIndex ? null : prev));
@@ -125,10 +151,10 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
   }, [currentIndex]);
 
   useEffect(() => {
-    if (status !== "complete" || completeNotifiedRef.current) return;
+    if (!sessionFullyDone || completeNotifiedRef.current) return;
     completeNotifiedRef.current = true;
     onComplete?.();
-  }, [status, onComplete]);
+  }, [sessionFullyDone, onComplete]);
 
   useEffect(() => {
     if (status !== "complete" || finalizedRef.current) return;
@@ -169,6 +195,7 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
   const handleRetry = useCallback(() => {
     reset();
     setHintedIndex(null);
+    setReferenceResult(null);
     finalizedRef.current = false;
     completeNotifiedRef.current = false;
     startedAtRef.current = new Date().toISOString();
@@ -299,12 +326,22 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
         </div>
       </div>
 
-      {status === "complete" && (
+      {showReferencePrompt && reference != null && (
+        <ReferencePrompt
+          reference={reference}
+          wholeWord={requireWholeWord}
+          onDone={setReferenceResult}
+        />
+      )}
+
+      {status === "complete" && !showReferencePrompt && (
         <SessionSummary
           accuracy={accuracy}
           passed={accuracy >= PASS_THRESHOLD}
           onRetry={handleRetry}
           backTo={embedded ? null : "/"}
+          reference={reference}
+          referenceResult={referenceResult}
           perVerse={
             isBulk
               ? segments.map((s, i) => ({ reference: verseLabel(i), accuracy: s.accuracy }))
