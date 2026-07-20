@@ -105,6 +105,57 @@ export function mergeReferenceNumbers(tokens: Token[]): Token[] {
   return out;
 }
 
+// How many Bible verses a reference label spans, for shield budgeting in the
+// arcade modes (2 shields per verse). Parses the verse spec after the LAST
+// colon — everything before it is book + chapter (a book name may itself start
+// with a number, e.g. "1 John 2:1", so we can't just grab the last number).
+//   "John 3:16"        → 1   (single verse)
+//   "Ephesians 2:8-10" → 3   (inclusive range)
+//   "Ephesians 2:8, 10"→ 2   (comma list)
+// Anything unrecognized (no colon — a whole-chapter "Psalm 23" — or an
+// unparseable/cross-chapter spec) falls back to 1: never fewer shields than the
+// old always-1 behavior.
+export function countReferenceVerses(reference: string): number {
+  const lastColon = reference.lastIndexOf(":");
+  if (lastColon === -1) return 1;
+  const spec = reference.slice(lastColon + 1).trim();
+
+  let total = 0;
+  for (const part of spec.split(",")) {
+    const range = part.trim().match(/^(\d+)\s*-\s*(\d+)$/);
+    if (range) {
+      const start = Number(range[1]);
+      const end = Number(range[2]);
+      total += end >= start ? end - start + 1 : 1;
+      continue;
+    }
+    if (/^\d+$/.test(part.trim())) total += 1;
+  }
+
+  return total < 1 ? 1 : total;
+}
+
+// Reconstruct the reference label from the reference tokens appended by
+// buildVerseReviewTokens (isReference, minus the "— reference —" divider) and
+// count the verses it spans. The tokens carry the same `attachNext` grouping
+// tokenizeReference used, so joining raw pieces with a space wherever the group
+// breaks reproduces the original label ("Ephesians 2:8-10"). Works on both the
+// per-digit stream and the arcade's mergeReferenceNumbers output, since parsing
+// keys off the colon and hyphen, not on how the digits are grouped. Returns 1
+// when no reference was appended (blank reference / non-single-verse streams).
+export function countPassageVerses(tokens: Token[]): number {
+  const referenceTokens = tokens.filter((t) => t.isReference && !t.isReferenceDelimiter);
+  if (referenceTokens.length === 0) return 1;
+
+  let label = "";
+  referenceTokens.forEach((token, i) => {
+    label += token.raw;
+    if (token.attachNext !== true && i < referenceTokens.length - 1) label += " ";
+  });
+
+  return countReferenceVerses(label);
+}
+
 // The number of completed VERSE words (the verse's matchable words, NOT the
 // appended reference) after which the reference heading is hidden from the host
 // chrome. ceil(25%) — e.g. a 10-word verse hides after the 3rd word

@@ -6,15 +6,17 @@
 
 import type { Token } from "./tokenize";
 import type { ReviewResult } from "../types/review";
+import { countPassageVerses } from "./verseReview";
 
 /** How long an asteroid takes to fall from deep space to the base. */
 export const DESCENT_DURATION_MS = 6000;
 
 /**
- * Shields (lives) contributed by each verse to a SINGLE SHARED POOL for the
- * whole run. The pool is `SHIELDS_PER_VERSE × verseCount` and is NOT refilled
- * between verses — shields carry over and deplete across the entire run
- * (single verse → 2, a 5-verse collection → 10 shared across all 5).
+ * Shields (lives) contributed by each Bible verse to a SINGLE SHARED POOL for
+ * the whole run. The pool is `SHIELDS_PER_VERSE × verseCount` and is NOT
+ * refilled between verses — shields carry over and deplete across the entire
+ * run. verseCount is the number of Bible verses in scope: a 3-verse passage
+ * (Ephesians 2:8-10) → 6, a 5-verse collection → 10 shared across all 5.
  */
 export const SHIELDS_PER_VERSE = 2;
 
@@ -152,9 +154,16 @@ export function createInitialState(tokens: Token[], isCollection: boolean): Vers
     }
   }
 
-  // verseBoundaries never includes index 0, so N verses → N-1 boundaries →
-  // count N. A single verse has 0 boundaries → count 1. Guard the empty queue.
-  const verseCount = queue.length === 0 ? 1 : verseBoundaries.size + 1;
+  // Collections: verseBoundaries never includes index 0, so N verses → N-1
+  // boundaries → count N. Single-passage scope has no between-verse markers, so
+  // its Bible-verse count comes from the appended reference label instead
+  // (Ephesians 2:8-10 → 3 verses → 6 shields). Guard the empty queue.
+  const verseCount =
+    queue.length === 0
+      ? 1
+      : isCollection
+        ? verseBoundaries.size + 1
+        : countPassageVerses(tokens);
   const maxLives = SHIELDS_PER_VERSE * verseCount;
 
   return {

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   REFERENCE_DELIMITER_RAW,
   buildVerseReviewTokens,
+  countPassageVerses,
+  countReferenceVerses,
   mergeReferenceNumbers,
   referenceHideThreshold,
   shouldHideReference,
@@ -148,5 +150,44 @@ describe("shouldHideReference", () => {
 
   it("never hides a verse with no matchable words", () => {
     expect(shouldHideReference(0, 0)).toBe(false);
+  });
+});
+
+describe("countReferenceVerses", () => {
+  it("counts a single verse as one", () => {
+    expect(countReferenceVerses("John 3:16")).toBe(1);
+  });
+
+  it("counts an inclusive range", () => {
+    expect(countReferenceVerses("Ephesians 2:8-10")).toBe(3);
+    expect(countReferenceVerses("Psalm 23:1-3")).toBe(3);
+  });
+
+  it("counts a comma list of verses", () => {
+    expect(countReferenceVerses("Ephesians 2:8, 10")).toBe(2);
+  });
+
+  it("is unfazed by a book name that starts with a number", () => {
+    expect(countReferenceVerses("1 John 2:1-2")).toBe(2);
+  });
+
+  it("falls back to one for whole-chapter or unparseable references", () => {
+    expect(countReferenceVerses("Psalm 23")).toBe(1);
+    expect(countReferenceVerses("")).toBe(1);
+  });
+});
+
+describe("countPassageVerses", () => {
+  it("counts verses from the reference appended by buildVerseReviewTokens", () => {
+    expect(countPassageVerses(buildVerseReviewTokens("For by grace", "Ephesians 2:8-10"))).toBe(3);
+  });
+
+  it("works after arcade digit-run merging", () => {
+    const tokens = mergeReferenceNumbers(buildVerseReviewTokens("For by grace", "Ephesians 2:8-10"));
+    expect(countPassageVerses(tokens)).toBe(3);
+  });
+
+  it("returns one when no reference was appended", () => {
+    expect(countPassageVerses(buildVerseReviewTokens("For God", ""))).toBe(1);
   });
 });
