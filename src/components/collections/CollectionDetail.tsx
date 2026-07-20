@@ -6,6 +6,7 @@ import { useReviewHistory } from "../../hooks/useReviewHistory";
 import { computeVerseScores } from "../../lib/verseScore";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
+import { Tooltip } from "../ui/Tooltip";
 import type { Verse } from "../../types/verse";
 
 interface CollectionDetailProps {
@@ -381,21 +382,27 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
                 {(() => {
                   const verseScore = scores.get(verse.id);
                   return (
-                    <span
-                      style={{
-                        fontVariantNumeric: "tabular-nums",
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                        color: verseScore ? "var(--color-ink)" : "var(--color-ink-muted)",
-                      }}
-                      title={
+                    <Tooltip
+                      label={
                         verseScore
                           ? `Mastery score (0–100): your average accuracy across ${verseScore.count} recall review${verseScore.count === 1 ? "" : "s"} of this verse — Master It, Verse Defender, and Lane Defender.`
                           : "Mastery score (0–100): your average recall accuracy for this verse. Review it in Master It, Verse Defender, or Lane Defender to build a score."
                       }
+                      placement="top"
+                      align="end"
+                      focusable={false}
                     >
-                      {verseScore?.score ?? 0}
-                    </span>
+                      <span
+                        style={{
+                          fontVariantNumeric: "tabular-nums",
+                          fontSize: "0.85rem",
+                          fontWeight: 600,
+                          color: verseScore ? "var(--color-ink)" : "var(--color-ink-muted)",
+                        }}
+                      >
+                        {verseScore?.score ?? 0}
+                      </span>
+                    </Tooltip>
                   );
                 })()}
                 <Link to={`/review?verseId=${verse.id}`} style={{ textDecoration: "none" }}>

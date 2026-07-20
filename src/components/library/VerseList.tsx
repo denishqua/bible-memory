@@ -4,6 +4,7 @@ import type { VerseScore } from "../../lib/verseScore";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import { VerseRow, VERSE_GRID_TEMPLATE } from "./VerseRow";
+import { Tooltip } from "../ui/Tooltip";
 
 interface VerseListProps {
   verses: Verse[];
@@ -55,8 +56,14 @@ export function VerseList({ verses, scores, onDelete, onAddToCollection }: Verse
         <div role="columnheader" style={headerCellStyle}>
           Trans.
         </div>
-        <div role="columnheader" style={{ ...headerCellStyle, textAlign: "right" }} title="Mastery score (0–100): each verse's average accuracy across its Master It, Verse Defender, and Lane Defender reviews.">
-          Score
+        <div role="columnheader" style={{ ...headerCellStyle, textAlign: "right" }}>
+          <Tooltip
+            label="Mastery score (0–100): each verse's average accuracy across its Master It, Verse Defender, and Lane Defender reviews."
+            placement="top"
+            align="end"
+          >
+            Score
+          </Tooltip>
         </div>
         <div role="columnheader" style={{ ...headerCellStyle, textAlign: "right" }}>
           <span

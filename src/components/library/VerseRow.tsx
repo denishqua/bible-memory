@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { Verse } from "../../types/verse";
 import { Button } from "../ui/Button";
+import { Tooltip } from "../ui/Tooltip";
 import { VerseActionsMenu } from "./VerseActionsMenu";
 
 // Shared between the header row and verse rows so the columns line up.
@@ -103,13 +104,19 @@ export function VerseRow({ verse, score, reviewCount, onDelete, onAddToCollectio
           fontWeight: 600,
           color: reviewCount > 0 ? "var(--color-ink)" : "var(--color-ink-muted)",
         }}
-        title={
-          reviewCount > 0
-            ? `Mastery score (0–100): your average accuracy across ${reviewCount} recall review${reviewCount === 1 ? "" : "s"} of this verse — Master It, Verse Defender, and Lane Defender.`
-            : "Mastery score (0–100): your average recall accuracy for this verse. Review it in Master It, Verse Defender, or Lane Defender to build a score."
-        }
       >
-        {score}
+        <Tooltip
+          label={
+            reviewCount > 0
+              ? `Mastery score (0–100): your average accuracy across ${reviewCount} recall review${reviewCount === 1 ? "" : "s"} of this verse — Master It, Verse Defender, and Lane Defender.`
+              : "Mastery score (0–100): your average recall accuracy for this verse. Review it in Master It, Verse Defender, or Lane Defender to build a score."
+          }
+          placement="top"
+          align="end"
+          focusable={false}
+        >
+          {score}
+        </Tooltip>
       </div>
 
       <div
