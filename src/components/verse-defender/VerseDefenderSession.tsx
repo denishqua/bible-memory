@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useVerseDefenderSession } from "../../hooks/useVerseDefenderSession";
 import { useStorage } from "../../data/storageContext";
 import { useProfile } from "../../hooks/useProfile";
@@ -8,7 +8,7 @@ import {
 } from "../../types/review";
 import { createId } from "../../data/ids";
 import type { Token } from "../../lib/tokenize";
-import { shouldHideReference } from "../../lib/verseReview";
+import { mergeReferenceNumbers, shouldHideReference } from "../../lib/verseReview";
 import { Button } from "../ui/Button";
 import { BuiltVerse } from "../review/BuiltVerse";
 import { AsteroidField } from "./AsteroidField";
@@ -57,6 +57,10 @@ export function VerseDefenderSession({
   embedded = false,
   onHideReference,
 }: VerseDefenderSessionProps) {
+  // Play each reference number as one target (16, 12, 15) rather than per-digit.
+  // Memoized so a host re-render (e.g. the ~25% reference-hide) doesn't hand the
+  // engine hook a new array reference and restart the mission.
+  const gameTokens = useMemo(() => mergeReferenceNumbers(tokens), [tokens]);
   const {
     status,
     currentWord,
@@ -72,7 +76,7 @@ export function VerseDefenderSession({
     result,
     handleKeyPress,
     retry,
-  } = useVerseDefenderSession(tokens, scope.type === "collection");
+  } = useVerseDefenderSession(gameTokens, scope.type === "collection");
   const storage = useStorage();
   const { profile, updateProfile } = useProfile();
 
@@ -111,8 +115,8 @@ export function VerseDefenderSession({
   // appended reference targets) are destroyed. currentWordIndex counts cleared
   // words in queue order and the verse words come first, so it doubles as the
   // completed-verse-word count for this threshold.
-  const verseMatchableCount = tokens.filter((t) => t.matchable && !t.isReference).length;
-  const hasReference = tokens.some((t) => t.isReference);
+  const verseMatchableCount = gameTokens.filter((t) => t.matchable && !t.isReference).length;
+  const hasReference = gameTokens.some((t) => t.isReference);
   const hideReference =
     hasReference && shouldHideReference(verseMatchableCount, currentWordIndex);
 
@@ -319,7 +323,7 @@ export function VerseDefenderSession({
         </div>
       )}
 
-      <BuiltVerse tokens={tokens} completedWords={currentWordIndex} />
+      <BuiltVerse tokens={gameTokens} completedWords={currentWordIndex} />
     </div>
   );
 }

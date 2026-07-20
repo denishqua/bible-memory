@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLaneDefenderSession } from "../../hooks/useLaneDefenderSession";
 import { useStorage } from "../../data/storageContext";
 import { useProfile } from "../../hooks/useProfile";
@@ -9,7 +9,7 @@ import {
 import { createId } from "../../data/ids";
 import type { Token } from "../../lib/tokenize";
 import { LANE_KEYS } from "../../lib/laneDefenderEngine";
-import { shouldHideReference } from "../../lib/verseReview";
+import { mergeReferenceNumbers, shouldHideReference } from "../../lib/verseReview";
 import { Button } from "../ui/Button";
 import { BuiltVerse } from "../review/BuiltVerse";
 import { Lane } from "./Lane";
@@ -40,6 +40,10 @@ export function LaneDefenderSession({
   embedded = false,
   onHideReference,
 }: LaneDefenderSessionProps) {
+  // Play each reference number as one target (16, 12, 15) rather than per-digit.
+  // Memoized so a host re-render (e.g. the ~25% reference-hide) doesn't hand the
+  // engine hook a new array reference and restart the run.
+  const gameTokens = useMemo(() => mergeReferenceNumbers(tokens), [tokens]);
   const {
     lanes,
     status,
@@ -50,7 +54,7 @@ export function LaneDefenderSession({
     lastShot,
     handleKey,
     retry,
-  } = useLaneDefenderSession(tokens);
+  } = useLaneDefenderSession(gameTokens);
   const storage = useStorage();
   const { profile, updateProfile } = useProfile();
 
@@ -79,8 +83,8 @@ export function LaneDefenderSession({
   // appended reference words) are destroyed. destroyedCount is the in-order
   // count of cleared words and the verse words come first, so it doubles as the
   // completed-verse-word count for this threshold.
-  const verseMatchableCount = tokens.filter((t) => t.matchable && !t.isReference).length;
-  const hasReference = tokens.some((t) => t.isReference);
+  const verseMatchableCount = gameTokens.filter((t) => t.matchable && !t.isReference).length;
+  const hasReference = gameTokens.some((t) => t.isReference);
   const hideReference =
     hasReference && shouldHideReference(verseMatchableCount, destroyedCount);
 
@@ -284,7 +288,7 @@ export function LaneDefenderSession({
         />
       )}
 
-      <BuiltVerse tokens={tokens} completedWords={destroyedCount} />
+      <BuiltVerse tokens={gameTokens} completedWords={destroyedCount} />
     </div>
   );
 }

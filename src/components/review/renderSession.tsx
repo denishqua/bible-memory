@@ -2,7 +2,6 @@ import { ReviewSession } from "./ReviewSession";
 import { VerseDefenderSession } from "../verse-defender/VerseDefenderSession";
 import { LaneDefenderSession } from "../lane-defender/LaneDefenderSession";
 import type { Token } from "../../lib/tokenize";
-import { mergeReferenceNumbers } from "../../lib/verseReview";
 import { isMaskableReviewMode, type ReviewMode, type ReviewScope } from "../../types/review";
 
 // Single dispatch point for "which session component renders this mode" —
@@ -48,13 +47,16 @@ export function renderSession(
     );
   }
   // Arcade modes play each reference number as a single target (16, 12, 15)
-  // rather than the text modes' per-digit tokens — merge the digit runs here.
-  const arcadeTokens = mergeReferenceNumbers(tokens);
+  // rather than the text modes' per-digit tokens. The digit-run merge happens
+  // INSIDE each arcade component (memoized), not here — computing it in this
+  // render function would hand the arcade a fresh token array on every host
+  // re-render (e.g. the ~25% reference-hide), which its hook reads as a new
+  // stream and restarts the game.
   if (mode === "verse-defender") {
     return (
       <VerseDefenderSession
         scope={scope}
-        tokens={arcadeTokens}
+        tokens={tokens}
         onChangeMode={onChangeMode}
         onComplete={onComplete}
         embedded={embedded}
@@ -65,7 +67,7 @@ export function renderSession(
   return (
     <LaneDefenderSession
       scope={scope}
-      tokens={arcadeTokens}
+      tokens={tokens}
       onChangeMode={onChangeMode}
       onComplete={onComplete}
       embedded={embedded}
