@@ -44,6 +44,34 @@ live accuracy is clean words ÷ engaged words. The pass threshold is 90%. A
 verse's overall **mastery score** averages your accuracy across the harder
 modes only (Master It, Verse Defender, Lane Defender).
 
+### Study Today
+
+A single daily entry point (the **Study** tab) that decides *what to study now*
+using a forgiving [Leitner](https://en.wikipedia.org/wiki/Leitner_system)
+schedule. Each verse carries an SRS **bucket** (0–5); its **phase** and the mode
+it's studied in ramp together:
+
+| Phase | Bucket | Mode | Meaning |
+| --- | --- | --- | --- |
+| **New** | none yet | Type It | Never studied — the day's fresh intake. |
+| **Learning** | 0 | Memorize It | Started but not solid — always due. |
+| **Reviewing** | 1–5 | Master It | Learned — resurfaces on an expanding schedule. |
+
+The day's queue is: **due reviews** (most overdue first) → **learning** verses →
+up to *N* **new** verses, where *N* is the "new verses per day" cap in Settings
+minus however many you've already started today. You can scope the pool to
+specific collections (default: whole library).
+
+**Schedule.** Review intervals by bucket are `0, 1, 3, 7, 14, 30` days. Each
+review adjusts the bucket by its accuracy, in three bands:
+
+- **≥ 90% — advance:** climb one bucket (capped at 5), next review further out.
+- **85–89% — hold:** stay on the current bucket, no penalty.
+- **< 85% — miss:** eases off one bucket (or holds — configurable in Settings).
+
+It **never resets to bucket 0** from a high bucket and never drops below 0, so a
+single stumble on a well-learned verse only nudges it back one step.
+
 ### The verse gate
 
 Available only in the extension. When enabled in Settings, the background
@@ -52,9 +80,13 @@ service worker intercepts:
 - the first navigation of a **newly opened tab**, and
 - **address-bar** navigations (typed URLs, omnibox searches, chosen bookmarks).
 
-It redirects the tab to a full-screen gate that picks a random verse from your
-chosen collections and runs your configured review mode. Finishing the review
-(pass *or* fail — it rewards engagement) reveals a **Proceed to site** button.
+It redirects the tab to a full-screen gate that picks a verse from your chosen
+collections and runs your configured review mode. The gate **surfaces verses
+that are due for review first** (most overdue first), falling back to a random
+verse when nothing is due. Finishing the review (pass *or* fail — it rewards
+engagement) reveals a **Proceed to site** button, and **advances that verse's
+spaced-repetition schedule** just like a Study Today review — for every mode,
+including the two arcade games.
 
 The gate deliberately **fails open**: if it's off, unconfigured, pointed at an
 empty verse set, or the destination is whitelisted, it never blocks you.

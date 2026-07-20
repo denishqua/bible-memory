@@ -22,9 +22,11 @@ interface ReviewSessionProps {
   tokens: Token[];
   mode: MaskableReviewMode;
   onChangeMode: () => void;
-  // Fired exactly once when the session completes (pass or fail alike).
-  // Optional — existing callers omit it; the gate page listens for it.
-  onComplete?: () => void;
+  // Fired exactly once when the session completes (pass or fail alike). The
+  // outcome (accuracy + pass/fail) lets the Study Today flow apply its SRS
+  // transition without racing the async history write. Optional — existing
+  // callers omit it or ignore the argument; the gate page listens for it.
+  onComplete?: (outcome?: { accuracy: number; passed: boolean }) => void;
   // Rendered inside the verse gate, which owns its own chrome: hide the
   // "Change Mode" button and the summary's "Back to Library" link.
   embedded?: boolean;
@@ -150,8 +152,8 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
   useEffect(() => {
     if (status !== "complete" || completeNotifiedRef.current) return;
     completeNotifiedRef.current = true;
-    onComplete?.();
-  }, [status, onComplete]);
+    onComplete?.({ accuracy, passed: accuracy >= PASS_THRESHOLD });
+  }, [status, onComplete, accuracy]);
 
   useEffect(() => {
     if (status !== "complete" || finalizedRef.current) return;

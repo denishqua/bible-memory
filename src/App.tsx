@@ -3,6 +3,7 @@ import { StorageProvider } from "./data/storageContext";
 import { ThemeToggle } from "./components/ui/ThemeToggle";
 import { PracticeCountBadge } from "./components/ui/PracticeCountBadge";
 import { useProfile } from "./hooks/useProfile";
+import { StudyTodayPage } from "./pages/StudyTodayPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { VerseDetailPage } from "./pages/VerseDetailPage";
 import { CollectionsPage } from "./pages/CollectionsPage";
@@ -41,6 +42,9 @@ function AppHeader() {
         <h1 style={{ fontSize: "1.25rem" }}>Bible Memory</h1>
       </NavLink>
       <nav style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
+        <NavLink to="/study" style={navLinkStyle}>
+          Study
+        </NavLink>
         <NavLink to="/" style={navLinkStyle} end>
           Library
         </NavLink>
@@ -69,6 +73,7 @@ function AppLayout() {
       {!isGate && <AppHeader />}
       <main style={{ flex: 1, padding: "1.5rem", maxWidth: "72rem", margin: "0 auto", width: "100%" }}>
         <Routes>
+          <Route path="/study" element={<StudyTodayPage />} />
           <Route path="/" element={<LibraryPage />} />
           <Route path="/verse/:id" element={<VerseDetailPage />} />
           <Route path="/collections" element={<CollectionsPage />} />

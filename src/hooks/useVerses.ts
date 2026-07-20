@@ -54,6 +54,21 @@ export function useVerses() {
     [storage, refresh],
   );
 
+  // Writes only the SRS scheduling fields (srsBucket/dueAt) for a verse.
+  // Deliberately NOT via updateVerse: SRS churn from a review isn't a content
+  // edit, so it must not bump `updatedAt`. Read-modify-write so it never
+  // clobbers other fields, then refresh so the UI reflects the new state.
+  const setSrsState = useCallback(
+    async (id: string, srs: { srsBucket: number; dueAt: string }): Promise<void> => {
+      const existing = await storage.getVerses();
+      const current = existing.find((v) => v.id === id);
+      if (!current) return;
+      await storage.saveVerse({ ...current, srsBucket: srs.srsBucket, dueAt: srs.dueAt });
+      await refresh();
+    },
+    [storage, refresh],
+  );
+
   const deleteVerse = useCallback(
     async (id: string): Promise<void> => {
       await storage.deleteVerse(id);
@@ -62,5 +77,5 @@ export function useVerses() {
     [storage, refresh],
   );
 
-  return { verses, loading, createVerse, updateVerse, deleteVerse, refresh };
+  return { verses, loading, createVerse, updateVerse, setSrsState, deleteVerse, refresh };
 }

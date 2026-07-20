@@ -15,7 +15,8 @@ import type { Verse } from "../types/verse";
 import type { Collection, CollectionVerseLink } from "../types/collection";
 import type { ReviewMode, ReviewSession } from "../types/review";
 import { normalizeProfile, type Profile } from "../types/profile";
-import { mergeSettings, type NewTabGateSettings, type Settings } from "../types/settings";
+import { mergeSettings, type NewTabGateSettings, type SchedulerSettings, type Settings } from "../types/settings";
+import type { OnFailBehavior } from "../lib/srs";
 
 // Full-backup file shape produced by "Export data" below. Import accepts the
 // same shape and merges it ADDITIVELY (upserts by id; never deletes).
@@ -72,6 +73,11 @@ const GATE_TOGGLE_OPTIONS: { value: boolean; label: string }[] = [
 const REVIEW_INPUT_OPTIONS: { value: boolean; label: string }[] = [
   { value: false, label: "First letter" },
   { value: true, label: "Whole word" },
+];
+
+const ON_FAIL_OPTIONS: { value: OnFailBehavior; label: string }[] = [
+  { value: "demote", label: "Ease off one step" },
+  { value: "hold", label: "Do nothing" },
 ];
 
 const gateSubsectionStyle: React.CSSProperties = {
@@ -420,6 +426,8 @@ export function SettingsPage() {
         </Card>
       ) : null}
 
+      {settings ? <StudyTodayCard settings={settings} updateSettings={updateSettings} /> : null}
+
       {settings ? <VerseGateCard settings={settings} updateSettings={updateSettings} /> : null}
 
       <Card>
@@ -490,6 +498,138 @@ export function SettingsPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+// --- Study Today (spaced-repetition scheduler) section ---
+// Rendered only once settings has loaded, so `settings` is always non-null here
+// and every write can safely spread the full object.
+function StudyTodayCard({
+  settings,
+  updateSettings,
+}: {
+  settings: Settings;
+  updateSettings: (next: Settings) => Promise<void>;
+}) {
+  const scheduler = settings.scheduler;
+  const { collections } = useCollections();
+
+  // Free-typed numeric field: keep a draft so the user can clear and retype,
+  // committing only a valid whole number >= 0 (0 = introduce no new verses).
+  const [newPerDayDraft, setNewPerDayDraft] = useState(String(scheduler.newVersesPerDay));
+  useEffect(() => {
+    setNewPerDayDraft(String(scheduler.newVersesPerDay));
+  }, [scheduler.newVersesPerDay]);
+
+  async function updateScheduler(patch: Partial<SchedulerSettings>) {
+    await updateSettings({ ...settings, scheduler: { ...scheduler, ...patch } });
+  }
+
+  function commitNewPerDay() {
+    const parsed = Math.floor(Number(newPerDayDraft));
+    if (newPerDayDraft.trim() === "" || !Number.isFinite(parsed) || parsed < 0) {
+      setNewPerDayDraft(String(scheduler.newVersesPerDay));
+      return;
+    }
+    setNewPerDayDraft(String(parsed));
+    if (parsed !== scheduler.newVersesPerDay) updateScheduler({ newVersesPerDay: parsed });
+  }
+
+  // null = the whole library. Toggling collections builds an array; clearing the
+  // last one reverts to null (whole library) rather than an empty pool.
+  function toggleCollection(collectionId: string) {
+    const current = scheduler.collectionIds ?? [];
+    const next = current.includes(collectionId)
+      ? current.filter((id) => id !== collectionId)
+      : [...current, collectionId];
+    updateScheduler({ collectionIds: next.length === 0 ? null : next });
+  }
+
+  const selected = scheduler.collectionIds;
+
+  return (
+    <Card>
+      <h3 style={sectionTitleStyle}>Study Today</h3>
+      <p style={{ ...helperTextStyle, marginBottom: "0.75rem" }}>
+        The daily spaced-repetition queue: verses due for review plus a capped number of new verses
+        to learn, each in an auto-picked mode (Type It → Memorize It → Master It).
+      </p>
+
+      <div style={gateSubsectionStyle}>
+        <label htmlFor="new-per-day" style={gateLabelStyle}>
+          New verses per day
+        </label>
+        <input
+          id="new-per-day"
+          type="number"
+          min={0}
+          step={1}
+          inputMode="numeric"
+          value={newPerDayDraft}
+          onChange={(e) => setNewPerDayDraft(e.target.value)}
+          onBlur={commitNewPerDay}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+          aria-label="New verses to introduce per day"
+          style={{ ...inputStyle, flex: undefined, width: "6rem" }}
+        />
+        <p style={{ ...helperTextStyle, marginTop: "0.5rem" }}>
+          How many never-studied verses to introduce each day. Reviews due are always shown on top.
+        </p>
+      </div>
+
+      <div style={gateSubsectionStyle}>
+        <span style={gateLabelStyle}>On a miss</span>
+        <p style={{ ...helperTextStyle, marginBottom: "0.6rem" }}>
+          What happens to a verse's schedule when you score below 85%. It never resets to the start —
+          the harshest option only eases off a single step.
+        </p>
+        <SegmentedControl
+          ariaLabel="On-miss behavior"
+          options={ON_FAIL_OPTIONS}
+          value={scheduler.onFailBehavior}
+          onChange={(onFailBehavior) => updateScheduler({ onFailBehavior })}
+        />
+      </div>
+
+      <div style={gateSubsectionStyle}>
+        <span style={gateLabelStyle}>Limit to collections</span>
+        <p style={{ ...helperTextStyle, marginBottom: "0.6rem" }}>
+          {selected === null
+            ? "Studying your whole library. Select one or more collections to narrow the pool."
+            : "Only verses in the selected collections are studied."}
+        </p>
+        {collections.length === 0 ? (
+          <p style={helperTextStyle}>No collections yet — create one to scope your study pool.</p>
+        ) : (
+          <div
+            style={{
+              border: "1px solid var(--color-border)",
+              borderRadius: "0.5rem",
+              padding: "0.6rem 0.75rem",
+              maxHeight: "14rem",
+              overflowY: "auto",
+            }}
+          >
+            {collections.map((collection) => (
+              <label
+                key={collection.id}
+                style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", padding: "0.15rem 0" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selected !== null && selected.includes(collection.id)}
+                  onChange={() => toggleCollection(collection.id)}
+                  style={{ accentColor: "var(--color-clay)" }}
+                />
+                {collection.name}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }
 

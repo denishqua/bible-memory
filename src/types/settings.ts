@@ -1,4 +1,5 @@
 import type { ReviewMode } from "./review";
+import type { OnFailBehavior } from "../lib/srs";
 
 // Settings for the extension's "verse gate": every new tab's first http(s)
 // navigation is intercepted and redirected to a full-screen review unless the
@@ -57,6 +58,22 @@ export function defaultNewTabGateSettings(): NewTabGateSettings {
   };
 }
 
+// Settings for the "Study Today" spaced-repetition scheduler.
+export interface SchedulerSettings {
+  // Max brand-new verses introduced per day (the daily intake cap).
+  newVersesPerDay: number;
+  // null = draw new/due verses from the whole library; otherwise scope the
+  // study pool to the union of these collections' verses.
+  collectionIds: string[] | null;
+  // What a Miss (accuracy < FAIL_THRESHOLD) does to a verse's bucket:
+  // "demote" eases off one step, "hold" keeps the bucket. Never resets to 0.
+  onFailBehavior: OnFailBehavior;
+}
+
+export function defaultSchedulerSettings(): SchedulerSettings {
+  return { newVersesPerDay: 3, collectionIds: null, onFailBehavior: "demote" };
+}
+
 // App-level user settings, persisted as a single object under `bm.settings.v1`
 // so future fields can be added without new storage keys.
 export interface Settings {
@@ -70,10 +87,16 @@ export interface Settings {
   // newTabGate, so this needs no worker mirroring.
   typeWholeWord: boolean;
   newTabGate: NewTabGateSettings;
+  scheduler: SchedulerSettings;
 }
 
 export function defaultSettings(): Settings {
-  return { esvApiKey: "", typeWholeWord: false, newTabGate: defaultNewTabGateSettings() };
+  return {
+    esvApiKey: "",
+    typeWholeWord: false,
+    newTabGate: defaultNewTabGateSettings(),
+    scheduler: defaultSchedulerSettings(),
+  };
 }
 
 // Fills a (possibly partial) stored/imported settings object out to a full
@@ -102,5 +125,8 @@ export function mergeSettings(partial: Partial<Settings> | undefined | null): Se
     ...defaults,
     ...partial,
     newTabGate: { ...defaultNewTabGateSettings(), ...gate },
+    // Deep-merge like newTabGate so a blob saved before `scheduler` (or a nested
+    // field of it) existed still comes back fully populated.
+    scheduler: { ...defaultSchedulerSettings(), ...(partial.scheduler ?? {}) },
   };
 }

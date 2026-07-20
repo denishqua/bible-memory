@@ -27,7 +27,7 @@ export function renderSession(
   scope: ReviewScope,
   tokens: Token[],
   onChangeMode: () => void,
-  onComplete?: () => void,
+  onComplete?: (outcome?: { accuracy: number; passed: boolean }) => void,
   embedded = false,
   verseReferences?: string[],
   onHideReference?: (hidden: boolean) => void,
