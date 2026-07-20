@@ -5,6 +5,8 @@ import { PROFILE_UPDATED_EVENT } from "../hooks/useProfile";
 import { useTheme, type ThemePreference } from "../hooks/useTheme";
 import { useCollections } from "../hooks/useCollections";
 import { useVerses } from "../hooks/useVerses";
+import { useReviewHistory } from "../hooks/useReviewHistory";
+import { computeVerseScores } from "../lib/verseScore";
 import { normalizeDomain } from "../lib/domainWhitelist";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
@@ -504,6 +506,7 @@ function VerseGateCard({
   const gate = settings.newTabGate;
   const { collections, getVerseIdsForCollection } = useCollections();
   const { verses } = useVerses();
+  const { sessions } = useReviewHistory();
 
   const [domainDraft, setDomainDraft] = useState("");
   const [domainError, setDomainError] = useState<string | null>(null);
@@ -516,6 +519,13 @@ function VerseGateCard({
   useEffect(() => {
     setMinutesDraft(String(gate.cooldownMinutes));
   }, [gate.cooldownMinutes]);
+
+  // Same free-typed-draft treatment for the mastery threshold: commit only a
+  // whole number clamped to 0–100, reverting the draft otherwise.
+  const [thresholdDraft, setThresholdDraft] = useState(String(gate.masteryThreshold));
+  useEffect(() => {
+    setThresholdDraft(String(gate.masteryThreshold));
+  }, [gate.masteryThreshold]);
 
   async function updateGate(patch: Partial<NewTabGateSettings>) {
     await updateSettings({ ...settings, newTabGate: { ...gate, ...patch } });
@@ -530,6 +540,18 @@ function VerseGateCard({
     // Normalize the visible draft ("15.7" → "15") and commit only a real change.
     setMinutesDraft(String(parsed));
     if (parsed !== gate.cooldownMinutes) updateGate({ cooldownMinutes: parsed });
+  }
+
+  function commitThreshold() {
+    const parsed = Math.floor(Number(thresholdDraft));
+    // Revert on a blank field too: Number("") is 0 (a valid threshold), so
+    // without this an empty input would silently commit 0 rather than restore.
+    if (thresholdDraft.trim() === "" || !Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      setThresholdDraft(String(gate.masteryThreshold));
+      return;
+    }
+    setThresholdDraft(String(parsed));
+    if (parsed !== gate.masteryThreshold) updateGate({ masteryThreshold: parsed });
   }
 
   // --- Whitelist ---
@@ -570,6 +592,14 @@ function VerseGateCard({
   );
   const checkedCount = collectionVerseIds.filter((id) => checkedIds.has(id)).length;
 
+  // How many of the currently-selected verses meet the mastery threshold — the
+  // gate page applies the same filter, so this previews the real pool size and
+  // powers the "nothing qualifies" warning below.
+  const verseScores = useMemo(() => computeVerseScores(sessions), [sessions]);
+  const masteryQualifyingCount = collectionVerseIds.filter(
+    (id) => checkedIds.has(id) && (verseScores.get(id)?.score ?? 0) >= gate.masteryThreshold,
+  ).length;
+
   function toggleVerse(verseId: string) {
     const next = new Set(checkedIds);
     if (next.has(verseId)) {
@@ -607,6 +637,15 @@ function VerseGateCard({
   ) {
     warning =
       "Gate is on but no verses are selected — navigation will NOT be blocked until you check at least one.";
+  } else if (
+    gate.enabled &&
+    gate.masteryFilterEnabled &&
+    checkedCount > 0 &&
+    masteryQualifyingCount === 0
+  ) {
+    warning =
+      `Gate is on but no selected verse has a mastery score of ${gate.masteryThreshold} or higher — ` +
+      "navigation will NOT be blocked until one does (or lower the threshold).";
   }
 
   return (
@@ -768,6 +807,51 @@ function VerseGateCard({
               </div>
             ) : null}
           </div>
+        ) : null}
+      </div>
+
+      <div style={gateSubsectionStyle}>
+        <span style={gateLabelStyle}>Mastery filter</span>
+        <p style={{ ...helperTextStyle, marginBottom: "0.6rem" }}>
+          When on, the gate only quizzes verses you’ve already learned — those whose mastery score
+          is at or above the threshold. Verses below it are left out.
+        </p>
+        <SegmentedControl
+          ariaLabel="Mastery filter"
+          options={GATE_TOGGLE_OPTIONS}
+          value={gate.masteryFilterEnabled}
+          onChange={(masteryFilterEnabled) => updateGate({ masteryFilterEnabled })}
+        />
+        {gate.masteryFilterEnabled ? (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.75rem" }}>
+              <span style={{ fontSize: "0.9rem", color: "var(--color-ink-muted)" }}>
+                Mastery score at least
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                inputMode="numeric"
+                value={thresholdDraft}
+                onChange={(e) => setThresholdDraft(e.target.value)}
+                onBlur={commitThreshold}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                }}
+                aria-label="Minimum mastery score"
+                style={{ ...inputStyle, flex: undefined, width: "5rem" }}
+              />
+            </div>
+            {gate.collectionIds.length > 0 ? (
+              <p style={{ ...helperTextStyle, marginTop: "0.6rem" }}>
+                {masteryQualifyingCount} of {checkedCount} selected{" "}
+                {checkedCount === 1 ? "verse" : "verses"} currently{" "}
+                {masteryQualifyingCount === 1 ? "meets" : "meet"} this threshold.
+              </p>
+            ) : null}
+          </>
         ) : null}
       </div>
 

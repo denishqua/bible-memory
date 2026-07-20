@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useSettings } from "../hooks/useSettings";
 import { useVerses } from "../hooks/useVerses";
 import { useCollections } from "../hooks/useCollections";
+import { useReviewHistory } from "../hooks/useReviewHistory";
+import { computeVerseScores } from "../lib/verseScore";
 import { buildVerseReviewTokens } from "../lib/verseReview";
 import { renderSession } from "../components/review/renderSession";
 import { Button } from "../components/ui/Button";
@@ -43,6 +45,7 @@ export function GatePage() {
   const { settings, loading: settingsLoading } = useSettings();
   const { verses, loading: versesLoading } = useVerses();
   const { loading: collectionsLoading, getVerseIdsForCollection } = useCollections();
+  const { sessions, loading: historyLoading } = useReviewHistory();
   const navigate = useNavigate();
 
   // The original destination lives in the real query string (before the
@@ -55,15 +58,22 @@ export function GatePage() {
   );
   const targetHost = useMemo(() => (targetUrl ? new URL(targetUrl).hostname : null), [targetUrl]);
 
-  const loading = settingsLoading || versesLoading || collectionsLoading;
   const gate = settings?.newTabGate;
+  // Only wait on review history when the mastery filter actually needs it —
+  // otherwise the gate would block on a (potentially large) session load on
+  // every new tab even though the common case never reads scores.
+  const loading =
+    settingsLoading ||
+    versesLoading ||
+    collectionsLoading ||
+    Boolean(gate?.masteryFilterEnabled && historyLoading);
 
   // The verse pool: the union of every selected collection's verses (in
   // collection order, then verse order within each), deduped so a verse in two
   // selected collections appears once, narrowed to the selected subset when one
   // is set, keeping only verses that still exist. Empty when no collection is
   // selected.
-  const pool = useMemo<Verse[]>(() => {
+  const basePool = useMemo<Verse[]>(() => {
     // Legacy fallback: data stored before the gate supported multiple
     // collections carried a single `collectionId` (no longer in the type, so
     // read it through a widened view).
@@ -86,6 +96,17 @@ export function GatePage() {
     }
     return ids.map((id) => byId.get(id)).filter((v): v is Verse => v !== undefined);
   }, [gate, verses, getVerseIdsForCollection]);
+
+  // The mastery filter (optional): keep only verses whose mastery score meets
+  // the configured threshold. Derived from review history — a verse with no
+  // qualifying reviews scores 0. Applied on top of basePool; when off, the pool
+  // is basePool unchanged. Fails open downstream if this empties the pool.
+  const pool = useMemo<Verse[]>(() => {
+    if (!gate?.masteryFilterEnabled) return basePool;
+    const threshold = gate.masteryThreshold;
+    const scores = computeVerseScores(sessions);
+    return basePool.filter((v) => (scores.get(v.id)?.score ?? 0) >= threshold);
+  }, [basePool, gate?.masteryFilterEnabled, gate?.masteryThreshold, sessions]);
 
   const [currentVerseId, setCurrentVerseId] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
@@ -211,8 +232,15 @@ export function GatePage() {
   if (!gate?.enabled) return failOpen("The verse gate is turned off.");
   if (gate.collectionIds.length === 0)
     return failOpen("No collection is set up for the verse gate yet.");
-  if (pool.length === 0)
+  if (pool.length === 0) {
+    // Distinguish "nothing selected" from "the mastery filter removed
+    // everything" so the fail-open reason points at the real cause.
+    if (gate.masteryFilterEnabled && basePool.length > 0)
+      return failOpen(
+        `No verses in the gate's collections have a mastery score of ${gate.masteryThreshold} or higher yet.`,
+      );
     return failOpen("The verse gate's collections have no verses to review.");
+  }
 
   // The pool is ready but the initial random pick (a post-paint effect) hasn't
   // landed yet — keep showing the loading state for that frame rather than

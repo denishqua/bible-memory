@@ -21,6 +21,15 @@ export interface NewTabGateSettings {
   // null = every verse across the selected collections; otherwise the selected
   // subset (applied to the UNION of those collections' verses).
   verseIds: string[] | null;
+  // Optional mastery filter, applied AFTER the collection/verseIds selection:
+  // when on, the pool is narrowed to verses whose mastery score (0–100, see
+  // src/lib/verseScore.ts) is >= masteryThreshold, so the gate only quizzes
+  // verses you've already learned to that level. Mastery is derived from review
+  // history, which the background worker never reads — so the worker ignores
+  // this filter and the gate PAGE applies it, failing open (as always) when
+  // nothing qualifies.
+  masteryFilterEnabled: boolean;
+  masteryThreshold: number; // 0–100
   // The single review mode used by the gate (verses are random, mode is not).
   mode: ReviewMode;
   // Cooldown: once ANY verse review is completed (at the gate OR in a normal
@@ -40,6 +49,8 @@ export function defaultNewTabGateSettings(): NewTabGateSettings {
     whitelist: [],
     collectionIds: [],
     verseIds: null,
+    masteryFilterEnabled: false,
+    masteryThreshold: 80,
     mode: "type-it",
     cooldownEnabled: false,
     cooldownMinutes: 15,

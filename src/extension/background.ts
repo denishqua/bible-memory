@@ -154,12 +154,17 @@ function isHostWhitelisted(host = "", whitelist = [""]) {
 }
 
 // Defaults mirror defaultNewTabGateSettings() in src/types/settings.ts.
+// masteryFilterEnabled/masteryThreshold are carried for shape parity only —
+// the mastery filter is derived from review history (which this worker never
+// reads), so the gate PAGE applies it and this worker ignores it.
 function defaultNewTabGateSettings() {
   return {
     enabled: false,
     whitelist: [],
     collectionIds: [],
     verseIds: null,
+    masteryFilterEnabled: false,
+    masteryThreshold: 80,
     mode: "type-it",
     cooldownEnabled: false,
     cooldownMinutes: 15,
