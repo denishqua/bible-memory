@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSettings } from "../hooks/useSettings";
 import { useVerses } from "../hooks/useVerses";
@@ -7,6 +7,7 @@ import { useReviewHistory } from "../hooks/useReviewHistory";
 import { computeVerseScores } from "../lib/verseScore";
 import { buildVerseReviewTokens } from "../lib/verseReview";
 import { renderSession } from "../components/review/renderSession";
+import { applyReview, selectDueFirst } from "../lib/srs";
 import { Button } from "../components/ui/Button";
 import type { Verse } from "../types/verse";
 import type { ReviewScope } from "../types/review";
@@ -43,7 +44,7 @@ function pickRandomVerse(pool: Verse[], excludeId: string | null): Verse | null 
 
 export function GatePage() {
   const { settings, loading: settingsLoading } = useSettings();
-  const { verses, loading: versesLoading } = useVerses();
+  const { verses, loading: versesLoading, setSrsState } = useVerses();
   const { loading: collectionsLoading, getVerseIdsForCollection } = useCollections();
   const { sessions, loading: historyLoading } = useReviewHistory();
   const navigate = useNavigate();
@@ -117,14 +118,18 @@ export function GatePage() {
   // gate requires typing the reference too.
   const [hideReference, setHideReference] = useState(false);
 
-  // Pick the initial random verse once the pool has loaded. Guarded so later
-  // pool identity churn (storage refreshes) never swaps the verse mid-review.
+  // Pick the initial verse once the pool has loaded — a DUE review first
+  // (most-overdue wins), falling back to a random verse when nothing is due.
+  // Guarded so later pool identity churn (storage refreshes) never swaps the
+  // verse mid-review. `now` is read here (not a dependency) so the pick stays
+  // stable across re-renders.
   useEffect(() => {
     if (loading || pool.length === 0) return;
+    const now = new Date().toISOString();
     setCurrentVerseId((prev) =>
       prev !== null && pool.some((v) => v.id === prev)
         ? prev
-        : (pickRandomVerse(pool, null)?.id ?? null),
+        : ((selectDueFirst(pool, now, null) ?? pickRandomVerse(pool, null))?.id ?? null),
     );
   }, [loading, pool]);
 
@@ -139,19 +144,41 @@ export function GatePage() {
     : null;
 
   const handleSkip = useCallback(() => {
-    const next = pickRandomVerse(pool, currentVerseId);
+    const now = new Date().toISOString();
+    const next = selectDueFirst(pool, now, currentVerseId) ?? pickRandomVerse(pool, currentVerseId);
     if (!next) return;
     setCurrentVerseId(next.id);
     setCompleted(false);
     setHideReference(false);
   }, [pool, currentVerseId]);
 
-  const handleComplete = useCallback(() => {
-    // Just reveal Proceed — the embedded review session already stamps the
-    // browsing cooldown via recordLiveReview when it completes, so there's no
-    // need to touch it again here.
-    setCompleted(true);
-  }, []);
+  // Verse ids whose SRS transition has already been applied this page-load, so
+  // Retry (which re-fires onComplete for the same verse) advances the schedule
+  // exactly once. Skip moves to a new verse id, which passes this guard.
+  const processedRef = useRef<Set<string>>(new Set());
+
+  const handleComplete = useCallback(
+    (outcome?: { accuracy: number; passed: boolean }) => {
+      // Reveal Proceed immediately — the embedded review session already stamps
+      // the browsing cooldown via recordLiveReview when it completes, so there's
+      // no need to touch that here.
+      setCompleted(true);
+      // Advance this verse's SRS schedule once per verse. The cooldown/history
+      // path stays untouched (it lives inside the session component). Fire the
+      // write async — Proceed doesn't wait on it.
+      if (!outcome || !currentVerse) return;
+      if (processedRef.current.has(currentVerse.id)) return;
+      processedRef.current.add(currentVerse.id);
+      const srs = applyReview(
+        currentVerse,
+        outcome.accuracy,
+        new Date().toISOString(),
+        settings?.scheduler.onFailBehavior ?? "demote",
+      );
+      void setSrsState(currentVerse.id, srs);
+    },
+    [currentVerse, settings, setSrsState],
+  );
 
   const handleProceed = useCallback(() => {
     if (!targetUrl) {

@@ -19,9 +19,10 @@ interface LaneDefenderSessionProps {
   scope: ReviewScope;
   tokens: Token[];
   onChangeMode: () => void;
-  // Fired exactly once when the run ends (complete or failed alike).
-  // Optional — existing callers omit it; the gate page listens for it.
-  onComplete?: () => void;
+  // Fired exactly once when the run ends (complete or failed alike). The
+  // outcome (accuracy + pass/fail, from the run result) lets the gate apply its
+  // SRS transition. Optional — existing callers omit it.
+  onComplete?: (outcome?: { accuracy: number; passed: boolean }) => void;
   // Rendered inside the verse gate: hide the "Change Mode" button and the
   // mission screen's "Back to Library" link (the gate owns its own exit).
   embedded?: boolean;
@@ -109,8 +110,9 @@ export function LaneDefenderSession({
   useEffect(() => {
     if (!sessionFullyDone || completeNotifiedRef.current) return;
     completeNotifiedRef.current = true;
-    onComplete?.();
-  }, [sessionFullyDone, onComplete]);
+    // `result` is non-null when sessionFullyDone; the guard keeps the type-checker happy.
+    onComplete?.(result ? { accuracy: result.accuracy, passed: result.passed } : undefined);
+  }, [sessionFullyDone, onComplete, result]);
 
   useEffect(() => {
     if (status === "playing" || finalizedRef.current) return;
