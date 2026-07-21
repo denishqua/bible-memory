@@ -3,8 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useSettings } from "../hooks/useSettings";
 import { useVerses } from "../hooks/useVerses";
 import { useCollections } from "../hooks/useCollections";
-import { useReviewHistory } from "../hooks/useReviewHistory";
-import { computeVerseScores } from "../lib/verseScore";
+
 import { buildVerseReviewTokens } from "../lib/verseReview";
 import { renderSession } from "../components/review/renderSession";
 import { applyReview, selectDueFirst } from "../lib/srs";
@@ -46,7 +45,7 @@ export function GatePage() {
   const { settings, loading: settingsLoading } = useSettings();
   const { verses, loading: versesLoading, setSrsState } = useVerses();
   const { loading: collectionsLoading, getVerseIdsForCollection } = useCollections();
-  const { sessions, loading: historyLoading } = useReviewHistory();
+
   const navigate = useNavigate();
 
   // The original destination lives in the real query string (before the
@@ -60,14 +59,10 @@ export function GatePage() {
   const targetHost = useMemo(() => (targetUrl ? new URL(targetUrl).hostname : null), [targetUrl]);
 
   const gate = settings?.newTabGate;
-  // Only wait on review history when the mastery filter actually needs it —
-  // otherwise the gate would block on a (potentially large) session load on
-  // every new tab even though the common case never reads scores.
   const loading =
     settingsLoading ||
     versesLoading ||
-    collectionsLoading ||
-    Boolean(gate?.masteryFilterEnabled && historyLoading);
+    collectionsLoading;
 
   // The verse pool: the union of every selected collection's verses (in
   // collection order, then verse order within each), deduped so a verse in two
@@ -98,16 +93,7 @@ export function GatePage() {
     return ids.map((id) => byId.get(id)).filter((v): v is Verse => v !== undefined);
   }, [gate, verses, getVerseIdsForCollection]);
 
-  // The mastery filter (optional): keep only verses whose mastery score meets
-  // the configured threshold. Derived from review history — a verse with no
-  // qualifying reviews scores 0. Applied on top of basePool; when off, the pool
-  // is basePool unchanged. Fails open downstream if this empties the pool.
-  const pool = useMemo<Verse[]>(() => {
-    if (!gate?.masteryFilterEnabled) return basePool;
-    const threshold = gate.masteryThreshold;
-    const scores = computeVerseScores(sessions);
-    return basePool.filter((v) => (scores.get(v.id)?.score ?? 0) >= threshold);
-  }, [basePool, gate?.masteryFilterEnabled, gate?.masteryThreshold, sessions]);
+  const pool = basePool;
 
   const [currentVerseId, setCurrentVerseId] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
@@ -126,12 +112,13 @@ export function GatePage() {
   useEffect(() => {
     if (loading || pool.length === 0) return;
     const now = new Date().toISOString();
+    const prioritizeDue = gate?.prioritizeDue !== false;
     setCurrentVerseId((prev) =>
       prev !== null && pool.some((v) => v.id === prev)
         ? prev
-        : ((selectDueFirst(pool, now, null) ?? pickRandomVerse(pool, null))?.id ?? null),
+        : (((prioritizeDue ? selectDueFirst(pool, now, null) : null) ?? pickRandomVerse(pool, null))?.id ?? null),
     );
-  }, [loading, pool]);
+  }, [loading, pool, gate?.prioritizeDue]);
 
   const currentVerse = currentVerseId ? pool.find((v) => v.id === currentVerseId) : undefined;
 
@@ -148,12 +135,13 @@ export function GatePage() {
 
   const handleSkip = useCallback(() => {
     const now = new Date().toISOString();
-    const next = selectDueFirst(pool, now, currentVerseId) ?? pickRandomVerse(pool, currentVerseId);
+    const prioritizeDue = gate?.prioritizeDue !== false;
+    const next = (prioritizeDue ? selectDueFirst(pool, now, currentVerseId) : null) ?? pickRandomVerse(pool, currentVerseId);
     if (!next) return;
     setCurrentVerseId(next.id);
     setCompleted(false);
     setHideReference(false);
-  }, [pool, currentVerseId]);
+  }, [pool, currentVerseId, gate?.prioritizeDue]);
 
   // Verse ids whose SRS transition has already been applied this page-load, so
   // Retry (which re-fires onComplete for the same verse) advances the schedule
@@ -177,11 +165,10 @@ export function GatePage() {
         currentVerse,
         outcome.accuracy,
         new Date().toISOString(),
-        settings?.scheduler.onFailBehavior ?? "demote",
       );
       void setSrsState(currentVerse.id, srs);
     },
-    [currentVerse, gate?.mode, settings, setSrsState],
+    [currentVerse, gate?.mode, setSrsState],
   );
 
   const handleProceed = useCallback(() => {
@@ -264,12 +251,6 @@ export function GatePage() {
   if (gate.collectionIds.length === 0)
     return failOpen("No collection is set up for the verse gate yet.");
   if (pool.length === 0) {
-    // Distinguish "nothing selected" from "the mastery filter removed
-    // everything" so the fail-open reason points at the real cause.
-    if (gate.masteryFilterEnabled && basePool.length > 0)
-      return failOpen(
-        `No verses in the gate's collections have a mastery score of ${gate.masteryThreshold} or higher yet.`,
-      );
     return failOpen("The verse gate's collections have no verses to review.");
   }
 

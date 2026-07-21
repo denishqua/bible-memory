@@ -23,17 +23,10 @@ export const INTERVAL_DAYS = [0, 1, 3, 7, 14, 30];
 // Highest bucket — a verse can't climb past this (interval caps at 30 days).
 export const MAX_BUCKET = INTERVAL_DAYS.length - 1;
 
-// Accuracy bands for the review outcome (mirrors ReviewSession's own
-// PASS_THRESHOLD of 90; FAIL_THRESHOLD carves out a forgiving middle band):
+// Accuracy bands for the review outcome:
 //   >= 90        → Pass  (advance one bucket)
-//   85..<90      → Hold  (stay put, no penalty)
-//   < 85         → Miss  (demote one bucket, or hold — configurable)
+//   < 90         → Fail  (no change to bucket or due time)
 export const PASS_THRESHOLD = 90;
-export const FAIL_THRESHOLD = 85;
-
-// What a Miss (accuracy < FAIL_THRESHOLD) does to the bucket. Never resets to 0
-// from a high bucket — the harshest option only eases off a single step.
-export type OnFailBehavior = "demote" | "hold";
 
 export type Phase = "new" | "learning" | "reviewing";
 
@@ -47,8 +40,8 @@ export interface StudyItem {
 
 // The SRS state written back to a verse after a review (see useVerses.setSrsState).
 export interface SrsState {
-  srsBucket: number;
-  dueAt: string;
+  srsBucket?: number;
+  dueAt?: string;
 }
 
 export interface StudyQueueParams {
@@ -82,9 +75,8 @@ export function modeForVerse(verse: Verse): MaskableReviewMode {
 export function isDue(verse: Verse, now: string): boolean {
   const phase = phaseOf(verse);
   if (phase === "new") return false;
-  if (phase === "learning") return true;
-  // Reviewing: due when dueAt has passed. A reviewing verse always has a dueAt
-  // (applyReview sets one), but treat a missing one as due, never stuck.
+  // Learning & Reviewing: due when dueAt has passed. A scheduled verse always
+  // has a dueAt (applyReview sets one), but treat a missing one as due.
   if (verse.dueAt === undefined) return true;
   return new Date(verse.dueAt).getTime() <= new Date(now).getTime();
 }
@@ -93,34 +85,31 @@ function addDays(iso: string, days: number): string {
   return new Date(new Date(iso).getTime() + days * 86_400_000).toISOString();
 }
 
-// Apply a review outcome to a verse's SRS state, using a gracious three-band
-// model. `accuracy` is the raw 0–100 score; `onFailBehavior` decides what a Miss
-// does. The new bucket NEVER resets to 0 from a high bucket and never drops
-// below 0 — the schedule eases off gradually rather than punishing a stumble:
-//   Pass  (accuracy >= PASS_THRESHOLD): advance one bucket (capped at MAX_BUCKET).
-//   Hold  (FAIL_THRESHOLD..<PASS):      stay on the current bucket, no penalty.
-//   Miss  (accuracy < FAIL_THRESHOLD):  demote one bucket, or hold (configurable).
-// In every band dueAt = now + INTERVAL_DAYS[newBucket] days. A brand-new verse
-// (undefined bucket) lands at bucket 0 minimum after its first study, in all bands.
+// Apply a review outcome to a verse's SRS state.
+//   Pass  (accuracy >= PASS_THRESHOLD): advance one bucket (capped at MAX_BUCKET) and recalculate dueAt.
+//   Fail  (accuracy < PASS_THRESHOLD):  keep the current bucket and dueAt unchanged.
 export function applyReview(
   verse: Verse,
   accuracy: number,
   now: string,
-  onFailBehavior: OnFailBehavior,
 ): SrsState {
   const bucket = verse.srsBucket;
-  let nextBucket: number;
-  if (accuracy >= PASS_THRESHOLD) {
-    nextBucket = Math.min(MAX_BUCKET, (bucket ?? -1) + 1);
-  } else if (accuracy >= FAIL_THRESHOLD) {
-    // Hold band — stay put (floor 0 so a new verse still lands at bucket 0).
-    nextBucket = Math.max(0, bucket ?? 0);
-  } else if (onFailBehavior === "demote") {
-    nextBucket = Math.max(0, (bucket ?? 0) - 1);
+  const passed = accuracy >= PASS_THRESHOLD;
+
+  if (passed) {
+    const nextBucket = Math.min(MAX_BUCKET, (bucket ?? -1) + 1);
+    // Calculate the review interval in days:
+    // - If nextBucket is 0 (first review pass), the interval is 1 day.
+    // - Otherwise, use the standard interval for the next bucket.
+    const days = nextBucket === 0 ? 1 : INTERVAL_DAYS[nextBucket];
+    return { srsBucket: nextBucket, dueAt: addDays(now, days) };
   } else {
-    nextBucket = Math.max(0, bucket ?? 0);
+    // Under 90%: don't reset dueAt or make any changes to review interval
+    return {
+      srsBucket: bucket ?? undefined,
+      dueAt: verse.dueAt ?? undefined,
+    };
   }
-  return { srsBucket: nextBucket, dueAt: addDays(now, INTERVAL_DAYS[nextBucket]) };
 }
 
 // ── Per-verse schedule display + editing helpers ─────────────────────────────

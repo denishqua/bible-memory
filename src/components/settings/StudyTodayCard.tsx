@@ -1,8 +1,6 @@
 import { Card } from "../ui/Card";
 import { useCollections } from "../../hooks/useCollections";
 import type { SchedulerSettings, Settings } from "../../types/settings";
-import type { OnFailBehavior } from "../../lib/srs";
-import { SegmentedControl } from "./SegmentedControl";
 import {
   gateLabelStyle,
   gateSubsectionStyle,
@@ -10,10 +8,6 @@ import {
   sectionTitleStyle,
 } from "./styles";
 
-const ON_FAIL_OPTIONS: { value: OnFailBehavior; label: string }[] = [
-  { value: "demote", label: "Ease off one step" },
-  { value: "hold", label: "Do nothing" },
-];
 
 // --- Study Today (spaced-repetition scheduler) section ---
 // Rendered only once settings has loaded, so `settings` is always non-null here
@@ -53,19 +47,7 @@ export function StudyTodayCard({
         them from the Library.
       </p>
 
-      <div style={gateSubsectionStyle}>
-        <span style={gateLabelStyle}>On a miss</span>
-        <p style={{ ...helperTextStyle, marginBottom: "0.6rem" }}>
-          What happens to a verse's schedule when you score below 85%. It never resets to the start —
-          the harshest option only eases off a single step.
-        </p>
-        <SegmentedControl
-          ariaLabel="On-miss behavior"
-          options={ON_FAIL_OPTIONS}
-          value={scheduler.onFailBehavior}
-          onChange={(onFailBehavior) => updateScheduler({ onFailBehavior })}
-        />
-      </div>
+
 
       <div style={gateSubsectionStyle}>
         <span style={gateLabelStyle}>Limit to collections</span>

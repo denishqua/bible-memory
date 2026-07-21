@@ -21,7 +21,7 @@ verses, collections, and settings live in `localStorage` (web) or
   letter of each word, or typing the full word with a live Hint button.
 - **The verse gate (extension only)** — when enabled, opening a new tab or
   typing a URL in the address bar redirects you to a full-screen verse review.
-  Complete it to proceed. Supports collection pooling, verse-level subsets, and mastery score filtering. Whitelist domains you don't want gated, and
+  Complete it to proceed. Supports collection pooling and verse-level subsets. Whitelist domains you don't want gated, and
   optionally set a **cooldown** so one review buys you a stretch of gate-free
   browsing.
 - **Backups & data management** — export all your data as a JSON file, import backups additively, or clear all stored data with 2-step confirmation.
@@ -107,16 +107,15 @@ service worker intercepts:
 - **address-bar** navigations (typed URLs, omnibox searches, chosen bookmarks).
 
 It redirects the tab to a full-screen gate that picks a verse from your chosen
-collections or verse subset and runs your configured review mode. The gate **surfaces verses
+collections or verse subset and runs your configured review mode. By default, the gate **surfaces verses
 that are due for review first** (most overdue first), falling back to a random
-verse when nothing is due. Finishing the review (pass *or* fail — it rewards
+verse when nothing is due. Alternatively, you can configure the gate to pick any verse from the pool at random, bypassing spaced-repetition checks. Finishing the review (pass *or* fail — it rewards
 engagement) reveals a **Proceed to site** button, and **advances that verse's
 spaced-repetition schedule** just like a Study Today review — for every mode
 that counts toward the schedule, including the two arcade games. (Reference It
 is practice-only, so completing a Reference It gate never advances the
 schedule.)
 
-**Mastery Filtering.** Gate settings allow turning on a mastery filter (e.g., threshold ≥ 80%), so the gate exclusively quizzes verses that have achieved your target mastery score.
 
 The gate deliberately **fails open**: if it's off, unconfigured, pointed at an
 empty verse set, or the destination is whitelisted, it never blocks you.

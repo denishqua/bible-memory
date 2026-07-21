@@ -1,5 +1,4 @@
 import type { ReviewMode } from "./review";
-import type { OnFailBehavior } from "../lib/srs";
 
 // Settings for the extension's "verse gate": every new tab's first http(s)
 // navigation is intercepted and redirected to a full-screen review unless the
@@ -22,15 +21,10 @@ export interface NewTabGateSettings {
   // null = every verse across the selected collections; otherwise the selected
   // subset (applied to the UNION of those collections' verses).
   verseIds: string[] | null;
-  // Optional mastery filter, applied AFTER the collection/verseIds selection:
-  // when on, the pool is narrowed to verses whose mastery score (0–100, see
-  // src/lib/verseScore.ts) is >= masteryThreshold, so the gate only quizzes
-  // verses you've already learned to that level. Mastery is derived from review
-  // history, which the background worker never reads — so the worker ignores
-  // this filter and the gate PAGE applies it, failing open (as always) when
-  // nothing qualifies.
-  masteryFilterEnabled: boolean;
-  masteryThreshold: number; // 0–100
+  // If true, the gate prioritizes due verses first and falls back to random selection.
+  // If false, it picks any verse from the pool at random.
+  prioritizeDue: boolean;
+
   // The single review mode used by the gate (verses are random, mode is not).
   mode: ReviewMode;
   // Cooldown: once ANY verse review is completed (at the gate OR in a normal
@@ -50,8 +44,8 @@ export function defaultNewTabGateSettings(): NewTabGateSettings {
     whitelist: [],
     collectionIds: [],
     verseIds: null,
-    masteryFilterEnabled: false,
-    masteryThreshold: 80,
+    prioritizeDue: true,
+
     mode: "type-it",
     cooldownEnabled: false,
     cooldownMinutes: 15,
@@ -63,13 +57,10 @@ export interface SchedulerSettings {
   // null = draw due verses from the whole library; otherwise scope the study
   // pool to the union of these collections' verses.
   collectionIds: string[] | null;
-  // What a Miss (accuracy < FAIL_THRESHOLD) does to a verse's bucket:
-  // "demote" eases off one step, "hold" keeps the bucket. Never resets to 0.
-  onFailBehavior: OnFailBehavior;
 }
 
 export function defaultSchedulerSettings(): SchedulerSettings {
-  return { collectionIds: null, onFailBehavior: "demote" };
+  return { collectionIds: null };
 }
 
 // App-level user settings, persisted as a single object under `bm.settings.v1`

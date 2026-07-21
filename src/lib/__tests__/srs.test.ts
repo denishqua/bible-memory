@@ -55,64 +55,49 @@ describe("modeForVerse", () => {
 });
 
 describe("applyReview", () => {
-  // onFailBehavior is irrelevant in the Pass/Hold bands; use "demote" as the
-  // default arg there and vary it only in the Miss-band tests below.
   describe("Pass band (accuracy >= 90): advance one bucket", () => {
     it("climbs one bucket, extending dueAt by the new bucket's interval", () => {
-      // New (undefined) → bucket 0, due same day (interval 0).
-      const fromNew = applyReview(verse("v"), 100, NOW, "demote");
+      // New (undefined) → bucket 0, due in 1 day.
+      const fromNew = applyReview(verse("v"), 100, NOW);
       expect(fromNew.srsBucket).toBe(0);
-      expect(fromNew.dueAt).toBe(daysFromNow(INTERVAL_DAYS[0]));
+      expect(fromNew.dueAt).toBe(daysFromNow(1));
 
       // Learning (0) → bucket 1, due in 1 day. Exactly 90 counts as a pass.
-      const fromLearning = applyReview(verse("v", { srsBucket: 0 }), 90, NOW, "demote");
+      const fromLearning = applyReview(verse("v", { srsBucket: 0 }), 90, NOW);
       expect(fromLearning.srsBucket).toBe(1);
       expect(fromLearning.dueAt).toBe(daysFromNow(1));
 
       // Reviewing (2) → bucket 3, due in 7 days.
-      const fromReviewing = applyReview(verse("v", { srsBucket: 2 }), 95, NOW, "demote");
+      const fromReviewing = applyReview(verse("v", { srsBucket: 2 }), 95, NOW);
       expect(fromReviewing.srsBucket).toBe(3);
       expect(fromReviewing.dueAt).toBe(daysFromNow(7));
     });
 
     it("caps the bucket at MAX_BUCKET on repeated passes", () => {
-      const atMax = applyReview(verse("v", { srsBucket: MAX_BUCKET }), 100, NOW, "demote");
+      const atMax = applyReview(verse("v", { srsBucket: MAX_BUCKET }), 100, NOW);
       expect(atMax.srsBucket).toBe(MAX_BUCKET);
       expect(atMax.dueAt).toBe(daysFromNow(INTERVAL_DAYS[MAX_BUCKET])); // 30 days
       expect(MAX_BUCKET).toBe(5);
     });
   });
 
-  describe("Hold band (85 <= accuracy < 90): stay put, no penalty", () => {
-    it("keeps the current bucket regardless of onFailBehavior", () => {
-      for (const behavior of ["demote", "hold"] as const) {
-        const held = applyReview(verse("v", { srsBucket: 3 }), 87, NOW, behavior);
-        expect(held.srsBucket).toBe(3);
-        expect(held.dueAt).toBe(daysFromNow(INTERVAL_DAYS[3])); // 7 days
-      }
-    });
+  describe("Fail band (accuracy < 90): keep current bucket and dueAt", () => {
+    it("does not change srsBucket or dueAt on fail", () => {
+      // New verse (undefined) fails
+      const fromNew = applyReview(verse("v"), 89, NOW);
+      expect(fromNew.srsBucket).toBeUndefined();
+      expect(fromNew.dueAt).toBeUndefined();
 
-    it("floors a new verse at bucket 0 (never negative)", () => {
-      expect(applyReview(verse("v"), 85, NOW, "hold").srsBucket).toBe(0);
-    });
-  });
+      // Learning verse (bucket 0) fails
+      const due = daysFromNow(2);
+      const fromLearning = applyReview(verse("v", { srsBucket: 0, dueAt: due }), 80, NOW);
+      expect(fromLearning.srsBucket).toBe(0);
+      expect(fromLearning.dueAt).toBe(due);
 
-  describe("Miss band (accuracy < 85)", () => {
-    it("demote: eases off exactly one bucket, never resetting to 0 from a high bucket", () => {
-      const demoted = applyReview(verse("v", { srsBucket: 4 }), 50, NOW, "demote");
-      expect(demoted.srsBucket).toBe(3); // 4 -> 3, NOT 0
-      expect(demoted.dueAt).toBe(daysFromNow(INTERVAL_DAYS[3]));
-    });
-
-    it("demote: floors at bucket 0", () => {
-      expect(applyReview(verse("v", { srsBucket: 0 }), 10, NOW, "demote").srsBucket).toBe(0);
-      expect(applyReview(verse("v"), 10, NOW, "demote").srsBucket).toBe(0);
-    });
-
-    it("hold: keeps the current bucket even on a bad miss", () => {
-      const held = applyReview(verse("v", { srsBucket: 4 }), 20, NOW, "hold");
-      expect(held.srsBucket).toBe(4);
-      expect(held.dueAt).toBe(daysFromNow(INTERVAL_DAYS[4])); // 14 days
+      // Reviewing verse (bucket 4) fails
+      const fromReviewing = applyReview(verse("v", { srsBucket: 4, dueAt: due }), 50, NOW);
+      expect(fromReviewing.srsBucket).toBe(4);
+      expect(fromReviewing.dueAt).toBe(due);
     });
   });
 });
@@ -122,8 +107,10 @@ describe("isDue", () => {
     expect(isDue(verse("v"), NOW)).toBe(false);
   });
 
-  it("learning verses (bucket 0) are always due", () => {
-    expect(isDue(verse("v", { srsBucket: 0, dueAt: daysFromNow(10) }), NOW)).toBe(true);
+  it("learning verses (bucket 0) are due only once dueAt has passed", () => {
+    expect(isDue(verse("v", { srsBucket: 0, dueAt: daysFromNow(-1) }), NOW)).toBe(true);
+    expect(isDue(verse("v", { srsBucket: 0, dueAt: NOW }), NOW)).toBe(true);
+    expect(isDue(verse("v", { srsBucket: 0, dueAt: daysFromNow(1) }), NOW)).toBe(false);
   });
 
   it("reviewing verses are due only once dueAt has passed", () => {
@@ -170,10 +157,13 @@ describe("selectDueFirst", () => {
     expect(selectDueFirst(pool, NOW, "only-due")?.id).toBe("only-due");
   });
 
-  it("treats bucket-0 (learning) as due but never-studied (no srsBucket) as not due", () => {
-    // Learning verse is due even with a far-future dueAt; the new verse is not.
-    const learningPool = [verse("learn1", { srsBucket: 0, dueAt: daysFromNow(10) })];
-    expect(selectDueFirst(learningPool, NOW)?.id).toBe("learn1");
+  it("treats bucket-0 (learning) as due once dueAt has passed, but never-studied (no srsBucket) as not due", () => {
+    // Learning verse is due once dueAt is in the past, but not if it's in the future.
+    const learningPoolDue = [verse("learn1", { srsBucket: 0, dueAt: daysFromNow(-1) })];
+    expect(selectDueFirst(learningPoolDue, NOW)?.id).toBe("learn1");
+
+    const learningPoolFuture = [verse("learn2", { srsBucket: 0, dueAt: daysFromNow(10) })];
+    expect(selectDueFirst(learningPoolFuture, NOW)).toBeNull();
 
     const newPool = [verse("new1")];
     expect(selectDueFirst(newPool, NOW)).toBeNull();

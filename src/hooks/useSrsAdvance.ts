@@ -1,6 +1,5 @@
 import { useCallback, useRef } from "react";
 import { useVerses } from "./useVerses";
-import { useSettings } from "./useSettings";
 import { applyReview } from "../lib/srs";
 import type { Verse } from "../types/verse";
 import type { ReviewMode } from "../types/review";
@@ -20,8 +19,6 @@ import type { ReviewMode } from "../types/review";
 // single verse (Study Today, the verse gate, or a normal single-verse Review).
 export function useSrsAdvance() {
   const { setSrsState } = useVerses();
-  const { settings } = useSettings();
-  const onFailBehavior = settings?.scheduler.onFailBehavior ?? "demote";
 
   // Verse ids already advanced within this mounted flow.
   const processedRef = useRef<Set<string>>(new Set());
@@ -39,10 +36,10 @@ export function useSrsAdvance() {
       // `passed` drives only the recorded ReviewResult / summary UI (owned by the
       // session component). The SRS decision uses the raw accuracy so it applies
       // the gracious three-band model with the configured miss policy.
-      const srs = applyReview(verse, outcome.accuracy, new Date().toISOString(), onFailBehavior);
+      const srs = applyReview(verse, outcome.accuracy, new Date().toISOString());
       void setSrsState(verse.id, srs);
     },
-    [onFailBehavior, setSrsState],
+    [setSrsState],
   );
 
   // Lets a flow start a fresh once-per-verse scope if it ever needs to (optional).

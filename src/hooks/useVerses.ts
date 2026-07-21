@@ -58,11 +58,13 @@ export function useVerses() {
   // edit, so it must not bump `updatedAt`. Read-modify-write so it never
   // clobbers other fields, then refresh so the UI reflects the new state.
   const setSrsState = useCallback(
-    async (id: string, srs: { srsBucket: number; dueAt: string }): Promise<void> => {
+    async (id: string, srs: { srsBucket?: number; dueAt?: string }): Promise<void> => {
       const existing = await storage.getVerses();
       const current = existing.find((v) => v.id === id);
       if (!current) return;
-      await storage.saveVerse({ ...current, srsBucket: srs.srsBucket, dueAt: srs.dueAt });
+      const srsBucket = srs.srsBucket !== undefined ? srs.srsBucket : current.srsBucket;
+      const dueAt = srs.dueAt !== undefined ? srs.dueAt : current.dueAt;
+      await storage.saveVerse({ ...current, srsBucket, dueAt });
       await refresh();
       window.dispatchEvent(new Event(VERSES_UPDATED_EVENT));
     },
