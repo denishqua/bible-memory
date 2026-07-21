@@ -7,6 +7,7 @@ import { computeVerseScores } from "../../lib/verseScore";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Tooltip } from "../ui/Tooltip";
+import { ReviewScheduleBadge } from "../ui/ReviewScheduleBadge";
 import type { Verse } from "../../types/verse";
 
 interface CollectionDetailProps {
@@ -405,6 +406,7 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
                     </Tooltip>
                   );
                 })()}
+                <ReviewScheduleBadge verse={verse} />
                 <Link to={`/review?verseId=${verse.id}`} style={{ textDecoration: "none" }}>
                   <Button variant="ghost">Review</Button>
                 </Link>

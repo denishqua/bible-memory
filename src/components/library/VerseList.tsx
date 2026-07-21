@@ -66,6 +66,15 @@ export function VerseList({ verses, scores, onDelete, onAddToCollection }: Verse
           </Tooltip>
         </div>
         <div role="columnheader" style={{ ...headerCellStyle, textAlign: "right" }}>
+          <Tooltip
+            label="Review schedule: when each verse is next due and how often it resurfaces (its spaced-repetition frequency). New verses aren't scheduled until you study them."
+            placement="top"
+            align="end"
+          >
+            Review
+          </Tooltip>
+        </div>
+        <div role="columnheader" style={{ ...headerCellStyle, textAlign: "right" }}>
           <span
             style={{
               position: "absolute",

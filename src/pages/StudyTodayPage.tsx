@@ -3,8 +3,9 @@ import { useVerses } from "../hooks/useVerses";
 import { useReviewHistory } from "../hooks/useReviewHistory";
 import { useSettings } from "../hooks/useSettings";
 import { useCollections } from "../hooks/useCollections";
-import { computeStudyCounts } from "../lib/srs";
+import { computeStudyCounts, summarizePool } from "../lib/srs";
 import { StudyTodayFlow } from "../components/study/StudyTodayFlow";
+import { ProgressDashboard } from "../components/study/ProgressDashboard";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 
@@ -50,6 +51,15 @@ export function StudyTodayPage() {
     });
   }, [verses, sessions, scheduler, poolVerseIds]);
 
+  // Library-wide phase breakdown for the progress dashboard, derived from the
+  // SAME resolved pool (no extra load) — distinct from `counts`, which is the
+  // daily-capped study queue summary.
+  const poolSummary = useMemo(() => {
+    const poolIds = poolVerseIds === null ? null : new Set(poolVerseIds);
+    const pool = poolIds === null ? verses : verses.filter((v) => poolIds.has(v.id));
+    return summarizePool(pool, new Date());
+  }, [verses, poolVerseIds]);
+
   if (loading || !scheduler || !counts) {
     return (
       <div>
@@ -87,6 +97,7 @@ export function StudyTodayPage() {
   return (
     <div>
       <h1 style={{ marginBottom: "1.5rem" }}>Study Today</h1>
+      <ProgressDashboard summary={poolSummary} />
       {total === 0 ? (
         <Card>
           <h2 style={{ fontSize: "1.15rem", marginBottom: "0.4rem" }}>All caught up</h2>
@@ -99,8 +110,7 @@ export function StudyTodayPage() {
         <Card>
           <h2 style={{ fontSize: "1.15rem", marginBottom: "0.6rem" }}>Ready to study</h2>
           <p style={{ color: "var(--color-ink-muted)", marginBottom: "1.1rem", lineHeight: 1.6 }}>
-            {counts.dueCount} due · {counts.newAvailable} new to learn today · {counts.learningCount}{" "}
-            in progress
+            {counts.dueCount + counts.learningCount} due · {counts.newAvailable} new to learn today
           </p>
           <Button variant="primary" onClick={() => setStarted(true)}>
             Start

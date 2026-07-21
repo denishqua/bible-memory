@@ -132,6 +132,64 @@ export function applyReview(
   return { srsBucket: nextBucket, dueAt: addDays(now, INTERVAL_DAYS[nextBucket]) };
 }
 
+// ── Per-verse schedule display + editing helpers ─────────────────────────────
+// All pure, taking `now` explicitly (ISO string or Date) so components stay thin
+// and everything is unit-testable without mocking the clock.
+
+// The Leitner interval (in days) for a verse's CURRENT bucket, or null when the
+// verse was never scheduled (undefined bucket → "New").
+export function reviewIntervalDays(verse: Verse): number | null {
+  if (verse.srsBucket === undefined) return null;
+  return INTERVAL_DAYS[verse.srsBucket];
+}
+
+function toMillis(now: string | Date): number {
+  return now instanceof Date ? now.getTime() : new Date(now).getTime();
+}
+
+// Whole days until the verse is due: null when not scheduled (no dueAt); else
+// Math.ceil so a fractional remaining day still reads as "1 day" and a passed
+// dueAt reads as <= 0 (due/overdue).
+export function daysUntilDue(verse: Verse, now: string | Date): number | null {
+  if (verse.dueAt === undefined) return null;
+  return Math.ceil((new Date(verse.dueAt).getTime() - toMillis(now)) / 86_400_000);
+}
+
+// Frequency label from the current bucket: undefined → "New"; 0 → "Daily";
+// else "Every Nd" (e.g. "Every 7d").
+export function frequencyLabel(verse: Verse): string {
+  if (verse.srsBucket === undefined) return "New";
+  if (verse.srsBucket === 0) return "Daily";
+  return `Every ${INTERVAL_DAYS[verse.srsBucket]}d`;
+}
+
+// Due-status label: not scheduled → "Not scheduled"; due now/overdue → "Due now";
+// else "Due in Nd".
+export function dueLabel(verse: Verse, now: string | Date): string {
+  const days = daysUntilDue(verse, now);
+  if (days === null) return "Not scheduled";
+  if (days <= 0) return "Due now";
+  return `Due in ${days}d`;
+}
+
+// Preset frequency levels for the verse-page dropdown, mapped to buckets.
+export const SRS_LEVELS: { bucket: number; label: string }[] = [
+  { bucket: 0, label: "Learning (daily)" },
+  { bucket: 1, label: "Every 1 day" },
+  { bucket: 2, label: "Every 3 days" },
+  { bucket: 3, label: "Every 7 days" },
+  { bucket: 4, label: "Every 14 days" },
+  { bucket: 5, label: "Every 30 days" },
+];
+
+// Build the SRS state for a chosen bucket, restarting the countdown from `now`:
+// dueAt = now + INTERVAL_DAYS[bucket] days. Used both for setting a frequency and
+// for "restart countdown" (restart = scheduleForBucket(currentBucket, now)).
+export function scheduleForBucket(bucket: number, now: string | Date): SrsState {
+  const iso = now instanceof Date ? now.toISOString() : now;
+  return { srsBucket: bucket, dueAt: addDays(iso, INTERVAL_DAYS[bucket]) };
+}
+
 // Same calendar day in local time. Used to count verses first introduced today.
 function isSameDay(a: string, b: string): boolean {
   const da = new Date(a);
@@ -218,6 +276,51 @@ export function buildStudyQueue(params: StudyQueueParams): StudyItem[] {
   const newVerses = pool.filter((v) => phaseOf(v) === "new").slice(0, remainingNew);
 
   return [...due, ...learning, ...newVerses].map(toItem);
+}
+
+// A full breakdown of a verse pool by SRS phase, plus how many are due for
+// review right now. Used by the Study-tab due badge and the Study Today
+// progress dashboard — a library-wide snapshot, distinct from computeStudyCounts
+// (which respects the daily new-verse cap). Buckets: undefined → new, 0 →
+// learning, 1..4 → reviewing, 5 (MAX_BUCKET) → mastered.
+export interface PoolSummary {
+  total: number;
+  newCount: number;
+  learningCount: number;
+  reviewingCount: number;
+  masteredCount: number;
+  // Verses where isDue is true (learning + reviewing whose dueAt has passed).
+  // New verses are never due.
+  dueCount: number;
+}
+
+// Pure — takes `now` explicitly (ISO string or Date) so it's unit-testable
+// without touching the clock. phaseOf handles new/learning/reviewing; mastered
+// is the top bucket (MAX_BUCKET), carved out of reviewing here for the dashboard.
+export function summarizePool(verses: Verse[], now: string | Date): PoolSummary {
+  const nowIso = now instanceof Date ? now.toISOString() : now;
+  const summary: PoolSummary = {
+    total: verses.length,
+    newCount: 0,
+    learningCount: 0,
+    reviewingCount: 0,
+    masteredCount: 0,
+    dueCount: 0,
+  };
+  for (const verse of verses) {
+    const phase = phaseOf(verse);
+    if (phase === "new") {
+      summary.newCount += 1;
+    } else if (phase === "learning") {
+      summary.learningCount += 1;
+    } else if (verse.srsBucket === MAX_BUCKET) {
+      summary.masteredCount += 1;
+    } else {
+      summary.reviewingCount += 1;
+    }
+    if (isDue(verse, nowIso)) summary.dueCount += 1;
+  }
+  return summary;
 }
 
 // The landing-card summary. Consistent with buildStudyQueue: newAvailable is the

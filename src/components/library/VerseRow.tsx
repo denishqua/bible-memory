@@ -2,13 +2,14 @@ import { Link } from "react-router-dom";
 import type { Verse } from "../../types/verse";
 import { Button } from "../ui/Button";
 import { Tooltip } from "../ui/Tooltip";
+import { ReviewScheduleBadge } from "../ui/ReviewScheduleBadge";
 import { VerseActionsMenu } from "./VerseActionsMenu";
 
 // Shared between the header row and verse rows so the columns line up.
 // Fixed-ish tracks (no auto/max-content) keep every row's tracks identical.
-// Columns: Reference · Verse · Trans. · Score · Actions.
+// Columns: Reference · Verse · Trans. · Score · Review · Actions.
 export const VERSE_GRID_TEMPLATE =
-  "clamp(6.5rem, 22vw, 11rem) minmax(0, 1fr) 3.5rem 3.25rem 7.5rem";
+  "clamp(6.5rem, 22vw, 11rem) minmax(0, 1fr) 3.5rem 3.25rem 6.25rem 7.5rem";
 
 interface VerseRowProps {
   verse: Verse;
@@ -117,6 +118,13 @@ export function VerseRow({ verse, score, reviewCount, onDelete, onAddToCollectio
         >
           {score}
         </Tooltip>
+      </div>
+
+      <div
+        role="cell"
+        style={{ minWidth: 0, display: "flex", justifyContent: "flex-end" }}
+      >
+        <ReviewScheduleBadge verse={verse} />
       </div>
 
       <div

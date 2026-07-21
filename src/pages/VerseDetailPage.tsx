@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useVerses, type EditVerseInput } from "../hooks/useVerses";
 import { useReviewHistory } from "../hooks/useReviewHistory";
 import { computeVerseScore, verseScoringSessions } from "../lib/verseScore";
+import { SRS_LEVELS, dueLabel, frequencyLabel, scheduleForBucket } from "../lib/srs";
 import { getDisplayAccuracy, type ReviewMode } from "../types/review";
 import { EditVerseForm } from "../components/library/EditVerseForm";
 import { Button } from "../components/ui/Button";
@@ -16,7 +17,7 @@ const SCORING_MODE_LABELS: Partial<Record<ReviewMode, string>> = {
 
 export function VerseDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { verses, loading, updateVerse, deleteVerse } = useVerses();
+  const { verses, loading, updateVerse, setSrsState, deleteVerse } = useVerses();
   const { sessions } = useReviewHistory();
   const [isEditing, setIsEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -47,6 +48,17 @@ export function VerseDetailPage() {
   async function handleDelete() {
     await deleteVerse(verse!.id);
     navigate("/");
+  }
+
+  // Setting a frequency (or restarting the countdown) restarts the schedule from
+  // now at the chosen bucket's interval — see scheduleForBucket.
+  async function handleFrequencyChange(bucket: number) {
+    await setSrsState(verse!.id, scheduleForBucket(bucket, new Date().toISOString()));
+  }
+
+  async function handleRestartCountdown() {
+    if (verse!.srsBucket === undefined) return;
+    await setSrsState(verse!.id, scheduleForBucket(verse!.srsBucket, new Date().toISOString()));
   }
 
   return (
@@ -171,6 +183,101 @@ export function VerseDetailPage() {
               ))}
             </div>
           )}
+        </Card>
+      )}
+
+      {!isEditing && (
+        <Card style={{ marginTop: "1.25rem" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              gap: "1rem",
+              marginBottom: "1rem",
+            }}
+          >
+            <div>
+              <h2 style={{ fontSize: "1rem", marginBottom: "0.15rem" }}>Review schedule</h2>
+              <p style={{ color: "var(--color-ink-muted)", fontSize: "0.8rem" }}>
+                How often this verse resurfaces in Study Today
+              </p>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontSize: "1.5rem",
+                  color:
+                    verse.srsBucket !== undefined ? "var(--color-ink)" : "var(--color-ink-muted)",
+                }}
+              >
+                {frequencyLabel(verse)}
+              </span>
+              <p style={{ color: "var(--color-ink-muted)", fontSize: "0.8rem" }}>
+                {dueLabel(verse, new Date())}
+              </p>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "flex-end",
+              gap: "0.75rem",
+            }}
+          >
+            <label style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+              <span
+                style={{
+                  fontSize: "0.72rem",
+                  fontWeight: 600,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  color: "var(--color-ink-muted)",
+                }}
+              >
+                Frequency
+              </span>
+              <select
+                value={verse.srsBucket ?? ""}
+                onChange={(e) => void handleFrequencyChange(Number(e.target.value))}
+                style={{
+                  padding: "0.4rem 0.6rem",
+                  fontSize: "0.9rem",
+                  color: "var(--color-ink)",
+                  background: "var(--color-surface)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "0.5rem",
+                }}
+              >
+                {verse.srsBucket === undefined && (
+                  <option value="" disabled>
+                    New — not scheduled
+                  </option>
+                )}
+                {SRS_LEVELS.map((level) => (
+                  <option key={level.bucket} value={level.bucket}>
+                    {level.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <Button
+              variant="ghost"
+              onClick={() => void handleRestartCountdown()}
+              disabled={verse.srsBucket === undefined}
+              title={
+                verse.srsBucket === undefined
+                  ? "Pick a frequency first to start this verse's schedule"
+                  : "Restart the countdown to the next review from today"
+              }
+            >
+              Restart countdown
+            </Button>
+          </div>
         </Card>
       )}
     </div>

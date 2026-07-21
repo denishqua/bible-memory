@@ -2,14 +2,21 @@ import { describe, expect, it } from "vitest";
 import {
   INTERVAL_DAYS,
   MAX_BUCKET,
+  SRS_LEVELS,
   applyReview,
   buildStudyQueue,
   computeStudyCounts,
+  daysUntilDue,
+  dueLabel,
+  frequencyLabel,
   introducedTodayCount,
   isDue,
   modeForVerse,
   phaseOf,
+  reviewIntervalDays,
+  scheduleForBucket,
   selectDueFirst,
+  summarizePool,
 } from "../srs";
 import type { Verse } from "../../types/verse";
 import type { ReviewMode, ReviewScope, ReviewSession } from "../../types/review";
@@ -278,6 +285,73 @@ describe("buildStudyQueue", () => {
   });
 });
 
+describe("reviewIntervalDays", () => {
+  it("returns the current bucket's interval, or null when never scheduled", () => {
+    expect(reviewIntervalDays(verse("v"))).toBeNull(); // undefined bucket
+    expect(reviewIntervalDays(verse("v", { srsBucket: 0 }))).toBe(0);
+    expect(reviewIntervalDays(verse("v", { srsBucket: 3 }))).toBe(7);
+    expect(reviewIntervalDays(verse("v", { srsBucket: MAX_BUCKET }))).toBe(30);
+  });
+});
+
+describe("daysUntilDue", () => {
+  it("returns null when the verse has no dueAt", () => {
+    expect(daysUntilDue(verse("v"), NOW)).toBeNull();
+    expect(daysUntilDue(verse("v", { srsBucket: 2 }), NOW)).toBeNull();
+  });
+
+  it("rounds up future days and goes <= 0 when due/overdue", () => {
+    expect(daysUntilDue(verse("v", { dueAt: daysFromNow(3) }), NOW)).toBe(3);
+    // A fractional remaining day still reads as a whole day.
+    expect(daysUntilDue(verse("v", { dueAt: daysFromNow(0.5) }), NOW)).toBe(1);
+    expect(daysUntilDue(verse("v", { dueAt: NOW }), NOW)).toBe(0); // exactly due
+    expect(daysUntilDue(verse("v", { dueAt: daysFromNow(-2) }), NOW)).toBe(-2);
+  });
+
+  it("accepts a Date for now", () => {
+    expect(daysUntilDue(verse("v", { dueAt: daysFromNow(5) }), new Date(NOW))).toBe(5);
+  });
+});
+
+describe("frequencyLabel", () => {
+  it("maps the bucket to a human label", () => {
+    expect(frequencyLabel(verse("v"))).toBe("New"); // undefined
+    expect(frequencyLabel(verse("v", { srsBucket: 0 }))).toBe("Daily");
+    expect(frequencyLabel(verse("v", { srsBucket: 1 }))).toBe("Every 1d");
+    expect(frequencyLabel(verse("v", { srsBucket: 3 }))).toBe("Every 7d");
+    expect(frequencyLabel(verse("v", { srsBucket: 5 }))).toBe("Every 30d");
+  });
+});
+
+describe("dueLabel", () => {
+  it("summarizes the due status", () => {
+    expect(dueLabel(verse("v"), NOW)).toBe("Not scheduled");
+    expect(dueLabel(verse("v", { dueAt: NOW }), NOW)).toBe("Due now"); // <= 0
+    expect(dueLabel(verse("v", { dueAt: daysFromNow(-1) }), NOW)).toBe("Due now");
+    expect(dueLabel(verse("v", { dueAt: daysFromNow(3) }), NOW)).toBe("Due in 3d");
+  });
+});
+
+describe("SRS_LEVELS", () => {
+  it("covers every bucket 0..MAX_BUCKET in order", () => {
+    expect(SRS_LEVELS.map((l) => l.bucket)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(SRS_LEVELS[0].label).toBe("Learning (daily)");
+    expect(SRS_LEVELS[3].label).toBe("Every 7 days");
+  });
+});
+
+describe("scheduleForBucket", () => {
+  it("sets the bucket and restarts dueAt at now + the bucket's interval", () => {
+    expect(scheduleForBucket(0, NOW)).toEqual({ srsBucket: 0, dueAt: daysFromNow(0) });
+    expect(scheduleForBucket(3, NOW)).toEqual({ srsBucket: 3, dueAt: daysFromNow(7) });
+    expect(scheduleForBucket(5, NOW)).toEqual({ srsBucket: 5, dueAt: daysFromNow(30) });
+  });
+
+  it("accepts a Date for now", () => {
+    expect(scheduleForBucket(2, new Date(NOW))).toEqual({ srsBucket: 2, dueAt: daysFromNow(3) });
+  });
+});
+
 describe("computeStudyCounts", () => {
   it("summarizes due / new-available / learning consistent with the queue", () => {
     const verses = [
@@ -314,5 +388,43 @@ describe("computeStudyCounts", () => {
       poolVerseIds: ["a"],
     });
     expect(counts).toEqual({ dueCount: 0, newAvailable: 1, learningCount: 0 });
+  });
+});
+
+describe("summarizePool", () => {
+  it("buckets a mixed pool by phase and counts what's due", () => {
+    const verses = [
+      verse("new1"), // new — never due
+      verse("new2"), // new
+      verse("learn1", { srsBucket: 0 }), // learning — always due
+      verse("rev-due", { srsBucket: 2, dueAt: daysFromNow(-1) }), // reviewing, due
+      verse("rev-future", { srsBucket: 3, dueAt: daysFromNow(5) }), // reviewing, not due
+      verse("mastered1", { srsBucket: MAX_BUCKET, dueAt: daysFromNow(-2) }), // mastered, overdue → due
+      verse("mastered2", { srsBucket: MAX_BUCKET, dueAt: daysFromNow(10) }), // mastered, not due
+    ];
+    expect(summarizePool(verses, NOW)).toEqual({
+      total: 7,
+      newCount: 2,
+      learningCount: 1,
+      reviewingCount: 2, // buckets 1..4 (rev-due, rev-future)
+      masteredCount: 2, // bucket 5 (MAX_BUCKET)
+      dueCount: 3, // learn1 + rev-due + mastered1
+    });
+  });
+
+  it("accepts a Date for now (equivalent to the ISO string)", () => {
+    const verses = [verse("rev-due", { srsBucket: 1, dueAt: daysFromNow(-1) })];
+    expect(summarizePool(verses, new Date(NOW))).toEqual(summarizePool(verses, NOW));
+  });
+
+  it("returns an all-zero summary for the empty pool", () => {
+    expect(summarizePool([], NOW)).toEqual({
+      total: 0,
+      newCount: 0,
+      learningCount: 0,
+      reviewingCount: 0,
+      masteredCount: 0,
+      dueCount: 0,
+    });
   });
 });

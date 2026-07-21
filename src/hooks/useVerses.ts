@@ -3,6 +3,15 @@ import { useStorage } from "../data/storageContext";
 import { createId } from "../data/ids";
 import type { Verse } from "../types/verse";
 
+// Mirrors useProfile / useSettings: multiple components mount their own
+// useVerses() instance (the header's due badge lives for the whole app
+// lifetime, while a study/gate session that writes SRS state lives in a page
+// far below it) with no shared store. Whoever mutates broadcasts this window
+// event, and every mounted useVerses() instance re-fetches from storage — so
+// the header badge updates live after a study session, gate review, or
+// schedule edit.
+export const VERSES_UPDATED_EVENT = "bm:verses-updated";
+
 export interface NewVerseInput {
   reference: string;
   text: string;
@@ -31,12 +40,21 @@ export function useVerses() {
     refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    const handleExternalUpdate = () => {
+      refresh();
+    };
+    window.addEventListener(VERSES_UPDATED_EVENT, handleExternalUpdate);
+    return () => window.removeEventListener(VERSES_UPDATED_EVENT, handleExternalUpdate);
+  }, [refresh]);
+
   const createVerse = useCallback(
     async (input: NewVerseInput): Promise<Verse> => {
       const now = new Date().toISOString();
       const verse: Verse = { id: createId(), createdAt: now, updatedAt: now, ...input };
       await storage.saveVerse(verse);
       await refresh();
+      window.dispatchEvent(new Event(VERSES_UPDATED_EVENT));
       return verse;
     },
     [storage, refresh],
@@ -50,6 +68,7 @@ export function useVerses() {
       const updated: Verse = { ...current, ...patch, updatedAt: new Date().toISOString() };
       await storage.saveVerse(updated);
       await refresh();
+      window.dispatchEvent(new Event(VERSES_UPDATED_EVENT));
     },
     [storage, refresh],
   );
@@ -65,6 +84,7 @@ export function useVerses() {
       if (!current) return;
       await storage.saveVerse({ ...current, srsBucket: srs.srsBucket, dueAt: srs.dueAt });
       await refresh();
+      window.dispatchEvent(new Event(VERSES_UPDATED_EVENT));
     },
     [storage, refresh],
   );
@@ -73,6 +93,7 @@ export function useVerses() {
     async (id: string): Promise<void> => {
       await storage.deleteVerse(id);
       await refresh();
+      window.dispatchEvent(new Event(VERSES_UPDATED_EVENT));
     },
     [storage, refresh],
   );

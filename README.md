@@ -72,6 +72,24 @@ review adjusts the bucket by its accuracy, in three bands:
 It **never resets to bucket 0** from a high bucket and never drops below 0, so a
 single stumble on a well-learned verse only nudges it back one step.
 
+**At-a-glance progress.** The **Study** nav tab carries a small badge with the
+number of verses **due for review** right now (learning + reviewing whose time
+has come; new verses aren't counted), and it hides itself when nothing is due.
+The top of the Study Today page shows a compact **progress dashboard** — stat
+tiles for Total / Due / Learning / Reviewing / Mastered plus a slim distribution
+bar of the study pool by phase. Both update live after a study session, gate
+review, or schedule change.
+
+**Per-verse schedule at a glance.** The Library table and each collection's verse
+cards show a compact **Review** indicator per verse — when it's next due (e.g.
+"Due in 3d", "Due now") plus its frequency (e.g. "Every 7d", "Daily", or "New"
+when it hasn't been scheduled yet). Hover for the full phrasing.
+
+**Adjusting a verse's schedule.** A verse's detail page has a **Review schedule**
+card where you can pick its review **frequency** from preset levels (Learning
+daily up to every 30 days) — changing it restarts the schedule from today — and
+**Restart countdown** to reset the days-until-due without changing the frequency.
+
 ### The verse gate
 
 Available only in the extension. When enabled in Settings, the background

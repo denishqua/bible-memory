@@ -2,7 +2,9 @@ import { HashRouter, NavLink, Route, Routes, useLocation } from "react-router-do
 import { StorageProvider } from "./data/storageContext";
 import { ThemeToggle } from "./components/ui/ThemeToggle";
 import { PracticeCountBadge } from "./components/ui/PracticeCountBadge";
+import { DueBadge } from "./components/ui/DueBadge";
 import { useProfile } from "./hooks/useProfile";
+import { useStudyStats } from "./hooks/useStudyStats";
 import { StudyTodayPage } from "./pages/StudyTodayPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { VerseDetailPage } from "./pages/VerseDetailPage";
@@ -25,6 +27,7 @@ function navLinkStyle({ isActive }: { isActive: boolean }): React.CSSProperties 
 
 function AppHeader() {
   const { profile } = useProfile();
+  const { dueCount } = useStudyStats();
 
   return (
     <header
@@ -42,9 +45,12 @@ function AppHeader() {
         <h1 style={{ fontSize: "1.25rem" }}>Bible Memory</h1>
       </NavLink>
       <nav style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
-        <NavLink to="/study" style={navLinkStyle}>
-          Study
-        </NavLink>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+          <NavLink to="/study" style={navLinkStyle}>
+            Study
+          </NavLink>
+          <DueBadge count={dueCount} />
+        </span>
         <NavLink to="/" style={navLinkStyle} end>
           Library
         </NavLink>
