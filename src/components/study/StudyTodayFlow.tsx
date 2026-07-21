@@ -1,24 +1,15 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { renderSession } from "../review/renderSession";
 import { buildVerseReviewTokens } from "../../lib/verseReview";
-import {
-  applyReview,
-  buildStudyQueue,
-  type OnFailBehavior,
-  type StudyItem,
-} from "../../lib/srs";
+import { buildStudyQueue, type StudyItem } from "../../lib/srs";
+import { useSrsAdvance } from "../../hooks/useSrsAdvance";
 import { Button } from "../ui/Button";
 import type { Verse } from "../../types/verse";
-import type { ReviewScope, ReviewSession } from "../../types/review";
+import type { ReviewScope } from "../../types/review";
 
 interface StudyTodayFlowProps {
   verses: Verse[];
-  sessions: ReviewSession[];
-  newPerDay: number;
   poolVerseIds: string[] | null;
-  onFailBehavior: OnFailBehavior;
-  // From useVerses — writes back srsBucket/dueAt without bumping updatedAt.
-  setSrsState: (id: string, srs: { srsBucket: number; dueAt: string }) => Promise<void>;
   onDone?: () => void;
 }
 
@@ -28,22 +19,12 @@ interface StudyTodayFlowProps {
 // the shared renderSession, keyed by verse.id so the session component fully
 // remounts between verses. Unlike RandomReviewFlow there's NO ModePicker — each
 // verse's mode is auto-chosen by the scheduler (item.mode).
-export function StudyTodayFlow({
-  verses,
-  sessions,
-  newPerDay,
-  poolVerseIds,
-  onFailBehavior,
-  setSrsState,
-  onDone,
-}: StudyTodayFlowProps) {
+export function StudyTodayFlow({ verses, poolVerseIds, onDone }: StudyTodayFlowProps) {
   // Snapshot the queue exactly once. `now` is captured inside the initializer so
   // the same instant scopes both the due-check and the interval math for the run.
   const [queue] = useState<StudyItem[]>(() =>
     buildStudyQueue({
       verses,
-      sessions,
-      newPerDay,
       now: new Date().toISOString(),
       poolVerseIds,
     }),
@@ -53,9 +34,8 @@ export function StudyTodayFlow({
   // Hide the reference in the progress line once the player is ~25% through the
   // current verse, so the appended reference can't be read while it's recalled.
   const [hideReference, setHideReference] = useState(false);
-  // Verse ids whose SRS transition has already been applied this session. Retry
-  // can re-fire onComplete, so the transition must run at most once per verse.
-  const processedRef = useRef<Set<string>>(new Set());
+  // Advances the current verse's SRS schedule once per verse (guards Retry).
+  const { advance: advanceSrs } = useSrsAdvance();
 
   const item = queue[index];
   const verse = item?.verse;
@@ -70,19 +50,11 @@ export function StudyTodayFlow({
     [verse],
   );
 
-  const handleComplete = useCallback(
-    (outcome?: { accuracy: number; passed: boolean }) => {
-      if (!verse || !outcome) return;
-      if (processedRef.current.has(verse.id)) return;
-      processedRef.current.add(verse.id);
-      // `passed` drives only the recorded ReviewResult / summary UI (inside
-      // ReviewSession, unchanged). The SRS decision uses the raw accuracy so it
-      // can apply the gracious three-band model with the configured miss policy.
-      const srs = applyReview(verse, outcome.accuracy, new Date().toISOString(), onFailBehavior);
-      void setSrsState(verse.id, srs);
-    },
-    [verse, onFailBehavior, setSrsState],
-  );
+  // Advance the current verse's schedule on completion (useSrsAdvance guards
+  // against Retry re-firing for the same verse).
+  const handleComplete = (outcome?: { accuracy: number; passed: boolean }) => {
+    advanceSrs(verse, outcome);
+  };
 
   if (queue.length === 0) {
     return (

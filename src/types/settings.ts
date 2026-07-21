@@ -60,10 +60,8 @@ export function defaultNewTabGateSettings(): NewTabGateSettings {
 
 // Settings for the "Study Today" spaced-repetition scheduler.
 export interface SchedulerSettings {
-  // Max brand-new verses introduced per day (the daily intake cap).
-  newVersesPerDay: number;
-  // null = draw new/due verses from the whole library; otherwise scope the
-  // study pool to the union of these collections' verses.
+  // null = draw due verses from the whole library; otherwise scope the study
+  // pool to the union of these collections' verses.
   collectionIds: string[] | null;
   // What a Miss (accuracy < FAIL_THRESHOLD) does to a verse's bucket:
   // "demote" eases off one step, "hold" keeps the bucket. Never resets to 0.
@@ -71,7 +69,7 @@ export interface SchedulerSettings {
 }
 
 export function defaultSchedulerSettings(): SchedulerSettings {
-  return { newVersesPerDay: 3, collectionIds: null, onFailBehavior: "demote" };
+  return { collectionIds: null, onFailBehavior: "demote" };
 }
 
 // App-level user settings, persisted as a single object under `bm.settings.v1`

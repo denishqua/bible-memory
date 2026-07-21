@@ -3,22 +3,23 @@ import { useVerses } from "../hooks/useVerses";
 import { useReviewHistory } from "../hooks/useReviewHistory";
 import { useSettings } from "../hooks/useSettings";
 import { useCollections } from "../hooks/useCollections";
-import { computeStudyCounts, summarizePool } from "../lib/srs";
+import { computeVerseScores } from "../lib/verseScore";
+import { buildStudyQueue } from "../lib/srs";
 import { StudyTodayFlow } from "../components/study/StudyTodayFlow";
-import { ProgressDashboard } from "../components/study/ProgressDashboard";
+import { VerseList } from "../components/library/VerseList";
+import { AddToCollectionDialog } from "../components/library/AddToCollectionDialog";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
+import type { Verse } from "../types/verse";
 
 export function StudyTodayPage() {
-  const { verses, loading: versesLoading, setSrsState, refresh: refreshVerses } = useVerses();
+  const { verses, loading: versesLoading, deleteVerse, refresh: refreshVerses } = useVerses();
   const { sessions, loading: sessionsLoading, refresh: refreshSessions } = useReviewHistory();
   const { settings, loading: settingsLoading } = useSettings();
-  const {
-    loading: collectionsLoading,
-    getVerseIdsForCollection,
-  } = useCollections();
+  const { loading: collectionsLoading, getVerseIdsForCollection } = useCollections();
 
   const [started, setStarted] = useState(false);
+  const [addingToCollection, setAddingToCollection] = useState<Verse | null>(null);
 
   const loading = versesLoading || sessionsLoading || settingsLoading || collectionsLoading;
   const scheduler = settings?.scheduler;
@@ -40,27 +41,19 @@ export function StudyTodayPage() {
     return ids;
   }, [scheduler, getVerseIdsForCollection]);
 
-  const counts = useMemo(() => {
-    if (!scheduler) return null;
-    return computeStudyCounts({
-      verses,
-      sessions,
-      newPerDay: scheduler.newVersesPerDay,
-      now: new Date().toISOString(),
-      poolVerseIds,
-    });
-  }, [verses, sessions, scheduler, poolVerseIds]);
+  // The verses due for review right now, most-overdue first — the exact set and
+  // order the "Review all" session plays through (buildStudyQueue).
+  const dueVerses = useMemo(
+    () =>
+      buildStudyQueue({ verses, now: new Date().toISOString(), poolVerseIds }).map(
+        (item) => item.verse,
+      ),
+    [verses, poolVerseIds],
+  );
 
-  // Library-wide phase breakdown for the progress dashboard, derived from the
-  // SAME resolved pool (no extra load) — distinct from `counts`, which is the
-  // daily-capped study queue summary.
-  const poolSummary = useMemo(() => {
-    const poolIds = poolVerseIds === null ? null : new Set(poolVerseIds);
-    const pool = poolIds === null ? verses : verses.filter((v) => poolIds.has(v.id));
-    return summarizePool(pool, new Date());
-  }, [verses, poolVerseIds]);
+  const scores = useMemo(() => computeVerseScores(sessions), [sessions]);
 
-  if (loading || !scheduler || !counts) {
+  if (loading || !scheduler) {
     return (
       <div>
         <h1 style={{ marginBottom: "1.5rem" }}>Study Today</h1>
@@ -69,22 +62,16 @@ export function StudyTodayPage() {
     );
   }
 
-  const total = counts.dueCount + counts.newAvailable + counts.learningCount;
-
   if (started) {
     return (
       <div>
         <h1 style={{ marginBottom: "1.5rem" }}>Study Today</h1>
         <StudyTodayFlow
           verses={verses}
-          sessions={sessions}
-          newPerDay={scheduler.newVersesPerDay}
           poolVerseIds={poolVerseIds}
-          onFailBehavior={scheduler.onFailBehavior}
-          setSrsState={setSrsState}
           onDone={() => {
-            // Reload the underlying data so the landing summary reflects the
-            // verses just reviewed, then return to it.
+            // Reload the underlying data so the due list reflects the verses just
+            // reviewed, then return to it.
             void refreshVerses();
             void refreshSessions();
             setStarted(false);
@@ -96,27 +83,48 @@ export function StudyTodayPage() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: "1.5rem" }}>Study Today</h1>
-      <ProgressDashboard summary={poolSummary} />
-      {total === 0 ? (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "1rem",
+          marginBottom: "1.5rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <h1>Study Today</h1>
+        {dueVerses.length > 0 ? (
+          <Button variant="primary" onClick={() => setStarted(true)}>
+            Review all ({dueVerses.length})
+          </Button>
+        ) : null}
+      </div>
+
+      {dueVerses.length === 0 ? (
         <Card>
           <h2 style={{ fontSize: "1.15rem", marginBottom: "0.4rem" }}>All caught up</h2>
           <p style={{ color: "var(--color-ink-muted)" }}>
-            Nothing is due for review and you've hit today's new-verse limit. Come back later, or
-            add more verses to your library.
+            Nothing is due for review right now. Review a verse from your Library to start
+            learning it — it'll join your schedule and come back here when it's due.
           </p>
         </Card>
       ) : (
-        <Card>
-          <h2 style={{ fontSize: "1.15rem", marginBottom: "0.6rem" }}>Ready to study</h2>
-          <p style={{ color: "var(--color-ink-muted)", marginBottom: "1.1rem", lineHeight: 1.6 }}>
-            {counts.dueCount + counts.learningCount} due · {counts.newAvailable} new to learn today
-          </p>
-          <Button variant="primary" onClick={() => setStarted(true)}>
-            Start
-          </Button>
-        </Card>
+        <VerseList
+          verses={dueVerses}
+          scores={scores}
+          onDelete={deleteVerse}
+          onAddToCollection={(verse) => setAddingToCollection(verse)}
+        />
       )}
+
+      {addingToCollection ? (
+        <AddToCollectionDialog
+          verseId={addingToCollection.id}
+          verseReference={addingToCollection.reference}
+          onClose={() => setAddingToCollection(null)}
+        />
+      ) : null}
     </div>
   );
 }

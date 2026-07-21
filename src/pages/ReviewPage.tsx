@@ -9,6 +9,7 @@ import { buildVerseReviewTokens } from "../lib/verseReview";
 import { ModePicker } from "../components/review/ModePicker";
 import { RandomReviewFlow } from "../components/review/RandomReviewFlow";
 import { renderSession } from "../components/review/renderSession";
+import { useSrsAdvance } from "../hooks/useSrsAdvance";
 import type { Token } from "../lib/tokenize";
 import type { Verse } from "../types/verse";
 import type { ReviewMode, ReviewScope } from "../types/review";
@@ -22,6 +23,9 @@ export function ReviewPage() {
   const { verses, loading: versesLoading } = useVerses();
   const { collections, loading: collectionsLoading, getVerseIdsForCollection } = useCollections();
   const { sessions } = useReviewHistory();
+  // Advances a single verse's SRS schedule when its review completes — this is
+  // how reviewing a verse from the Library first enters it into the rotation.
+  const { advance: advanceSrs } = useSrsAdvance();
   const [mode, setMode] = useState<ReviewMode | null>(null);
   // Set true once the player is ~25% through a single-verse review — from then
   // on we hide the reference from the page chrome (heading + back link) so the
@@ -201,7 +205,7 @@ export function ReviewPage() {
           scope,
           tokens,
           () => setMode(null),
-          undefined,
+          (outcome) => advanceSrs(verse, outcome),
           false,
           undefined,
           setHideReference,

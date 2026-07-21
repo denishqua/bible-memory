@@ -514,25 +514,8 @@ function StudyTodayCard({
   const scheduler = settings.scheduler;
   const { collections } = useCollections();
 
-  // Free-typed numeric field: keep a draft so the user can clear and retype,
-  // committing only a valid whole number >= 0 (0 = introduce no new verses).
-  const [newPerDayDraft, setNewPerDayDraft] = useState(String(scheduler.newVersesPerDay));
-  useEffect(() => {
-    setNewPerDayDraft(String(scheduler.newVersesPerDay));
-  }, [scheduler.newVersesPerDay]);
-
   async function updateScheduler(patch: Partial<SchedulerSettings>) {
     await updateSettings({ ...settings, scheduler: { ...scheduler, ...patch } });
-  }
-
-  function commitNewPerDay() {
-    const parsed = Math.floor(Number(newPerDayDraft));
-    if (newPerDayDraft.trim() === "" || !Number.isFinite(parsed) || parsed < 0) {
-      setNewPerDayDraft(String(scheduler.newVersesPerDay));
-      return;
-    }
-    setNewPerDayDraft(String(parsed));
-    if (parsed !== scheduler.newVersesPerDay) updateScheduler({ newVersesPerDay: parsed });
   }
 
   // null = the whole library. Toggling collections builds an array; clearing the
@@ -551,33 +534,10 @@ function StudyTodayCard({
     <Card>
       <h3 style={sectionTitleStyle}>Study Today</h3>
       <p style={{ ...helperTextStyle, marginBottom: "0.75rem" }}>
-        The daily spaced-repetition queue: verses due for review plus a capped number of new verses
-        to learn, each in an auto-picked mode (Type It → Memorize It → Master It).
+        Your spaced-repetition review queue: verses due for review, each in an auto-picked mode
+        (Type It → Memorize It → Master It). New verses join the schedule when you first review
+        them from the Library.
       </p>
-
-      <div style={gateSubsectionStyle}>
-        <label htmlFor="new-per-day" style={gateLabelStyle}>
-          New verses per day
-        </label>
-        <input
-          id="new-per-day"
-          type="number"
-          min={0}
-          step={1}
-          inputMode="numeric"
-          value={newPerDayDraft}
-          onChange={(e) => setNewPerDayDraft(e.target.value)}
-          onBlur={commitNewPerDay}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-          }}
-          aria-label="New verses to introduce per day"
-          style={{ ...inputStyle, flex: undefined, width: "6rem" }}
-        />
-        <p style={{ ...helperTextStyle, marginTop: "0.5rem" }}>
-          How many never-studied verses to introduce each day. Reviews due are always shown on top.
-        </p>
-      </div>
 
       <div style={gateSubsectionStyle}>
         <span style={gateLabelStyle}>On a miss</span>

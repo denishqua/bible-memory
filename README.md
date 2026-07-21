@@ -46,21 +46,27 @@ modes only (Master It, Verse Defender, Lane Defender).
 
 ### Study Today
 
-A single daily entry point (the **Study** tab) that decides *what to study now*
-using a forgiving [Leitner](https://en.wikipedia.org/wiki/Leitner_system)
-schedule. Each verse carries an SRS **bucket** (0–5); its **phase** and the mode
-it's studied in ramp together:
+A single entry point (the **Study** tab) that shows *what to review now* using a
+forgiving [Leitner](https://en.wikipedia.org/wiki/Leitner_system) schedule. It's
+just one table — every verse **due for review**, most overdue first, shown the
+same way as the Library (reference, preview, translation, score, and a Review
+indicator) — plus a **Review all** button that runs through them one at a time.
+When nothing's due, it simply says you're all caught up.
+
+Each verse carries an SRS **bucket** (0–5); its **phase** and the mode it's
+studied in ramp together:
 
 | Phase | Bucket | Mode | Meaning |
 | --- | --- | --- | --- |
-| **New** | none yet | Type It | Never studied — the day's fresh intake. |
+| **New** | none yet | Type It | Never studied. Not shown here — a verse joins the schedule the first time you review it. |
 | **Learning** | 0 | Memorize It | Started but not solid — always due. |
 | **Reviewing** | 1–5 | Master It | Learned — resurfaces on an expanding schedule. |
 
-The day's queue is: **due reviews** (most overdue first) → **learning** verses →
-up to *N* **new** verses, where *N* is the "new verses per day" cap in Settings
-minus however many you've already started today. You can scope the pool to
-specific collections (default: whole library).
+There's **no daily "new verses" quota**: you decide when to start a new verse by
+reviewing it (from the Library, a collection, or the verse gate). That first
+review drops it into the schedule, and from then on Study Today surfaces it when
+it's due. You can scope the study pool to specific collections in Settings
+(default: whole library).
 
 **Schedule.** Review intervals by bucket are `0, 1, 3, 7, 14, 30` days. Each
 review adjusts the bucket by its accuracy, in three bands:
@@ -72,13 +78,10 @@ review adjusts the bucket by its accuracy, in three bands:
 It **never resets to bucket 0** from a high bucket and never drops below 0, so a
 single stumble on a well-learned verse only nudges it back one step.
 
-**At-a-glance progress.** The **Study** nav tab carries a small badge with the
-number of verses **due for review** right now (learning + reviewing whose time
-has come; new verses aren't counted), and it hides itself when nothing is due.
-The top of the Study Today page shows a compact **progress dashboard** — stat
-tiles for Total / Due / Learning / Reviewing / Mastered plus a slim distribution
-bar of the study pool by phase. Both update live after a study session, gate
-review, or schedule change.
+**Due badge.** The **Study** nav tab carries a small badge with the number of
+verses **due for review** right now (learning + reviewing whose time has come),
+and it hides itself when nothing is due. It updates live after a study session,
+gate review, or schedule change.
 
 **Per-verse schedule at a glance.** The Library table and each collection's verse
 cards show a compact **Review** indicator per verse — when it's next due (e.g.

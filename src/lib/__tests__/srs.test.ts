@@ -5,11 +5,9 @@ import {
   SRS_LEVELS,
   applyReview,
   buildStudyQueue,
-  computeStudyCounts,
   daysUntilDue,
   dueLabel,
   frequencyLabel,
-  introducedTodayCount,
   isDue,
   modeForVerse,
   phaseOf,
@@ -19,7 +17,6 @@ import {
   summarizePool,
 } from "../srs";
 import type { Verse } from "../../types/verse";
-import type { ReviewMode, ReviewScope, ReviewSession } from "../../types/review";
 
 const NOW = "2026-07-20T12:00:00.000Z";
 
@@ -33,23 +30,6 @@ function verse(id: string, srs: { srsBucket?: number; dueAt?: string } = {}): Ve
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...srs,
-  };
-}
-
-let sessionCounter = 0;
-function session(
-  verseId: string,
-  completedAt: string,
-  overrides: { mode?: ReviewMode; scope?: ReviewScope } = {},
-): ReviewSession {
-  sessionCounter += 1;
-  return {
-    id: `s${sessionCounter}`,
-    scope: overrides.scope ?? { type: "verse", verseId },
-    mode: overrides.mode ?? "type-it",
-    result: { type: "accuracy", accuracy: 100, totalKeystrokes: 5, correctKeystrokes: 5, passed: true },
-    startedAt: completedAt,
-    completedAt,
   };
 }
 
@@ -201,28 +181,8 @@ describe("selectDueFirst", () => {
   });
 });
 
-describe("introducedTodayCount", () => {
-  it("counts verses whose earliest session is today, once each", () => {
-    const sessions = [
-      session("a", NOW), // introduced today
-      session("a", daysFromNow(0.1)), // same verse, still one
-      session("b", daysFromNow(-3)), // introduced days ago
-      session("b", NOW), // later review today — doesn't count b as new-today
-      session("c", NOW), // introduced today
-    ];
-    expect(introducedTodayCount(sessions, NOW)).toBe(2); // a and c
-  });
-
-  it("ignores collection/bulk sessions", () => {
-    const sessions = [
-      session("a", NOW, { scope: { type: "collection", collectionId: "c1", verseIds: ["a"] } }),
-    ];
-    expect(introducedTodayCount(sessions, NOW)).toBe(0);
-  });
-});
-
 describe("buildStudyQueue", () => {
-  it("orders due reviews (most overdue first) → learning → new", () => {
+  it("returns due verses most-overdue first, excluding never-studied verses", () => {
     const verses = [
       verse("new1"),
       verse("learn1", { srsBucket: 0, dueAt: NOW }),
@@ -230,58 +190,25 @@ describe("buildStudyQueue", () => {
       verse("rev-old", { srsBucket: 3, dueAt: daysFromNow(-5) }),
       verse("rev-future", { srsBucket: 2, dueAt: daysFromNow(3) }), // not due
     ];
-    const queue = buildStudyQueue({
-      verses,
-      sessions: [],
-      newPerDay: 3,
-      now: NOW,
-      poolVerseIds: null,
-    });
-    expect(queue.map((item) => item.verse.id)).toEqual([
-      "rev-old", // most overdue
-      "rev-soon",
-      "learn1",
-      "new1",
-    ]);
-    // Each item carries the auto-picked mode for its phase.
-    expect(queue.map((item) => item.mode)).toEqual([
-      "master-it",
-      "master-it",
-      "memorize-it",
-      "type-it",
-    ]);
+    const queue = buildStudyQueue({ verses, now: NOW, poolVerseIds: null });
+    // New verses are never surfaced; the rest are ordered most-overdue first.
+    expect(queue.map((item) => item.verse.id)).toEqual(["rev-old", "rev-soon", "learn1"]);
+    expect(queue.map((item) => item.mode)).toEqual(["master-it", "master-it", "memorize-it"]);
   });
 
-  it("caps new verses at newPerDay minus those already introduced today", () => {
-    const verses = [verse("n1"), verse("n2"), verse("n3"), verse("n4")];
-    // Two verses already introduced today → only 1 new slot left (cap 3).
-    const sessions = [session("x", NOW), session("y", NOW)];
-    const queue = buildStudyQueue({ verses, sessions, newPerDay: 3, now: NOW, poolVerseIds: null });
-    expect(queue.map((item) => item.verse.id)).toEqual(["n1"]);
+  it("is empty when nothing is due", () => {
+    const verses = [verse("new1"), verse("rev-future", { srsBucket: 2, dueAt: daysFromNow(3) })];
+    expect(buildStudyQueue({ verses, now: NOW, poolVerseIds: null })).toHaveLength(0);
   });
 
-  it("adds no new verses once the daily cap is already met", () => {
-    const verses = [verse("n1"), verse("n2")];
-    const sessions = [session("x", NOW), session("y", NOW), session("z", NOW)];
-    const queue = buildStudyQueue({ verses, sessions, newPerDay: 3, now: NOW, poolVerseIds: null });
-    expect(queue).toHaveLength(0);
-  });
-
-  it("scopes every category to poolVerseIds when provided", () => {
+  it("scopes the pool to poolVerseIds when provided", () => {
     const verses = [
-      verse("in-new"),
-      verse("out-new"),
       verse("in-due", { srsBucket: 2, dueAt: daysFromNow(-1) }),
       verse("out-due", { srsBucket: 2, dueAt: daysFromNow(-1) }),
+      verse("in-learn", { srsBucket: 0, dueAt: NOW }),
     ];
-    const queue = buildStudyQueue({
-      verses,
-      sessions: [],
-      newPerDay: 5,
-      now: NOW,
-      poolVerseIds: ["in-new", "in-due"],
-    });
-    expect(queue.map((item) => item.verse.id)).toEqual(["in-due", "in-new"]);
+    const queue = buildStudyQueue({ verses, now: NOW, poolVerseIds: ["in-due", "in-learn"] });
+    expect(queue.map((item) => item.verse.id)).toEqual(["in-due", "in-learn"]);
   });
 });
 
@@ -349,45 +276,6 @@ describe("scheduleForBucket", () => {
 
   it("accepts a Date for now", () => {
     expect(scheduleForBucket(2, new Date(NOW))).toEqual({ srsBucket: 2, dueAt: daysFromNow(3) });
-  });
-});
-
-describe("computeStudyCounts", () => {
-  it("summarizes due / new-available / learning consistent with the queue", () => {
-    const verses = [
-      verse("new1"),
-      verse("new2"),
-      verse("learn1", { srsBucket: 0 }),
-      verse("rev-due", { srsBucket: 2, dueAt: daysFromNow(-1) }),
-      verse("rev-future", { srsBucket: 2, dueAt: daysFromNow(2) }),
-    ];
-    const counts = computeStudyCounts({
-      verses,
-      sessions: [],
-      newPerDay: 3,
-      now: NOW,
-      poolVerseIds: null,
-    });
-    expect(counts).toEqual({ dueCount: 1, newAvailable: 2, learningCount: 1 });
-  });
-
-  it("clamps newAvailable to the remaining daily cap", () => {
-    const verses = [verse("n1"), verse("n2"), verse("n3"), verse("n4")];
-    const sessions = [session("x", NOW)]; // 1 introduced today, cap 3 → 2 left
-    const counts = computeStudyCounts({ verses, sessions, newPerDay: 3, now: NOW, poolVerseIds: null });
-    expect(counts.newAvailable).toBe(2);
-  });
-
-  it("respects poolVerseIds scoping", () => {
-    const verses = [verse("a"), verse("b", { srsBucket: 0 })];
-    const counts = computeStudyCounts({
-      verses,
-      sessions: [],
-      newPerDay: 3,
-      now: NOW,
-      poolVerseIds: ["a"],
-    });
-    expect(counts).toEqual({ dueCount: 0, newAvailable: 1, learningCount: 0 });
   });
 });
 

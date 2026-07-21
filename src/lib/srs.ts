@@ -14,7 +14,6 @@
 // Everything here is a pure function taking an explicit `now` so it's fully
 // unit-testable without mocking the clock — the flow/page components stay thin.
 import type { Verse } from "../types/verse";
-import type { ReviewSession } from "../types/review";
 import type { MaskableReviewMode } from "../types/review";
 
 // Leitner intervals in days, indexed by srsBucket (0..5). Bucket 0 is due the
@@ -52,17 +51,8 @@ export interface SrsState {
   dueAt: string;
 }
 
-// Summary shown on the Study Today landing card.
-export interface StudyCounts {
-  dueCount: number;
-  newAvailable: number;
-  learningCount: number;
-}
-
 export interface StudyQueueParams {
   verses: Verse[];
-  sessions: ReviewSession[];
-  newPerDay: number;
   now: string;
   // null = the whole library; otherwise only verses whose id is in this list
   // are considered candidates (scopes the queue to selected collections).
@@ -86,8 +76,9 @@ export function modeForVerse(verse: Verse): MaskableReviewMode {
 }
 
 // "Due" is a review concept: Learning (bucket 0) is always due, Reviewing is due
-// once its dueAt has arrived. New verses are NOT due — they're daily intake,
-// handled separately (and capped) in buildStudyQueue.
+// once its dueAt has arrived. New verses are NOT due — a verse only enters the
+// SRS rotation the first time it's reviewed as a single verse (see applyReview),
+// so buildStudyQueue never surfaces a never-studied verse.
 export function isDue(verse: Verse, now: string): boolean {
   const phase = phaseOf(verse);
   if (phase === "new") return false;
@@ -190,42 +181,6 @@ export function scheduleForBucket(bucket: number, now: string | Date): SrsState 
   return { srsBucket: bucket, dueAt: addDays(iso, INTERVAL_DAYS[bucket]) };
 }
 
-// Same calendar day in local time. Used to count verses first introduced today.
-function isSameDay(a: string, b: string): boolean {
-  const da = new Date(a);
-  const db = new Date(b);
-  return (
-    da.getFullYear() === db.getFullYear() &&
-    da.getMonth() === db.getMonth() &&
-    da.getDate() === db.getDate()
-  );
-}
-
-// The earliest completedAt per verse across single-verse sessions.
-function earliestSessionByVerse(sessions: ReviewSession[]): Map<string, string> {
-  const earliest = new Map<string, string>();
-  for (const session of sessions) {
-    if (session.scope.type !== "verse") continue;
-    const current = earliest.get(session.scope.verseId);
-    if (current === undefined || session.completedAt < current) {
-      earliest.set(session.scope.verseId, session.completedAt);
-    }
-  }
-  return earliest;
-}
-
-// How many verses were introduced (reviewed for the very first time) today —
-// derived purely from history, so the daily new-verse cap can decrement across
-// reloads with no extra storage. A verse counts if its EARLIEST ever session
-// landed on the same calendar day as `now`.
-export function introducedTodayCount(sessions: ReviewSession[], now: string): number {
-  let count = 0;
-  for (const at of earliestSessionByVerse(sessions).values()) {
-    if (isSameDay(at, now)) count += 1;
-  }
-  return count;
-}
-
 function poolFilter(poolVerseIds: string[] | null): (verse: Verse) => boolean {
   if (poolVerseIds === null) return () => true;
   const ids = new Set(poolVerseIds);
@@ -258,31 +213,24 @@ function toItem(verse: Verse): StudyItem {
   return { verse, mode: modeForVerse(verse), phase: phaseOf(verse) };
 }
 
-// The day's ordered study queue, snapshotted once at session start:
-//   1. Due reviews (Reviewing verses whose dueAt has passed), most-overdue first.
-//   2. Learning verses (bucket 0), in the order given.
-//   3. New verses, capped at newPerDay minus the count already introduced today.
-// `poolVerseIds` scopes every category (null = whole library).
+// The ordered study queue, snapshotted once at session start: every DUE verse in
+// the pool (Learning bucket 0 is always due; Reviewing once its dueAt has passed),
+// most-overdue first. Never-studied ("new") verses are excluded — a verse joins
+// the rotation only when it's first reviewed as a single verse (see applyReview).
+// `poolVerseIds` scopes the pool (null = whole library).
 export function buildStudyQueue(params: StudyQueueParams): StudyItem[] {
-  const { verses, sessions, newPerDay, now, poolVerseIds } = params;
-  const pool = verses.filter(poolFilter(poolVerseIds));
-
-  const due = pool
-    .filter((v) => phaseOf(v) === "reviewing" && isDue(v, now))
-    .sort((a, b) => dueTime(a) - dueTime(b));
-  const learning = pool.filter((v) => phaseOf(v) === "learning");
-
-  const remainingNew = Math.max(0, newPerDay - introducedTodayCount(sessions, now));
-  const newVerses = pool.filter((v) => phaseOf(v) === "new").slice(0, remainingNew);
-
-  return [...due, ...learning, ...newVerses].map(toItem);
+  const { verses, now, poolVerseIds } = params;
+  return verses
+    .filter(poolFilter(poolVerseIds))
+    .filter((v) => isDue(v, now))
+    .sort((a, b) => dueTime(a) - dueTime(b))
+    .map(toItem);
 }
 
 // A full breakdown of a verse pool by SRS phase, plus how many are due for
-// review right now. Used by the Study-tab due badge and the Study Today
-// progress dashboard — a library-wide snapshot, distinct from computeStudyCounts
-// (which respects the daily new-verse cap). Buckets: undefined → new, 0 →
-// learning, 1..4 → reviewing, 5 (MAX_BUCKET) → mastered.
+// review right now. Used by the Study-tab due badge, the Study Today landing
+// summary, and the progress dashboard. Buckets: undefined → new, 0 → learning,
+// 1..4 → reviewing, 5 (MAX_BUCKET) → mastered.
 export interface PoolSummary {
   total: number;
   newCount: number;
@@ -321,21 +269,4 @@ export function summarizePool(verses: Verse[], now: string | Date): PoolSummary 
     if (isDue(verse, nowIso)) summary.dueCount += 1;
   }
   return summary;
-}
-
-// The landing-card summary. Consistent with buildStudyQueue: newAvailable is the
-// number of new verses the queue would actually include today (respecting both
-// the remaining daily cap and how many new verses exist in the pool).
-export function computeStudyCounts(params: StudyQueueParams): StudyCounts {
-  const { verses, sessions, newPerDay, now, poolVerseIds } = params;
-  const pool = verses.filter(poolFilter(poolVerseIds));
-
-  const dueCount = pool.filter((v) => phaseOf(v) === "reviewing" && isDue(v, now)).length;
-  const learningCount = pool.filter((v) => phaseOf(v) === "learning").length;
-
-  const remainingNew = Math.max(0, newPerDay - introducedTodayCount(sessions, now));
-  const newInPool = pool.filter((v) => phaseOf(v) === "new").length;
-  const newAvailable = Math.min(remainingNew, newInPool);
-
-  return { dueCount, newAvailable, learningCount };
 }
