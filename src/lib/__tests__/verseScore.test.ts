@@ -43,11 +43,12 @@ describe("computeVerseScore", () => {
     expect(computeVerseScore(sessions, "v1")).toBe(90); // (80+90+100)/3
   });
 
-  it("excludes Type It and Memorize It from the average", () => {
+  it("excludes Type It, Memorize It, and Reference It from the average", () => {
     const sessions = [
       session("v1", "master-it", 60),
       session("v1", "type-it", 100), // ignored
       session("v1", "memorize-it", 100), // ignored
+      session("v1", "reference-it", 100), // ignored
     ];
     expect(computeVerseScore(sessions, "v1")).toBe(60);
   });

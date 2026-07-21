@@ -12,6 +12,7 @@
 // lives in one place; bulk multi-verse review (buildCollectionReviewTokens) has
 // no single reference and is deliberately left untouched.
 import { tokenize, type Token } from "./tokenize";
+import type { ReviewMode } from "../types/review";
 
 // The muted marker shown between the verse and the appended reference so the
 // reader can tell they've moved from recalling the verse to recalling its
@@ -63,8 +64,14 @@ function tokenizeReference(reference: string): Token[] {
 // A blank/whitespace-only reference tokenizes to nothing, in which case the
 // verse stream is returned unchanged (no delimiter, no reference) — a safe
 // no-op so a reference-less verse behaves exactly like plain review.
-export function buildVerseReviewTokens(text: string, reference: string): Token[] {
-  const verseTokens = tokenize(text);
+export function buildVerseReviewTokens(text: string, reference: string, mode?: ReviewMode): Token[] {
+  let verseTokens = tokenize(text);
+  if (mode === "reference-it") {
+    verseTokens = verseTokens.map((token) => {
+      if (token.isLineBreak || token.isVerseNumber) return token;
+      return { ...token, matchable: false, isVerseText: true };
+    });
+  }
   const referenceTokens = tokenizeReference(reference).map((token) => ({ ...token, isReference: true }));
   if (referenceTokens.length === 0) return verseTokens;
   return [

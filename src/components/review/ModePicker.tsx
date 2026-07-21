@@ -28,6 +28,11 @@ export const MODE_OPTIONS: ModeOption[] = [
     description: "The whole verse is hidden. Recall every word from just its first letter.",
   },
   {
+    value: "reference-it",
+    label: "Reference It",
+    description: "See the whole verse. Recall and type only the reference.",
+  },
+  {
     value: "verse-defender",
     label: "Verse Defender",
     description:

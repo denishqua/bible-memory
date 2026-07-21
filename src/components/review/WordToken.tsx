@@ -78,6 +78,21 @@ export const WordToken = memo(function WordToken({ word, isCurrent, isHinted, wh
   }
 
   if (!token.matchable) {
+    if (token.isVerseText) {
+      return (
+        <span
+          style={{
+            display: "inline-block",
+            marginRight: token.attachNext ? 0 : "0.35em",
+            fontFamily: "var(--font-serif)",
+            fontSize: "1.15rem",
+            color: "var(--color-ink)",
+          }}
+        >
+          {token.raw}
+        </span>
+      );
+    }
     // Verse-number markers (and stray punctuation-only tokens) are shown as
     // context only — never masked, never typed (spec-review fix #4).
     return (

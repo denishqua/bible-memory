@@ -363,4 +363,37 @@ describe("useReviewSession", () => {
     expect(result.current.words[0].revealedCount).toBe(0);
     expect(result.current.words[0].attempts).toBe(2);
   });
+
+  it("reference-it mode (first-letter): skips verse text and only requires typing the reference", () => {
+    const tokens = buildVerseReviewTokens("For God so loved", "John 3:16", "reference-it");
+    const { result } = renderHook(() => useReviewSession(tokens, "reference-it", false));
+    // Verse words are non-matchable context; session starts directly on "John"
+    expect(result.current.words[result.current.currentIndex].token.raw).toBe("John");
+
+    // Typing reference letters: 'j' (John), '3' (3), '1' (1), '6' (6)
+    act(() => result.current.handleKeyPress("j"));
+    act(() => result.current.handleKeyPress("3"));
+    act(() => result.current.handleKeyPress("1"));
+    act(() => result.current.handleKeyPress("6"));
+
+    expect(result.current.status).toBe("complete");
+    expect(result.current.accuracy).toBe(100);
+  });
+
+  it("reference-it mode (whole-word): requires typing full reference words and numbers", () => {
+    const tokens = buildVerseReviewTokens("For God so loved", "John 3:16", "reference-it");
+    const { result } = renderHook(() => useReviewSession(tokens, "reference-it", true));
+    expect(result.current.words[result.current.currentIndex].token.raw).toBe("John");
+
+    // Type "John " (whole word)
+    ["j", "o", "h", "n", " "].forEach((c) => act(() => result.current.handleKeyPress(c)));
+
+    // Type digits "3", "1", "6"
+    act(() => result.current.handleKeyPress("3"));
+    act(() => result.current.handleKeyPress("1"));
+    act(() => result.current.handleKeyPress("6"));
+
+    expect(result.current.status).toBe("complete");
+    expect(result.current.accuracy).toBe(100);
+  });
 });

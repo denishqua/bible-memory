@@ -8,6 +8,7 @@ export type Visibility = "full" | "masked";
 export function initialVisibility(mode: MaskableReviewMode, wordIndex: number): Visibility {
   switch (mode) {
     case "type-it":
+    case "reference-it":
       return "full";
     case "memorize-it":
       // Fixed alternating pattern, not randomized.

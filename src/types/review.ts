@@ -3,16 +3,27 @@
 // MaskableReviewMode below). Verse Defender is lives-based (ReviewResult's
 // "lives" branch); Lane Defender scores per-word and reports an "accuracy"
 // result like the typing modes.
-export type ReviewMode = "type-it" | "memorize-it" | "master-it" | "verse-defender" | "lane-defender";
+export type ReviewMode =
+  | "type-it"
+  | "memorize-it"
+  | "master-it"
+  | "reference-it"
+  | "verse-defender"
+  | "lane-defender";
 
 // Alias of ReviewMode used specifically by the masking engine (reviewModes.ts /
 // useReviewSession.ts) so the compiler forces initialVisibility() to handle every
 // case — a mode that isn't mask-based (verse-defender, lane-defender) should NOT
 // be added to this alias, which would surface as a type error anywhere it's required.
-export type MaskableReviewMode = "type-it" | "memorize-it" | "master-it";
+export type MaskableReviewMode = "type-it" | "memorize-it" | "master-it" | "reference-it";
 
 export function isMaskableReviewMode(mode: ReviewMode): mode is MaskableReviewMode {
-  return mode === "type-it" || mode === "memorize-it" || mode === "master-it";
+  return (
+    mode === "type-it" ||
+    mode === "memorize-it" ||
+    mode === "master-it" ||
+    mode === "reference-it"
+  );
 }
 
 export type ReviewScope =

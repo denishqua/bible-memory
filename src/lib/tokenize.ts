@@ -1,19 +1,11 @@
 // Tokenizes already-cleaned verse text into the units the review engine drives
-// off of: words to type, poetry line breaks, and (per spec-review fix #4)
-// verse-number markers kept as non-matchable, display-only context.
+// off of: words to type and poetry line breaks.
 
 export interface Token {
   raw: string; // original substring incl. punctuation, for display
-  matchable: boolean; // false for punctuation-only/whitespace tokens, line breaks, and verse-number markers
+  matchable: boolean; // false for punctuation-only/whitespace tokens and line breaks
   normalized: string; // lowercased, punctuation-stripped except internal hyphen/apostrophe
   isLineBreak?: boolean; // poetry line break, never typed
-  // Not part of the plan's original 4-field Token shape, but a cheap, additive
-  // marker so a later UI phase can render verse-number tokens distinctly (e.g.
-  // superscript) instead of re-deriving "is this a verse number" from `raw` via
-  // regex again. Never used for skip logic — `matchable === false` already
-  // covers that uniformly for line breaks, verse-number markers, and stray
-  // punctuation-only tokens alike.
-  isVerseNumber?: boolean;
   // Marks tokens that belong to the reference appended after the verse (see
   // buildVerseReviewTokens): both the appended reference WORDS (matchable — the
   // player recalls them) and the subtle delimiter between the verse and the
@@ -34,6 +26,10 @@ export interface Token {
   // tokens (1, 6, 2, 3) yet still displays as "16:2-3", not "1 6 : 2 - 3".
   // Set only by the reference tokenizer.
   attachNext?: boolean;
+  isVerseNumber?: boolean;
+  // Marks tokens belonging to the verse body in reference-it mode, where verse words
+  // are non-matchable context displayed in normal text styling.
+  isVerseText?: boolean;
 }
 
 // Convention assumed for verse-number markers in the *input* to tokenize():

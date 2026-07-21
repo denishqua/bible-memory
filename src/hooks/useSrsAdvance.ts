@@ -3,11 +3,12 @@ import { useVerses } from "./useVerses";
 import { useSettings } from "./useSettings";
 import { applyReview } from "../lib/srs";
 import type { Verse } from "../types/verse";
+import type { ReviewMode } from "../types/review";
 
 // Shared "advance a verse's SRS schedule once per verse" handler, factored out of
 // the gate/study/review flows so they don't each re-implement it. Returns a
 // handler that:
-//   - no-ops when there's no outcome or verse (nothing to schedule),
+//   - no-ops when there's no outcome or verse (nothing to schedule), or when mode is reference-it,
 //   - guards against repeats via a useRef<Set> keyed by verse id, so a Retry that
 //     re-fires onComplete for the same verse advances the schedule at most once
 //     within a mounted flow,
@@ -26,8 +27,13 @@ export function useSrsAdvance() {
   const processedRef = useRef<Set<string>>(new Set());
 
   const advance = useCallback(
-    (verse: Verse | null | undefined, outcome?: { accuracy: number; passed: boolean }) => {
+    (
+      verse: Verse | null | undefined,
+      outcome?: { accuracy: number; passed: boolean },
+      mode?: ReviewMode,
+    ) => {
       if (!outcome || !verse) return;
+      if (mode === "reference-it") return;
       if (processedRef.current.has(verse.id)) return;
       processedRef.current.add(verse.id);
       // `passed` drives only the recorded ReviewResult / summary UI (owned by the

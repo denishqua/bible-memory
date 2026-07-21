@@ -84,12 +84,12 @@ export function ReviewPage() {
       // Single-verse review appends the reference to the token stream so it's
       // recalled inline as part of the same session (buildVerseReviewTokens).
       return {
-        tokens: buildVerseReviewTokens(verse.text, verse.reference),
+        tokens: buildVerseReviewTokens(verse.text, verse.reference, mode ?? undefined),
         scope: { type: "verse", verseId: verse.id },
       };
     }
     return { tokens: [], scope: null };
-  }, [collectionId, selectedCollectionVerses, verse]);
+  }, [collectionId, selectedCollectionVerses, verse, mode]);
 
   if (loading) {
     return <p style={{ color: "var(--color-ink-muted)" }}>Loading…</p>;
@@ -187,13 +187,21 @@ export function ReviewPage() {
           fontSize: "0.9rem",
         }}
       >
-        {hideReference ? "← Back" : `← Back to ${verse.reference}`}
+        {hideReference || mode === "reference-it" ? "← Back" : `← Back to ${verse.reference}`}
       </Link>
-      {!hideReference && (
+      {!hideReference && mode !== "reference-it" && (
         <div style={{ marginBottom: "1.25rem" }}>
           <h1 style={{ marginBottom: "0.15rem" }}>{verse.reference}</h1>
           <p style={{ color: "var(--color-ink-muted)", fontSize: "0.85rem" }}>
             Score: {computeVerseScore(sessions, verse.id)}
+          </p>
+        </div>
+      )}
+      {mode === "reference-it" && (
+        <div style={{ marginBottom: "1.25rem" }}>
+          <h1 style={{ marginBottom: "0.15rem" }}>Reference Review</h1>
+          <p style={{ color: "var(--color-ink-muted)", fontSize: "0.85rem" }}>
+            Read the verse below and recall its reference.
           </p>
         </div>
       )}
@@ -205,7 +213,7 @@ export function ReviewPage() {
           scope,
           tokens,
           () => setMode(null),
-          (outcome) => advanceSrs(verse, outcome),
+          (outcome) => advanceSrs(verse, outcome, mode),
           false,
           undefined,
           setHideReference,

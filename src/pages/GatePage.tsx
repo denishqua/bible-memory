@@ -136,8 +136,11 @@ export function GatePage() {
   const currentVerse = currentVerseId ? pool.find((v) => v.id === currentVerseId) : undefined;
 
   const tokens = useMemo(
-    () => (currentVerse ? buildVerseReviewTokens(currentVerse.text, currentVerse.reference) : []),
-    [currentVerse],
+    () =>
+      currentVerse
+        ? buildVerseReviewTokens(currentVerse.text, currentVerse.reference, gate?.mode)
+        : [],
+    [currentVerse, gate?.mode],
   );
   const scope: ReviewScope | null = currentVerse
     ? { type: "verse", verseId: currentVerse.id }
@@ -167,6 +170,7 @@ export function GatePage() {
       // path stays untouched (it lives inside the session component). Fire the
       // write async — Proceed doesn't wait on it.
       if (!outcome || !currentVerse) return;
+      if (gate?.mode === "reference-it") return;
       if (processedRef.current.has(currentVerse.id)) return;
       processedRef.current.add(currentVerse.id);
       const srs = applyReview(
@@ -177,7 +181,7 @@ export function GatePage() {
       );
       void setSrsState(currentVerse.id, srs);
     },
-    [currentVerse, settings, setSrsState],
+    [currentVerse, gate?.mode, settings, setSrsState],
   );
 
   const handleProceed = useCallback(() => {
@@ -287,7 +291,7 @@ export function GatePage() {
         }}
       >
         <span style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>
-          {hideReference ? "" : currentVerse.reference}
+          {hideReference || gate.mode === "reference-it" ? "" : currentVerse.reference}
         </span>
         <Button variant="ghost" onClick={handleSkip} disabled={pool.length < 2}>
           Skip verse →

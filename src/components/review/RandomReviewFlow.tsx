@@ -49,8 +49,8 @@ export function RandomReviewFlow({ collection, verses }: RandomReviewFlowProps) 
   const isLast = index >= shuffledIds.length - 1;
 
   const tokens = useMemo(
-    () => (verse ? buildVerseReviewTokens(verse.text, verse.reference) : []),
-    [verse],
+    () => (verse && mode ? buildVerseReviewTokens(verse.text, verse.reference, mode) : []),
+    [verse, mode],
   );
   const scope = useMemo<ReviewScope | null>(
     () => (verse ? { type: "verse", verseId: verse.id } : null),
@@ -96,7 +96,7 @@ export function RandomReviewFlow({ collection, verses }: RandomReviewFlowProps) 
     <div>
       <p style={{ color: "var(--color-ink-muted)", marginBottom: "1rem", fontSize: "0.95rem" }}>
         Verse {index + 1} of {shuffledIds.length}
-        {verse && !hideReference ? ` — ${verse.reference}` : ""}
+        {verse && !hideReference && mode !== "reference-it" ? ` — ${verse.reference}` : ""}
       </p>
       {verse && scope ? (
         // Keyed by verseId so the session component fully unmounts/remounts

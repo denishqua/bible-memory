@@ -90,6 +90,20 @@ describe("buildVerseReviewTokens", () => {
     expect(tokens.map((t) => t.raw)).toEqual(["For", "God"]);
     expect(tokens.some((t) => t.isReference)).toBe(false);
   });
+
+  it("marks verse tokens as non-matchable verse text when mode is reference-it", () => {
+    const tokens = buildVerseReviewTokens("For God", "John 3:16", "reference-it");
+    const forToken = tokens.find((t) => t.raw === "For")!;
+    const godToken = tokens.find((t) => t.raw === "God")!;
+    expect(forToken.matchable).toBe(false);
+    expect(forToken.isVerseText).toBe(true);
+    expect(godToken.matchable).toBe(false);
+    expect(godToken.isVerseText).toBe(true);
+
+    const johnToken = tokens.find((t) => t.raw === "John")!;
+    expect(johnToken.matchable).toBe(true);
+    expect(johnToken.isReference).toBe(true);
+  });
 });
 
 describe("mergeReferenceNumbers (arcade targets)", () => {
