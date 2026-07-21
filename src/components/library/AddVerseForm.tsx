@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type KeyboardEvent } from "react";
 import { Button } from "../ui/Button";
+import { CollectionSelector } from "./CollectionSelector";
 import type { NewVerseInput, Verse } from "../../types/verse";
-import type { Collection } from "../../types/collection";
 import { useCollections } from "../../hooks/useCollections";
 import { fetchEsvPassage, EsvApiError } from "../../lib/esvApi";
 import { cleanEsvText } from "../../lib/verseTextCleanup";
@@ -55,7 +55,6 @@ export function AddVerseForm({
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<Set<string>>(
     () => new Set(initialCollectionIds ?? []),
   );
-  const [newCollectionName, setNewCollectionName] = useState("");
   const [creatingCollection, setCreatingCollection] = useState(false);
 
   const [looking, setLooking] = useState(false);
@@ -120,14 +119,12 @@ export function AddVerseForm({
     });
   }
 
-  async function handleCreateCollection() {
-    const name = newCollectionName.trim();
-    if (!name || creatingCollection) return;
+  async function handleCreateCollection(name: string) {
+    if (creatingCollection) return;
     setCreatingCollection(true);
     try {
       const collection = await createCollection(name);
       setSelectedCollectionIds((prev) => new Set(prev).add(collection.id));
-      setNewCollectionName("");
     } finally {
       setCreatingCollection(false);
     }
@@ -217,66 +214,15 @@ export function AddVerseForm({
           style={{ ...inputStyle, maxWidth: "10rem" }}
         />
       </div>
-      <div>
-        <label style={labelStyle}>
-          Collections <span style={{ opacity: 0.7 }}>(optional)</span>
-        </label>
-        {collections.length > 0 ? (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.4rem",
-              marginBottom: "0.6rem",
-              maxHeight: "10rem",
-              overflowY: "auto",
-            }}
-          >
-            {collections.map((collection: Collection) => (
-              <label
-                key={collection.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: "pointer",
-                  fontSize: "0.95rem",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedCollectionIds.has(collection.id)}
-                  onChange={() => toggleCollection(collection.id)}
-                />
-                {collection.name}
-              </label>
-            ))}
-          </div>
-        ) : null}
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <input
-            type="text"
-            value={newCollectionName}
-            onChange={(e) => setNewCollectionName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleCreateCollection();
-              }
-            }}
-            placeholder="New collection name"
-            style={{ ...inputStyle, flex: 1 }}
-          />
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={handleCreateCollection}
-            disabled={!newCollectionName.trim() || creatingCollection}
-          >
-            {creatingCollection ? "Creating…" : "Create"}
-          </Button>
-        </div>
-      </div>
+      <CollectionSelector
+        collections={collections}
+        selectedCollectionIds={selectedCollectionIds}
+        onToggleCollection={toggleCollection}
+        onCreateCollection={handleCreateCollection}
+        creating={creatingCollection}
+        inputStyle={inputStyle}
+        labelStyle={labelStyle}
+      />
       <div style={{ display: "flex", gap: "0.5rem" }}>
         <Button type="submit" variant="primary" disabled={!canSubmit}>
           {submitting ? "Saving…" : (submitLabel ?? "Save Verse")}

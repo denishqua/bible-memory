@@ -60,6 +60,16 @@ function normalizeWord(raw: string): string {
   return raw.toLowerCase().replace(KEEP_IN_WORD_RE, "").replace(EDGE_TRIM_RE, "");
 }
 
+// A between-verse reference marker: the non-matchable, display-only
+// "— John 3:16 —" token spliced between verses in a bulk (collection) review.
+// Distinguished from a line break or a verse-number marker (also non-matchable
+// but not verse boundaries), and from the single-verse reference delimiter and
+// the reference's own punctuation (both isReference), which share this
+// "non-matchable, non-break, non-number" shape but must NOT open a new verse.
+export function isBetweenVerseReferenceMarker(token: Token): boolean {
+  return !token.matchable && !token.isLineBreak && !token.isVerseNumber && !token.isReference;
+}
+
 export function tokenize(text: string): Token[] {
   const tokens: Token[] = [];
   // Match either a newline (poetry line break) or a run of non-whitespace

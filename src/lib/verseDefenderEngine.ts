@@ -4,10 +4,9 @@
 // pure transition functions here, mirroring how useReviewSession.ts keeps
 // reviewModes.ts/tokenize.ts DOM-free.
 
-import type { Token } from "./tokenize";
+import { isBetweenVerseReferenceMarker, type Token } from "./tokenize";
 import type { ReviewResult } from "../types/review";
 import { countPassageVerses } from "./verseReview";
-import { isPrintableCharacter } from "./keyboard";
 
 /** How long an asteroid takes to fall from deep space to the base. */
 export const DESCENT_DURATION_MS = 6000;
@@ -73,10 +72,6 @@ export function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-export function getDescentProgress(elapsedMs: number): number {
-  return clamp01(elapsedMs / DESCENT_DURATION_MS);
-}
-
 export function getDescentPhase(progress: number): DescentPhase {
   if (progress < 0.4) return "deep-space";
   if (progress < 0.8) return "orbital-entry";
@@ -106,21 +101,18 @@ export function maskedGlyphs(normalized: string, revealedCount: number): string 
     .join("");
 }
 
-// Named keys that can reach a plain onChange-driven handler but are never a
-// single character to type. Re-exported from keyboard.ts for convenience.
-export { isPrintableCharacter };
-
 /**
  * Reference-marker tokens are the only tokens in a collection stream that are
  * non-matchable but neither line breaks nor verse numbers (see
  * collectionReview.ts — "— Romans 8:28 —" spliced between verses).
  */
 function isReferenceMarker(token: Token): boolean {
-  // `!token.isReference` excludes the single-verse reference delimiter: it has
-  // this same non-matchable shape but must NOT open a new verse (which would
-  // inflate the shield pool). The appended reference WORDS are matchable and
-  // simply join the destroy queue as ordinary targets.
-  return !token.matchable && !token.isLineBreak && !token.isVerseNumber && !token.isReference;
+  // The `!token.isReference` clause (inside the shared predicate) excludes the
+  // single-verse reference delimiter: it has this same non-matchable shape but
+  // must NOT open a new verse (which would inflate the shield pool). The
+  // appended reference WORDS are matchable and simply join the destroy queue as
+  // ordinary targets.
+  return isBetweenVerseReferenceMarker(token);
 }
 
 export function createInitialState(tokens: Token[], isCollection: boolean): VerseDefenderState {

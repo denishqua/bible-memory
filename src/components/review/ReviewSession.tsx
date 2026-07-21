@@ -1,17 +1,16 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { perVerseAccuracy, useReviewSession } from "../../hooks/useReviewSession";
-import { useStorage } from "../../data/storageContext";
-import { useProfile } from "../../hooks/useProfile";
 import { useSettings } from "../../hooks/useSettings";
+import { useSessionFinalizer } from "../../hooks/useSessionFinalizer";
+import { useHideReference } from "../../hooks/useHideReference";
 import {
-  type ReviewSession as ReviewSessionRecord,
+  type ReviewResult,
   type ReviewScope,
   type MaskableReviewMode,
 } from "../../types/review";
-import { createId } from "../../data/ids";
 import type { Token } from "../../lib/tokenize";
-import { shouldHideReference } from "../../lib/verseReview";
 import { Button } from "../ui/Button";
+import { HiddenTypingInput } from "../ui/HiddenTypingInput";
 import { WordToken } from "./WordToken";
 import { SessionSummary } from "./SessionSummary";
 
@@ -51,9 +50,6 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
     mode,
     requireWholeWord,
   );
-  const storage = useStorage();
-  const { profile, updateProfile } = useProfile();
-
   // Bulk review shows an INDIVIDUAL live percentage per verse instead of one
   // overall number. Only when there's genuinely more than one verse — a
   // single-verse collection behaves exactly like single-verse review.
@@ -65,25 +61,36 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
   const segments = isBulk ? perVerseAccuracy(words) : [];
   const verseLabel = (i: number) => verseReferences?.[i] ?? `Verse ${i + 1}`;
   // Which verse the cursor currently sits in: the last segment whose token span
-  // has started at or before currentIndex. At completion currentIndex runs past
-  // the end, so this naturally lands on the final verse.
-  let currentVerse = 0;
-  for (let i = 0; i < segments.length; i++) {
-    if (segments[i].startIndex <= currentIndex) currentVerse = i;
-    else break;
-  }
+  // has started at or before currentIndex (segments are ordered by startIndex).
+  // At completion currentIndex runs past the end, so this naturally lands on the
+  // final verse; falls back to 0 when no segment qualifies (single-verse path,
+  // where segments is empty).
+  const currentVerse = Math.max(
+    0,
+    segments.findLastIndex((s) => s.startIndex <= currentIndex),
+  );
 
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Guards the append-session/practice-count effect below so it fires exactly
-  // once per completed session, not once per re-render while status stays
-  // "complete". Reset alongside the hook's own reset() on Retry.
-  const finalizedRef = useRef(false);
-  // Separate once-per-completion latch for the optional onComplete callback —
-  // unlike the finalize effect it must NOT wait on profile, so it can't share
-  // finalizedRef. Reset alongside it on Retry.
-  const completeNotifiedRef = useRef(false);
-  const startedAtRef = useRef(new Date().toISOString());
+
+  // The finalize/notify/retry plumbing (once-per-completion onComplete, the
+  // wait-for-profile history write + practice-count bump, and the retry reset)
+  // lives in useSessionFinalizer. It rebuilds the same "accuracy" ReviewResult
+  // this component reports: clean words (no wrong keystroke) over total
+  // matchable words, matching the displayed percentage.
+  const isComplete = status === "complete";
+  const passed = accuracy >= PASS_THRESHOLD;
+  const matchableWords = words.filter((w) => w.token.matchable);
+  const result: ReviewResult | null = isComplete
+    ? {
+        type: "accuracy",
+        accuracy,
+        totalKeystrokes: matchableWords.length,
+        correctKeystrokes: matchableWords.filter((w) => w.attempts === 0).length,
+        passed,
+      }
+    : null;
+  useSessionFinalizer({ isComplete, scope, mode, result, onComplete });
 
   // Hint is pure UI-layer state: which word index has its full text revealed
   // in the ghost style. Never touches the engine — accuracy/keystroke counting
@@ -97,13 +104,7 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
   const verseMatchable = words.filter((w) => w.token.matchable && !w.token.isReference);
   const completedVerseWords = verseMatchable.filter((w) => w.completed).length;
   const hasReference = words.some((w) => w.token.isReference);
-  const hideReference =
-    hasReference && shouldHideReference(verseMatchable.length, completedVerseWords);
-
-  useEffect(() => {
-    onHideReference?.(hideReference);
-    return () => onHideReference?.(false);
-  }, [hideReference, onHideReference]);
+  useHideReference(completedVerseWords, verseMatchable.length, hasReference, onHideReference);
 
   // Auto-clear the hint once the player advances past the hinted word.
   useEffect(() => {
@@ -149,54 +150,9 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
       topInView - container.clientHeight / 2 + elRect.height / 2;
   }, [currentIndex]);
 
-  useEffect(() => {
-    if (status !== "complete" || completeNotifiedRef.current) return;
-    completeNotifiedRef.current = true;
-    onComplete?.({ accuracy, passed: accuracy >= PASS_THRESHOLD });
-  }, [status, onComplete, accuracy]);
-
-  useEffect(() => {
-    if (status !== "complete" || finalizedRef.current) return;
-    // Wait for the profile to have loaded before finalizing — we read
-    // profile.versesPracticed to increment it, and appending only *after*
-    // profile is available means we never silently skip the bump just because
-    // useProfile's fetch hadn't resolved yet when the last keystroke landed.
-    if (!profile) return;
-    finalizedRef.current = true;
-
-    // Store the word-based tallies behind accuracy: clean words (no wrong
-    // keystroke) over total matchable words, matching the displayed percentage.
-    const matchableWords = words.filter((w) => w.token.matchable);
-    const totalKeystrokes = matchableWords.length;
-    const correctKeystrokes = matchableWords.filter((w) => w.attempts === 0).length;
-    const passed = accuracy >= PASS_THRESHOLD;
-
-    const session: ReviewSessionRecord = {
-      id: createId(),
-      scope,
-      mode,
-      result: { type: "accuracy", accuracy, totalKeystrokes, correctKeystrokes, passed },
-      startedAt: startedAtRef.current,
-      completedAt: new Date().toISOString(),
-    };
-
-    void (async () => {
-      // Logged unconditionally — pass or fail, history should reflect every
-      // attempt. Every finished session (this whole bulk review is ONE
-      // session) bumps the cumulative practice count by exactly 1.
-      // recordLiveReview both logs history and restarts the verse gate's
-      // browsing cooldown (a live completion, not an import).
-      await storage.recordLiveReview(session);
-      await updateProfile({ ...profile, versesPracticed: profile.versesPracticed + 1 });
-    })();
-  }, [status, profile, words, accuracy, mode, scope, storage, updateProfile]);
-
   const handleRetry = useCallback(() => {
     reset();
     setHintedIndex(null);
-    finalizedRef.current = false;
-    completeNotifiedRef.current = false;
-    startedAtRef.current = new Date().toISOString();
   }, [reset]);
 
   const handleHint = useCallback(() => {
@@ -205,59 +161,27 @@ export function ReviewSession({ scope, tokens, mode, onChangeMode, onComplete, e
     inputRef.current?.focus({ preventScroll: true });
   }, [currentIndex]);
 
-  const handleInputChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const typed = event.target.value;
-      // The input is always driven back to "" (controlled), so every
-      // character present here was typed since the last change — process
-      // each in order rather than assuming only one arrived.
-      for (const char of typed) {
-        handleKeyPress(char);
-      }
-    },
-    [handleKeyPress],
-  );
-
   return (
     <div>
       <div
         style={{ position: "relative", cursor: "text" }}
         onClick={() => inputRef.current?.focus({ preventScroll: true })}
       >
-        {/* Visually hidden but focused/focusable input — drives handleKeyPress
-            from onChange rather than a bare document keydown listener, so
-            mobile virtual keyboards actually work (spec-review fix #5).
+        {/* Visually hidden but focused/focusable input (spec-review fix #5).
             It overlays only the visible (max-height) words viewport, not the
             full scrolled content — pointerEvents: "none" lets clicks and
             wheel scrolling pass through to the scroll container below, while
             the wrapper's onClick handles focusing. */}
-        <input
-          ref={inputRef}
-          value=""
-          onChange={handleInputChange}
-          aria-label={
+        <HiddenTypingInput
+          inputRef={inputRef}
+          onChar={handleKeyPress}
+          disabled={status === "complete"}
+          ariaLabel={
             requireWholeWord
               ? "Type each word, then press space to advance"
               : "Type the first letter of each word to advance"
           }
-          autoComplete="off"
-          autoCapitalize="off"
-          autoCorrect="off"
-          spellCheck={false}
-          disabled={status === "complete"}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            opacity: 0,
-            border: "none",
-            outline: "none",
-            background: "transparent",
-            caretColor: "transparent",
-            fontSize: "16px",
-            pointerEvents: "none",
-          }}
+          style={{ pointerEvents: "none" }}
         />
         {/* Scrollable viewport: bulk sessions can render thousands of words,
             so the words scroll inside this container instead of growing the

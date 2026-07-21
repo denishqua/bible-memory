@@ -20,7 +20,6 @@ export const THEME_KEY = "bm.theme.v1";
 export interface StorageDriver {
   get<T>(key: string): Promise<T | null>;
   set<T>(key: string, value: T): Promise<void>;
-  remove(key: string): Promise<void>;
   clearAllKeys(): Promise<void>;
 }
 

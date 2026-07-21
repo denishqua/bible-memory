@@ -1,8 +1,4 @@
-import { FIELD_HEIGHT } from "./AsteroidField";
-
-// Cannon barrel tip sits ~54px above the field bottom (8px inset + 20px mount
-// + 26px barrel — see Cannon.tsx), matching LaserBeam.
-const CANNON_TIP_Y = FIELD_HEIGHT - 54;
+import { CANNON_TIP_Y } from "./AsteroidField";
 
 // How far up the errant bolt travels before fizzling — kept short so it clearly
 // stops well below where an asteroid would be (the visual opposite of a hit).

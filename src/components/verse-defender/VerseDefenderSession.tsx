@@ -1,16 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVerseDefenderSession } from "../../hooks/useVerseDefenderSession";
-import { useStorage } from "../../data/storageContext";
-import { useProfile } from "../../hooks/useProfile";
-import {
-  getDisplayAccuracy,
-  type ReviewScope,
-  type ReviewSession as ReviewSessionRecord,
-} from "../../types/review";
-import { createId } from "../../data/ids";
+import { useSessionFinalizer } from "../../hooks/useSessionFinalizer";
+import { useHideReference } from "../../hooks/useHideReference";
+import { type ReviewScope } from "../../types/review";
 import type { Token } from "../../lib/tokenize";
-import { mergeReferenceNumbers, shouldHideReference } from "../../lib/verseReview";
+import { mergeReferenceNumbers } from "../../lib/verseReview";
 import { Button } from "../ui/Button";
+import { HiddenTypingInput } from "../ui/HiddenTypingInput";
 import { BuiltVerse } from "../review/BuiltVerse";
 import { AsteroidField } from "./AsteroidField";
 import { Asteroid } from "./Asteroid";
@@ -79,19 +75,8 @@ export function VerseDefenderSession({
     handleKeyPress,
     retry,
   } = useVerseDefenderSession(gameTokens, scope.type === "collection");
-  const storage = useStorage();
-  const { profile, updateProfile } = useProfile();
 
   const inputRef = useRef<HTMLInputElement>(null);
-  // Guards the append-session/practice-count effect below so it fires exactly
-  // once per completed session, not once per re-render while status stays
-  // terminal. Reset alongside the hook's own retry() on Retry.
-  const finalizedRef = useRef(false);
-  // Separate once-per-completion latch for the optional onComplete callback —
-  // unlike the finalize effect it must NOT wait on profile, so it can't share
-  // finalizedRef. Reset alongside it on Retry.
-  const completeNotifiedRef = useRef(false);
-  const startedAtRef = useRef(new Date().toISOString());
 
   // Brief cosmetic cannon recoil on every correct hit.
   const [recoiling, setRecoiling] = useState(false);
@@ -108,10 +93,13 @@ export function VerseDefenderSession({
   const [missBolt, setMissBolt] = useState<typeof lastMiss>(null);
 
   const isDone = status === "complete" || status === "failed";
-  // Terminal mission (complete or failed) — this drives onComplete. The
-  // reference is folded into the queue, so a completed mission has already
-  // played it through; a failed one never reaches it (fail-open in the gate).
-  const sessionFullyDone = isDone && result !== null;
+  // Finalize/notify/retry plumbing (once-per-completion onComplete, the
+  // wait-for-profile history write + practice-count bump, and the retry reset)
+  // lives in useSessionFinalizer. The reference is folded into the queue, so a
+  // completed mission has already played it through; a failed one never reaches
+  // it (fail-open in the gate). `result` (a "lives" ReviewResult) is non-null
+  // only once the mission is terminal.
+  useSessionFinalizer({ isComplete: isDone, scope, mode: "verse-defender", result, onComplete });
 
   // Hide the host's reference chrome once ~25% of the VERSE words (excluding the
   // appended reference targets) are destroyed. currentWordIndex counts cleared
@@ -119,13 +107,7 @@ export function VerseDefenderSession({
   // completed-verse-word count for this threshold.
   const verseMatchableCount = gameTokens.filter((t) => t.matchable && !t.isReference).length;
   const hasReference = gameTokens.some((t) => t.isReference);
-  const hideReference =
-    hasReference && shouldHideReference(verseMatchableCount, currentWordIndex);
-
-  useEffect(() => {
-    onHideReference?.(hideReference);
-    return () => onHideReference?.(false);
-  }, [hideReference, onHideReference]);
+  useHideReference(currentWordIndex, verseMatchableCount, hasReference, onHideReference);
 
   // Focus on mount AND whenever play (re)starts. The hidden input is unmounted
   // while an end screen is shown, so a plain mount-only effect (or calling
@@ -161,48 +143,9 @@ export function VerseDefenderSession({
     return () => clearTimeout(timer);
   }, [lastMiss]);
 
-  useEffect(() => {
-    if (!sessionFullyDone || completeNotifiedRef.current) return;
-    completeNotifiedRef.current = true;
-    // `result` is non-null when sessionFullyDone; the guard keeps the type-checker happy.
-    onComplete?.(result ? { accuracy: getDisplayAccuracy(result), passed: result.passed } : undefined);
-  }, [sessionFullyDone, onComplete, result]);
-
-  useEffect(() => {
-    if (result === null || finalizedRef.current) return;
-    // Wait for the profile to have loaded before finalizing — we read
-    // profile.versesPracticed to increment it, and appending only *after*
-    // profile is available means we never silently skip the bump just because
-    // useProfile's fetch hadn't resolved yet when the session ended.
-    if (!profile) return;
-    finalizedRef.current = true;
-
-    const session: ReviewSessionRecord = {
-      id: createId(),
-      scope,
-      mode: "verse-defender",
-      result,
-      startedAt: startedAtRef.current,
-      completedAt: new Date().toISOString(),
-    };
-
-    void (async () => {
-      // Logged unconditionally — mission complete or failed, history should
-      // reflect every attempt. Every finished mission bumps the cumulative
-      // practice count by exactly 1. recordLiveReview both logs history and
-      // restarts the verse gate's browsing cooldown (a live completion, not an
-      // import).
-      await storage.recordLiveReview(session);
-      await updateProfile({ ...profile, versesPracticed: profile.versesPracticed + 1 });
-    })();
-  }, [result, profile, scope, storage, updateProfile]);
-
   const handleRetry = useCallback(() => {
     retry();
     setHintActive(false);
-    finalizedRef.current = false;
-    completeNotifiedRef.current = false;
-    startedAtRef.current = new Date().toISOString();
     inputRef.current?.focus();
   }, [retry]);
 
@@ -211,19 +154,6 @@ export function VerseDefenderSession({
     // Keep the hidden input focused so the very next keystroke still lands.
     inputRef.current?.focus();
   }, []);
-
-  const handleInputChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const typed = event.target.value;
-      // The input is always driven back to "" (controlled), so every
-      // character present here was typed since the last change — process
-      // each in order rather than assuming only one arrived.
-      for (const char of typed) {
-        handleKeyPress(char);
-      }
-    },
-    [handleKeyPress],
-  );
 
   return (
     <div>
@@ -273,33 +203,14 @@ export function VerseDefenderSession({
           style={{ position: "relative", cursor: "text" }}
           onClick={() => inputRef.current?.focus()}
         >
-          {/* Visually hidden but focused/focusable input — drives handleKeyPress
-              from onChange rather than a bare document keydown listener, so
-              mobile virtual keyboards actually work (same idiom as
-              ReviewSession.tsx). Sits above the field; BreachOverlay is
-              pointer-events: none so clicks always land here. */}
-          <input
-            ref={inputRef}
-            value=""
-            onChange={handleInputChange}
-            aria-label="Type the first letter of the falling word to destroy it"
-            autoComplete="off"
-            autoCapitalize="off"
-            autoCorrect="off"
-            spellCheck={false}
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              opacity: 0,
-              border: "none",
-              outline: "none",
-              background: "transparent",
-              caretColor: "transparent",
-              fontSize: "16px",
-              zIndex: 1,
-            }}
+          {/* Visually hidden but focused/focusable input. Sits above the field
+              (zIndex: 1); BreachOverlay is pointer-events: none so clicks
+              always land here. */}
+          <HiddenTypingInput
+            inputRef={inputRef}
+            onChar={handleKeyPress}
+            ariaLabel="Type the first letter of the falling word to destroy it"
+            style={{ zIndex: 1 }}
           />
           <AsteroidField phase={phase}>
             {currentWord !== null && (

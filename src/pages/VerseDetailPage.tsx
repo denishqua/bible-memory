@@ -9,6 +9,7 @@ import { getDisplayAccuracy, type ReviewMode } from "../types/review";
 import { EditVerseForm } from "../components/library/EditVerseForm";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { ConfirmActionButton } from "../components/ui/ConfirmActionButton";
 
 const SCORING_MODE_LABELS: Partial<Record<ReviewMode, string>> = {
   "master-it": "Master It",
@@ -21,7 +22,6 @@ export function VerseDetailPage() {
   const { verses, loading, updateVerse, setSrsState, deleteVerse } = useVerses();
   const { sessions } = useReviewHistory();
   const [isEditing, setIsEditing] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const navigate = useNavigate();
 
   const verse = verses.find((v) => v.id === id);
@@ -106,20 +106,7 @@ export function VerseDetailPage() {
             <Button variant="ghost" onClick={() => setIsEditing(true)}>
               Edit
             </Button>
-            {confirmingDelete ? (
-              <>
-                <Button variant="danger" onClick={handleDelete}>
-                  Confirm Delete
-                </Button>
-                <Button variant="ghost" onClick={() => setConfirmingDelete(false)}>
-                  Cancel
-                </Button>
-              </>
-            ) : (
-              <Button variant="danger" onClick={() => setConfirmingDelete(true)}>
-                Delete
-              </Button>
-            )}
+            <ConfirmActionButton onConfirm={handleDelete} />
           </div>
         </Card>
       )}

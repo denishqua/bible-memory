@@ -10,10 +10,6 @@ class ChromeStorageDriver implements StorageDriver {
     await chrome.storage.local.set({ [key]: value });
   }
 
-  async remove(key: string): Promise<void> {
-    await chrome.storage.local.remove(key);
-  }
-
   async clearAllKeys(): Promise<void> {
     const allKeys = [...Object.values(STORAGE_KEYS), THEME_KEY];
     await chrome.storage.local.remove(allKeys);

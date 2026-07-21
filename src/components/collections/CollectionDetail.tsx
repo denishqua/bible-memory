@@ -5,6 +5,7 @@ import { useVerses } from "../../hooks/useVerses";
 import { useReviewHistory } from "../../hooks/useReviewHistory";
 import { computeVerseScores } from "../../lib/verseScore";
 import { Button } from "../ui/Button";
+import { ConfirmActionButton } from "../ui/ConfirmActionButton";
 import { Card } from "../ui/Card";
 import { Tooltip } from "../ui/Tooltip";
 import { ReviewScheduleBadge } from "../ui/ReviewScheduleBadge";
@@ -18,6 +19,13 @@ interface CollectionDetailProps {
 // mirroring the Library's verse preview.
 function preview(text: string): string {
   return text.replace(/\n+/g, " ").trim();
+}
+
+// True when dropping `from` at insertion point `to` would leave the order
+// unchanged: no active drag, or the target lands in the row's own slot (its
+// index, or just after it).
+function isNoopDrop(from: number | null, to: number | null): boolean {
+  return from === null || to === null || to === from || to === from + 1;
 }
 
 export function CollectionDetail({ collectionId }: CollectionDetailProps) {
@@ -41,12 +49,6 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
   // Inline collection-name editing. `nameDraft` is non-null only while the
   // rename field is open.
   const [nameDraft, setNameDraft] = useState<string | null>(null);
-
-  // Two-step remove confirmation: the id of the verse whose "Remove" button is
-  // awaiting confirmation (null = none), mirroring the delete pattern used by
-  // CollectionCard and the Library's VerseActionsMenu so a stray click can't
-  // silently drop a verse from the collection.
-  const [confirmingRemoveId, setConfirmingRemoveId] = useState<string | null>(null);
 
   // Drag-to-reorder state (HTML5 drag and drop, mouse-first — touch devices
   // don't fire these events; a touch fallback can be layered on later).
@@ -120,13 +122,6 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
     setDropIndex(null);
   };
 
-  // True when dropping at `dropIndex` would leave the order unchanged.
-  const isNoopDrop =
-    dragIndex === null ||
-    dropIndex === null ||
-    dropIndex === dragIndex ||
-    dropIndex === dragIndex + 1;
-
   const handleRowDragStart = (event: DragEvent<HTMLDivElement>, index: number) => {
     // Only drags initiated from the handle are allowed through.
     if (armedIndex !== index) {
@@ -155,7 +150,8 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
     const from = dragIndex;
     const to = dropIndex;
     resetDrag();
-    if (from === null || to === null || to === from || to === from + 1) return;
+    // The null checks also narrow from/to to numbers for the splice below.
+    if (from === null || to === null || isNoopDrop(from, to)) return;
     const nextOrder = collectionVerses.map((v) => v.id);
     const [moved] = nextOrder.splice(from, 1);
     nextOrder.splice(to > from ? to - 1 : to, 0, moved);
@@ -287,7 +283,9 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
             Select all ({selectedVerseIds.length} of {collectionVerses.length} selected)
           </label>
 
-          {collectionVerses.map((verse, index) => (
+          {collectionVerses.map((verse, index) => {
+            const verseScore = scores.get(verse.id);
+            return (
             <Card
               key={verse.id}
               draggable={armedIndex === index}
@@ -307,7 +305,7 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
                 // clay line just outside the row it would land before (or
                 // after the last row) — box-shadow so the layout never jumps.
                 opacity: dragIndex === index ? 0.4 : 1,
-                boxShadow: !isNoopDrop
+                boxShadow: !isNoopDrop(dragIndex, dropIndex)
                   ? dropIndex === index
                     ? "0 -5px 0 -3px var(--color-clay), var(--shadow-soft)"
                     : dropIndex === collectionVerses.length && index === collectionVerses.length - 1
@@ -380,60 +378,40 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
                 </p>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                {(() => {
-                  const verseScore = scores.get(verse.id);
-                  return (
-                    <Tooltip
-                      label={
-                        verseScore
-                          ? `Mastery score (0–100): your average accuracy across ${verseScore.count} recall review${verseScore.count === 1 ? "" : "s"} of this verse — Master It, Verse Defender, and Lane Defender.`
-                          : "Mastery score (0–100): your average recall accuracy for this verse. Review it in Master It, Verse Defender, or Lane Defender to build a score."
-                      }
-                      placement="top"
-                      align="end"
-                      focusable={false}
-                    >
-                      <span
-                        style={{
-                          fontVariantNumeric: "tabular-nums",
-                          fontSize: "0.85rem",
-                          fontWeight: 600,
-                          color: verseScore ? "var(--color-ink)" : "var(--color-ink-muted)",
-                        }}
-                      >
-                        {verseScore?.score ?? 0}
-                      </span>
-                    </Tooltip>
-                  );
-                })()}
+                <Tooltip
+                  label={
+                    verseScore
+                      ? `Mastery score (0–100): your average accuracy across ${verseScore.count} recall review${verseScore.count === 1 ? "" : "s"} of this verse — Master It, Verse Defender, and Lane Defender.`
+                      : "Mastery score (0–100): your average recall accuracy for this verse. Review it in Master It, Verse Defender, or Lane Defender to build a score."
+                  }
+                  placement="top"
+                  align="end"
+                  focusable={false}
+                >
+                  <span
+                    style={{
+                      fontVariantNumeric: "tabular-nums",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      color: verseScore ? "var(--color-ink)" : "var(--color-ink-muted)",
+                    }}
+                  >
+                    {verseScore?.score ?? 0}
+                  </span>
+                </Tooltip>
                 <ReviewScheduleBadge verse={verse} />
                 <Link to={`/review?verseId=${verse.id}`} style={{ textDecoration: "none" }}>
                   <Button variant="ghost">Review</Button>
                 </Link>
-                {confirmingRemoveId === verse.id ? (
-                  <>
-                    <Button
-                      variant="danger"
-                      onClick={() => {
-                        void removeVerseFromCollection(collectionId, verse.id);
-                        setConfirmingRemoveId(null);
-                      }}
-                      title={`Remove ${verse.reference} from this collection`}
-                    >
-                      Confirm Remove
-                    </Button>
-                    <Button variant="ghost" onClick={() => setConfirmingRemoveId(null)}>
-                      Cancel
-                    </Button>
-                  </>
-                ) : (
-                  <Button variant="danger" onClick={() => setConfirmingRemoveId(verse.id)}>
-                    Remove
-                  </Button>
-                )}
+                <ConfirmActionButton
+                  initialLabel="Remove"
+                  confirmLabel="Confirm Remove"
+                  onConfirm={() => void removeVerseFromCollection(collectionId, verse.id)}
+                />
               </div>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

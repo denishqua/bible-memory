@@ -15,10 +15,6 @@ class LocalStorageDriver implements StorageDriver {
     localStorage.setItem(key, JSON.stringify(value));
   }
 
-  async remove(key: string): Promise<void> {
-    localStorage.removeItem(key);
-  }
-
   async clearAllKeys(): Promise<void> {
     for (const key of Object.values(STORAGE_KEYS)) {
       localStorage.removeItem(key);

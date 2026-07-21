@@ -1,8 +1,4 @@
-import { FIELD_HEIGHT, ASTEROID_HEIGHT, CANNON_ZONE_HEIGHT } from "./AsteroidField";
-
-// Cannon barrel tip sits ~54px above the field bottom (8px inset + 20px mount
-// + 26px barrel — see Cannon.tsx).
-const CANNON_TIP_Y = FIELD_HEIGHT - 54;
+import { FIELD_HEIGHT, ASTEROID_HEIGHT, CANNON_ZONE_HEIGHT, CANNON_TIP_Y } from "./AsteroidField";
 
 interface LaserBeamProps {
   /** Descent progress of the asteroid at the moment it was destroyed. */

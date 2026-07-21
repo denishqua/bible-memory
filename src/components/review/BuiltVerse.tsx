@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import type { Token } from "../../lib/tokenize";
+import { isBetweenVerseReferenceMarker, type Token } from "../../lib/tokenize";
 
 interface BuiltVerseProps {
   /** The full original token stream (including line breaks / verse numbers / reference markers). */
@@ -17,7 +17,7 @@ interface BuiltVerseProps {
  */
 function isDivider(token: Token): boolean {
   if (token.isReferenceDelimiter) return true;
-  return !token.matchable && !token.isLineBreak && !token.isVerseNumber && !token.isReference;
+  return isBetweenVerseReferenceMarker(token);
 }
 
 // The verse "rebuilding" itself as the player destroys words in the arcade

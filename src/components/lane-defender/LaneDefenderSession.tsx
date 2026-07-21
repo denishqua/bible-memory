@@ -1,16 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLaneDefenderSession } from "../../hooks/useLaneDefenderSession";
-import { useStorage } from "../../data/storageContext";
-import { useProfile } from "../../hooks/useProfile";
+import { useSessionFinalizer } from "../../hooks/useSessionFinalizer";
+import { useHideReference } from "../../hooks/useHideReference";
 import {
-  type ReviewSession as ReviewSessionRecord,
+  type ReviewResult,
   type ReviewScope,
 } from "../../types/review";
-import { createId } from "../../data/ids";
 import type { Token } from "../../lib/tokenize";
 import { LANE_KEYS } from "../../lib/laneDefenderEngine";
-import { mergeReferenceNumbers, shouldHideReference } from "../../lib/verseReview";
+import { mergeReferenceNumbers } from "../../lib/verseReview";
 import { Button } from "../ui/Button";
+import { HiddenTypingInput } from "../ui/HiddenTypingInput";
 import { BuiltVerse } from "../review/BuiltVerse";
 import { Lane } from "./Lane";
 import { MissionCompleteScreen } from "./MissionCompleteScreen";
@@ -56,19 +56,8 @@ export function LaneDefenderSession({
     handleKey,
     retry,
   } = useLaneDefenderSession(gameTokens);
-  const storage = useStorage();
-  const { profile, updateProfile } = useProfile();
 
   const inputRef = useRef<HTMLInputElement>(null);
-  // Guards the append-session/practice-count effect below so it fires exactly
-  // once per completed session, not once per re-render while status stays
-  // terminal. Reset alongside the hook's own retry() on Retry.
-  const finalizedRef = useRef(false);
-  // Separate once-per-completion latch for the optional onComplete callback —
-  // unlike the finalize effect it must NOT wait on profile, so it can't share
-  // finalizedRef. Reset alongside it on Retry.
-  const completeNotifiedRef = useRef(false);
-  const startedAtRef = useRef(new Date().toISOString());
 
   // Hint is pure UI-layer state: while active, a chip in the header shows the
   // verse's next target word. It never highlights the lane — spotting which
@@ -76,9 +65,24 @@ export function LaneDefenderSession({
   // Never touches the engine — accuracy/lives are unaffected.
   const [hintActive, setHintActive] = useState(false);
 
-  // The run is terminal — drives onComplete. The reference is appended to the
-  // queue, so a completed run has already streamed it through the lanes.
-  const sessionFullyDone = status !== "playing" && !!result;
+  // Finalize/notify/retry plumbing (once-per-completion onComplete, the
+  // wait-for-profile history write + practice-count bump, and the retry reset)
+  // lives in useSessionFinalizer. The reference is appended to the queue, so a
+  // completed run has already streamed it through the lanes. Remap the lane
+  // engine's word-based tallies onto the accuracy result's keystroke fields —
+  // totalWords → totalKeystrokes, cleanWords → correctKeystrokes.
+  const isComplete = status !== "playing";
+  const reviewResult: ReviewResult | null =
+    isComplete && result
+      ? {
+          type: "accuracy",
+          accuracy: result.accuracy,
+          totalKeystrokes: result.totalWords,
+          correctKeystrokes: result.cleanWords,
+          passed: result.passed,
+        }
+      : null;
+  useSessionFinalizer({ isComplete, scope, mode: "lane-defender", result: reviewResult, onComplete });
 
   // Hide the host's reference chrome once ~25% of the VERSE words (excluding the
   // appended reference words) are destroyed. destroyedCount is the in-order
@@ -86,19 +90,13 @@ export function LaneDefenderSession({
   // completed-verse-word count for this threshold.
   const verseMatchableCount = gameTokens.filter((t) => t.matchable && !t.isReference).length;
   const hasReference = gameTokens.some((t) => t.isReference);
-  const hideReference =
-    hasReference && shouldHideReference(verseMatchableCount, destroyedCount);
+  // Tell the host to hide its own reference chrome once the threshold is crossed.
+  useHideReference(destroyedCount, verseMatchableCount, hasReference, onHideReference);
 
   // Auto-clear the hint once the player destroys the hinted target word.
   useEffect(() => {
     setHintActive(false);
   }, [destroyedCount]);
-
-  // Tell the host to hide its own reference chrome once the threshold is crossed.
-  useEffect(() => {
-    onHideReference?.(hideReference);
-    return () => onHideReference?.(false);
-  }, [hideReference, onHideReference]);
 
   // Focus on mount AND whenever a retry flips status back to "playing" — the
   // input is only mounted while playing, so a focus() call inside handleRetry
@@ -107,53 +105,9 @@ export function LaneDefenderSession({
     if (status === "playing") inputRef.current?.focus();
   }, [status]);
 
-  useEffect(() => {
-    if (!sessionFullyDone || completeNotifiedRef.current) return;
-    completeNotifiedRef.current = true;
-    // `result` is non-null when sessionFullyDone; the guard keeps the type-checker happy.
-    onComplete?.(result ? { accuracy: result.accuracy, passed: result.passed } : undefined);
-  }, [sessionFullyDone, onComplete, result]);
-
-  useEffect(() => {
-    if (status === "playing" || finalizedRef.current) return;
-    // Wait for the profile to have loaded before finalizing — we read
-    // profile.versesPracticed to increment it, and appending only *after*
-    // profile is available means we never silently skip the bump just because
-    // useProfile's fetch hadn't resolved yet when the run ended.
-    if (!profile || !result) return;
-    finalizedRef.current = true;
-
-    const session: ReviewSessionRecord = {
-      id: createId(),
-      scope,
-      mode: "lane-defender",
-      result: {
-        type: "accuracy",
-        accuracy: result.accuracy,
-        totalKeystrokes: result.totalWords,
-        correctKeystrokes: result.cleanWords,
-        passed: result.passed,
-      },
-      startedAt: startedAtRef.current,
-      completedAt: new Date().toISOString(),
-    };
-
-    void (async () => {
-      // Logged unconditionally — pass or fail, history should reflect every
-      // attempt. Every finished run bumps the cumulative practice count by
-      // exactly 1. recordLiveReview both logs history and restarts the verse
-      // gate's browsing cooldown (a live completion, not an import).
-      await storage.recordLiveReview(session);
-      await updateProfile({ ...profile, versesPracticed: profile.versesPracticed + 1 });
-    })();
-  }, [status, result, profile, scope, storage, updateProfile]);
-
   const handleRetry = useCallback(() => {
     retry();
     setHintActive(false);
-    finalizedRef.current = false;
-    completeNotifiedRef.current = false;
-    startedAtRef.current = new Date().toISOString();
     // Refocusing the (remounted) input happens in the status effect above.
   }, [retry]);
 
@@ -162,19 +116,6 @@ export function LaneDefenderSession({
     // Keep the hidden input focused so the very next keystroke still lands.
     inputRef.current?.focus();
   }, []);
-
-  const handleInputChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const typed = event.target.value;
-      // The input is always driven back to "" (controlled), so every
-      // character present here was typed since the last change — process
-      // each in order rather than assuming only one arrived.
-      for (const char of typed) {
-        handleKey(char);
-      }
-    },
-    [handleKey],
-  );
 
   return (
     <div>
@@ -230,32 +171,13 @@ export function LaneDefenderSession({
             style={{ position: "relative", cursor: "pointer" }}
             onClick={() => inputRef.current?.focus()}
           >
-            {/* Visually hidden but focused/focusable input — drives handleKey
-                from onChange rather than a bare document keydown listener, so
-                mobile virtual keyboards actually work (same idiom as
-                ReviewSession.tsx). */}
-            <input
-              ref={inputRef}
-              value=""
-              onChange={handleInputChange}
-              aria-label="Press D, F, J, or K to shoot the falling word in that lane"
-              autoComplete="off"
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-              style={{
-                position: "absolute",
-                inset: 0,
-                width: "100%",
-                height: "100%",
-                opacity: 0,
-                border: "none",
-                outline: "none",
-                background: "transparent",
-                caretColor: "transparent",
-                fontSize: "16px",
-                zIndex: 1,
-              }}
+            {/* Visually hidden but focused/focusable input (zIndex: 1, above
+                the lanes). */}
+            <HiddenTypingInput
+              inputRef={inputRef}
+              onChar={handleKey}
+              ariaLabel="Press D, F, J, or K to shoot the falling word in that lane"
+              style={{ zIndex: 1 }}
             />
             <div style={{ display: "flex", gap: "0.6rem", height: "min(420px, 60vh)" }}>
               {lanes.map((word, i) => (

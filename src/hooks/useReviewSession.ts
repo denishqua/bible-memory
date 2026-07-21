@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import type { Token } from "../lib/tokenize";
+import { isBetweenVerseReferenceMarker, type Token } from "../lib/tokenize";
 import { initialVisibility, type Visibility } from "../lib/reviewModes";
 import { calculateAccuracy } from "../lib/accuracy";
 import { isPrintableCharacter } from "../lib/keyboard";
@@ -105,12 +105,12 @@ function liveAccuracy(words: WordRuntimeState[]): number {
 // line break or a verse-number marker, which are also non-matchable but not
 // verse boundaries. (See buildCollectionReviewTokens.)
 function isReferenceMarker(word: WordRuntimeState): boolean {
-  const { token } = word;
-  // `!token.isReference` excludes the single-verse reference delimiter, which
-  // shares this "non-matchable, non-break, non-number" shape but is NOT a
-  // between-verse boundary (bulk review, the only caller of perVerseAccuracy,
-  // never appends a reference — this just keeps the two concepts from colliding).
-  return !token.matchable && !token.isLineBreak && !token.isVerseNumber && !token.isReference;
+  // The shared predicate's `!token.isReference` clause excludes the single-verse
+  // reference delimiter, which shares this "non-matchable, non-break, non-number"
+  // shape but is NOT a between-verse boundary (bulk review, the only caller of
+  // perVerseAccuracy, never appends a reference — this just keeps the two
+  // concepts from colliding).
+  return isBetweenVerseReferenceMarker(word.token);
 }
 
 // Segments a runtime word stream into per-verse groups at reference-marker

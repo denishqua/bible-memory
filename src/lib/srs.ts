@@ -127,13 +127,6 @@ export function applyReview(
 // All pure, taking `now` explicitly (ISO string or Date) so components stay thin
 // and everything is unit-testable without mocking the clock.
 
-// The Leitner interval (in days) for a verse's CURRENT bucket, or null when the
-// verse was never scheduled (undefined bucket → "New").
-export function reviewIntervalDays(verse: Verse): number | null {
-  if (verse.srsBucket === undefined) return null;
-  return INTERVAL_DAYS[verse.srsBucket];
-}
-
 function toMillis(now: string | Date): number {
   return now instanceof Date ? now.getTime() : new Date(now).getTime();
 }

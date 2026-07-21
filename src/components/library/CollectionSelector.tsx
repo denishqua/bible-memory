@@ -7,6 +7,9 @@ export interface CollectionSelectorProps {
   selectedCollectionIds: Set<string>;
   onToggleCollection: (collectionId: string) => void;
   onCreateCollection: (name: string) => Promise<string | void>;
+  // True while a new collection is being created — disables the Create control
+  // and shows a "Creating…" label, matching the forms' original behavior.
+  creating?: boolean;
   inputStyle?: React.CSSProperties;
   labelStyle?: React.CSSProperties;
 }
@@ -16,6 +19,7 @@ export function CollectionSelector({
   selectedCollectionIds,
   onToggleCollection,
   onCreateCollection,
+  creating = false,
   inputStyle,
   labelStyle,
 }: CollectionSelectorProps) {
@@ -23,7 +27,7 @@ export function CollectionSelector({
 
   const handleCreateCollection = async () => {
     const trimmed = newCollectionName.trim();
-    if (!trimmed) return;
+    if (!trimmed || creating) return;
     await onCreateCollection(trimmed);
     setNewCollectionName("");
   };
@@ -83,8 +87,9 @@ export function CollectionSelector({
           type="button"
           variant="secondary"
           onClick={() => void handleCreateCollection()}
+          disabled={!newCollectionName.trim() || creating}
         >
-          Create
+          {creating ? "Creating…" : "Create"}
         </Button>
       </div>
     </div>

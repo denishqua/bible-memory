@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Token } from "../lib/tokenize";
+import { isPrintableCharacter } from "../lib/keyboard";
 import {
   DESCENT_DURATION_MS,
   buildSessionResult,
@@ -7,7 +8,6 @@ import {
   createInitialState,
   getDescentPhase,
   handleKeystroke,
-  isPrintableCharacter,
   registerBreach,
   type DescentPhase,
   type LivesResult,
@@ -39,9 +39,7 @@ export interface UseVerseDefenderSessionResult {
   livesRemaining: number;
   /** Total shield pool for the whole run. */
   maxLives: number;
-  totalKeystrokes: number;
   correctKeystrokes: number;
-  everRanOutOfLives: boolean;
   /** The most recent correct hit — drives the laser/burst effect. */
   lastHit: HitEvent | null;
   /** Most recent wrong keystroke — drives the miss graphic. */
@@ -148,9 +146,7 @@ export function useVerseDefenderSession(
     phase: getDescentPhase(state.status === "breach-paused" ? 1 : progress),
     livesRemaining: Math.max(0, state.livesRemaining),
     maxLives: state.maxLives,
-    totalKeystrokes: state.totalKeystrokes,
     correctKeystrokes: state.correctKeystrokes,
-    everRanOutOfLives: state.everRanOutOfLives,
     lastHit,
     lastMiss,
     result: isDone ? buildSessionResult(state) : null,

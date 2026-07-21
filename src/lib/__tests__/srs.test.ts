@@ -11,7 +11,6 @@ import {
   isDue,
   modeForVerse,
   phaseOf,
-  reviewIntervalDays,
   scheduleForBucket,
   selectDueFirst,
   summarizePool,
@@ -209,15 +208,6 @@ describe("buildStudyQueue", () => {
     ];
     const queue = buildStudyQueue({ verses, now: NOW, poolVerseIds: ["in-due", "in-learn"] });
     expect(queue.map((item) => item.verse.id)).toEqual(["in-due", "in-learn"]);
-  });
-});
-
-describe("reviewIntervalDays", () => {
-  it("returns the current bucket's interval, or null when never scheduled", () => {
-    expect(reviewIntervalDays(verse("v"))).toBeNull(); // undefined bucket
-    expect(reviewIntervalDays(verse("v", { srsBucket: 0 }))).toBe(0);
-    expect(reviewIntervalDays(verse("v", { srsBucket: 3 }))).toBe(7);
-    expect(reviewIntervalDays(verse("v", { srsBucket: MAX_BUCKET }))).toBe(30);
   });
 });
 

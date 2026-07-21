@@ -45,6 +45,12 @@ live accuracy is clean words ÷ total words. The pass threshold is 90%. A
 verse's overall **mastery score** averages your accuracy across the harder
 modes only (Master It, Verse Defender, Lane Defender). Reference It mode lets you practice recalling book, chapter, and verse references while keeping text visible, without affecting SRS schedules or mastery scores.
 
+In a single-verse review, the verse's **reference is also a recall target** —
+it's appended to the end and typed from memory like the rest of the verse. The
+reference shown in the on-screen heading **auto-hides once you're roughly a
+quarter of the way through**, so you can't read it back off the screen while
+recalling it.
+
 ### Study Today
 
 A single entry point (the **Study** tab) that shows *what to review now* using a
@@ -105,8 +111,10 @@ collections or verse subset and runs your configured review mode. The gate **sur
 that are due for review first** (most overdue first), falling back to a random
 verse when nothing is due. Finishing the review (pass *or* fail — it rewards
 engagement) reveals a **Proceed to site** button, and **advances that verse's
-spaced-repetition schedule** just like a Study Today review — for every mode,
-including the two arcade games.
+spaced-repetition schedule** just like a Study Today review — for every mode
+that counts toward the schedule, including the two arcade games. (Reference It
+is practice-only, so completing a Reference It gate never advances the
+schedule.)
 
 **Mastery Filtering.** Gate settings allow turning on a mastery filter (e.g., threshold ≥ 80%), so the gate exclusively quizzes verses that have achieved your target mastery score.
 
@@ -202,6 +210,7 @@ React 19 · react-router-dom 7 (HashRouter) · TypeScript · Vite 8 · Vitest ·
 oxlint. Chrome extension is Manifest V3 (background service worker; no content
 scripts). Styling is inline CSS-variable styles — no CSS framework.
 
-Tests (Vitest + jsdom + Testing Library) cover the review-session engine,
-storage adapter, verse scoring, domain whitelist, tokenizer, and mode
-visibility.
+Tests (Vitest + jsdom + Testing Library) cover the review-session engine, the
+SRS scheduler, the verse + reference review tokenizer, the Verse Defender
+engine, verse sorting, the storage adapter, verse scoring, the domain
+whitelist, the tokenizer, and review-mode visibility.
