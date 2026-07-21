@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "../ui/Button";
 import { useCollections } from "../../hooks/useCollections";
-import type { Verse } from "../../types/verse";
-import type { EditVerseInput } from "../../hooks/useVerses";
+import type { EditVerseInput, Verse } from "../../types/verse";
 
 interface EditVerseFormProps {
   verse: Verse;

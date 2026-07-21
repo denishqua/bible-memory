@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import type { Token } from "../lib/tokenize";
 import { initialVisibility, type Visibility } from "../lib/reviewModes";
 import { calculateAccuracy } from "../lib/accuracy";
+import { isPrintableCharacter } from "../lib/keyboard";
 import type { MaskableReviewMode } from "../types/review";
 
 export interface WordRuntimeState {
@@ -48,34 +49,6 @@ interface InternalState {
 // Tab/Meta, etc. — spec-review fix #1). Anything that survives this AND is
 // exactly one character long is accepted, whatever character it is — including
 // digits and symbols, so a word like "12" is typeable by pressing "1".
-const NON_CHARACTER_KEYS = new Set([
-  "Shift",
-  "Control",
-  "Alt",
-  "Meta",
-  "Enter",
-  "Backspace",
-  "Delete",
-  "Tab",
-  "Escape",
-  "CapsLock",
-  "ArrowUp",
-  "ArrowDown",
-  "ArrowLeft",
-  "ArrowRight",
-  "Home",
-  "End",
-  "PageUp",
-  "PageDown",
-  "Insert",
-]);
-
-function isPrintableCharacter(char: string): boolean {
-  if (NON_CHARACTER_KEYS.has(char)) return false;
-  // The length check is what actually does the work above (every named key is
-  // more than one character); the explicit set just documents intent per spec.
-  return char.length === 1;
-}
 
 function buildInitialWords(tokens: Token[], mode: MaskableReviewMode): WordRuntimeState[] {
   return tokens.map((token, index) => ({

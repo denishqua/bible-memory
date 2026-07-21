@@ -14,6 +14,7 @@
 // or fumbled (wrong-lane press, or the target falling past unshot). The final
 // percentage is cleanWords / totalWords.
 import type { Token } from "./tokenize";
+import { calculateAccuracy } from "./accuracy";
 
 export const LANE_COUNT = 4;
 // Left-to-right key bindings for the 4 lanes.
@@ -135,7 +136,7 @@ function finalizeComplete(state: EngineState): void {
   state.status = "complete";
   const totalWords = state.queue.length;
   const cleanWords = Math.max(0, totalWords - state.wrongPresses - state.droppedTargets);
-  const accuracy = totalWords === 0 ? 100 : Math.round((cleanWords / totalWords) * 100);
+  const accuracy = calculateAccuracy(cleanWords, totalWords);
   state.result = {
     accuracy,
     cleanWords,

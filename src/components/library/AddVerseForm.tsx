@@ -1,8 +1,8 @@
 import { useState, type FormEvent, type KeyboardEvent } from "react";
 import { Button } from "../ui/Button";
-import type { NewVerseInput } from "../../hooks/useVerses";
+import type { NewVerseInput, Verse } from "../../types/verse";
+import type { Collection } from "../../types/collection";
 import { useCollections } from "../../hooks/useCollections";
-import type { Verse } from "../../types/verse";
 import { fetchEsvPassage, EsvApiError } from "../../lib/esvApi";
 import { cleanEsvText } from "../../lib/verseTextCleanup";
 import { useSettings } from "../../hooks/useSettings";
@@ -232,7 +232,7 @@ export function AddVerseForm({
               overflowY: "auto",
             }}
           >
-            {collections.map((collection) => (
+            {collections.map((collection: Collection) => (
               <label
                 key={collection.id}
                 style={{

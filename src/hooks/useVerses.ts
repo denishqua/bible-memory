@@ -1,29 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useStorage } from "../data/storageContext";
 import { createId } from "../data/ids";
-import type { Verse } from "../types/verse";
+import type { EditVerseInput, NewVerseInput, Verse } from "../types/verse";
 
-// Mirrors useProfile / useSettings: multiple components mount their own
-// useVerses() instance (the header's due badge lives for the whole app
-// lifetime, while a study/gate session that writes SRS state lives in a page
-// far below it) with no shared store. Whoever mutates broadcasts this window
-// event, and every mounted useVerses() instance re-fetches from storage — so
-// the header badge updates live after a study session, gate review, or
-// schedule edit.
 export const VERSES_UPDATED_EVENT = "bm:verses-updated";
-
-export interface NewVerseInput {
-  reference: string;
-  text: string;
-  translation: string;
-  source: Verse["source"];
-}
-
-export interface EditVerseInput {
-  reference: string;
-  text: string;
-  translation: string;
-}
 
 export function useVerses() {
   const storage = useStorage();

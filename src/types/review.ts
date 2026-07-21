@@ -64,18 +64,16 @@ export interface ReviewSession {
   completedAt: string;
 }
 
+import { calculateAccuracy } from "../lib/accuracy";
+
 // Shared read-path helper so downstream code (history/summary UI) never
 // branches on `result.type` itself.
 export function getDisplayAccuracy(result: ReviewResult): number {
   if (result.type === "accuracy") return result.accuracy;
   // Word-based accuracy for Verse Defender records that carry word metrics.
   if (result.totalWords !== undefined) {
-    return result.totalWords === 0
-      ? 100
-      : Math.round(((result.correctWords ?? 0) / result.totalWords) * 100);
+    return calculateAccuracy(result.correctWords ?? 0, result.totalWords);
   }
   // Legacy lives records (including old Lane Defender) — keystroke formula.
-  return result.totalKeystrokes === 0
-    ? 100
-    : Math.round((result.correctKeystrokes / result.totalKeystrokes) * 100);
+  return calculateAccuracy(result.correctKeystrokes, result.totalKeystrokes);
 }

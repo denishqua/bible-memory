@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useVerses, type EditVerseInput } from "../hooks/useVerses";
+import { useVerses } from "../hooks/useVerses";
+import type { EditVerseInput } from "../types/verse";
 import { useReviewHistory } from "../hooks/useReviewHistory";
 import { computeVerseScore, verseScoringSessions } from "../lib/verseScore";
 import { SRS_LEVELS, dueLabel, frequencyLabel, scheduleForBucket } from "../lib/srs";

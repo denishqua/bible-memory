@@ -1,5 +1,6 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useVerses, type NewVerseInput } from "../hooks/useVerses";
+import { useVerses } from "../hooks/useVerses";
+import type { NewVerseInput } from "../types/verse";
 import { useCollections } from "../hooks/useCollections";
 import { AddVerseForm } from "../components/library/AddVerseForm";
 

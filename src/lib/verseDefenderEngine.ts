@@ -7,6 +7,7 @@
 import type { Token } from "./tokenize";
 import type { ReviewResult } from "../types/review";
 import { countPassageVerses } from "./verseReview";
+import { isPrintableCharacter } from "./keyboard";
 
 /** How long an asteroid takes to fall from deep space to the base. */
 export const DESCENT_DURATION_MS = 6000;
@@ -106,35 +107,8 @@ export function maskedGlyphs(normalized: string, revealedCount: number): string 
 }
 
 // Named keys that can reach a plain onChange-driven handler but are never a
-// single character to type. The length check below does the real work (every
-// named key is more than one character); the set documents intent — same
-// filtering idea as the mask engine's input path.
-const NON_CHARACTER_KEYS = new Set([
-  "Shift",
-  "Control",
-  "Alt",
-  "Meta",
-  "Enter",
-  "Backspace",
-  "Delete",
-  "Tab",
-  "Escape",
-  "CapsLock",
-  "ArrowUp",
-  "ArrowDown",
-  "ArrowLeft",
-  "ArrowRight",
-  "Home",
-  "End",
-  "PageUp",
-  "PageDown",
-  "Insert",
-]);
-
-export function isPrintableCharacter(char: string): boolean {
-  if (NON_CHARACTER_KEYS.has(char)) return false;
-  return char.length === 1;
-}
+// single character to type. Re-exported from keyboard.ts for convenience.
+export { isPrintableCharacter };
 
 /**
  * Reference-marker tokens are the only tokens in a collection stream that are

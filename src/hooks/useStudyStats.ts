@@ -3,6 +3,7 @@ import { useVerses } from "./useVerses";
 import { useCollections } from "./useCollections";
 import { useSettings } from "./useSettings";
 import { summarizePool, type PoolSummary } from "../lib/srs";
+import { resolveCollectionVerseIds, resolveCollectionVerses } from "../lib/collectionReview";
 
 // Resolves the scheduler's verse pool the SAME way StudyTodayPage does (null /
 // empty collectionIds → whole library; otherwise the deduped union of the
@@ -26,18 +27,8 @@ export function useStudyStats(): StudyStats {
     if (!scheduler || scheduler.collectionIds === null || scheduler.collectionIds.length === 0) {
       return verses;
     }
-    const byId = new Map(verses.map((v) => [v.id, v]));
-    const seen = new Set<string>();
-    const pool: typeof verses = [];
-    for (const collectionId of scheduler.collectionIds) {
-      for (const id of getVerseIdsForCollection(collectionId)) {
-        if (seen.has(id)) continue;
-        seen.add(id);
-        const verse = byId.get(id);
-        if (verse) pool.push(verse);
-      }
-    }
-    return pool;
+    const verseIds = resolveCollectionVerseIds(scheduler.collectionIds, getVerseIdsForCollection);
+    return resolveCollectionVerses(verseIds, verses);
   }, [scheduler, verses, getVerseIdsForCollection]);
 
   const loading = versesLoading || collectionsLoading || settingsLoading;

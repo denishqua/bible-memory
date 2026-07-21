@@ -12,37 +12,38 @@ verses, collections, and settings live in `localStorage` (web) or
 ## Features
 
 - **Verse library** — Add verses manually or look them up via the ESV API
-  (your own key). Each verse tracks a mastery score and per-review history.
-- **Collections** — Group verses into collections, reorder them, and launch
-  reviews over a whole collection, a selected subset, or one random verse.
-- **Five review modes** — from plain typing to arcade games (see below).
+  (your own key). Sort columns by canonical Bible book order (Genesis → Revelation),
+  mastery score, or review schedule. Each verse tracks a mastery score and per-review history.
+- **Collections** — Group verses into collections, reorder them via drag-and-drop,
+  rename inline, and run reviews over a whole collection, a selected subset, or a random verse.
+- **Six review modes** — from plain typing and reference recall to arcade games (see below).
 - **First-letter or whole-word input** — practice by typing just the first
-  letter of each word, or every letter.
+  letter of each word, or typing the full word with a live Hint button.
 - **The verse gate (extension only)** — when enabled, opening a new tab or
   typing a URL in the address bar redirects you to a full-screen verse review.
-  Complete it to proceed. Whitelist domains you don't want gated, and
+  Complete it to proceed. Supports collection pooling, verse-level subsets, and mastery score filtering. Whitelist domains you don't want gated, and
   optionally set a **cooldown** so one review buys you a stretch of gate-free
   browsing.
-- **Starter pack & backups** — one-click import of a starter verse collection,
-  plus full export/import of all your data as JSON.
+- **Backups & data management** — export all your data as a JSON file, import backups additively, or clear all stored data with 2-step confirmation.
 - **Light / dark / system theme.**
 
 ### Review modes
 
-Three mask-based modes (progressively harder) plus two arcade modes:
+Four mask-based active recall modes plus two arcade modes:
 
-| Mode | What it does |
-| --- | --- |
-| **Type It** | Whole verse visible — warm-up / typing practice. |
-| **Memorize It** | Every other word masked. |
-| **Master It** | Every word masked — full recall. |
-| **Verse Defender** | Tower-defense arcade: words descend as asteroids, type the first letter to blast them. Lives-based. |
-| **Lane Defender** | 4-lane (D/F/J/K) rhythm variant, scored on per-word accuracy. |
+| Mode | What it does | SRS Advancement |
+| --- | --- | --- |
+| **Type It** | Whole verse visible — warm-up / typing practice. | Yes |
+| **Memorize It** | Every other word masked. | Yes |
+| **Master It** | Every word masked — full recall practice. | Yes |
+| **Reference It** | Verse text visible; verse reference hidden & prompted. | No (Practice only) |
+| **Verse Defender** | Tower-defense arcade: words descend as asteroids, type the first letter to blast them. | Yes |
+| **Lane Defender** | 4-lane (`D`/`F`/`J`/`K`) rhythm variant, scored on per-word accuracy. | Yes |
 
-Scoring is word-based. A word counts as "clean" if you got it with no misses;
-live accuracy is clean words ÷ engaged words. The pass threshold is 90%. A
+Scoring is word-based. A word counts as "clean" if you typed it with no misses;
+live accuracy is clean words ÷ total words. The pass threshold is 90%. A
 verse's overall **mastery score** averages your accuracy across the harder
-modes only (Master It, Verse Defender, Lane Defender).
+modes only (Master It, Verse Defender, Lane Defender). Reference It mode lets you practice recalling book, chapter, and verse references while keeping text visible, without affecting SRS schedules or mastery scores.
 
 ### Study Today
 
@@ -73,20 +74,18 @@ review adjusts the bucket by its accuracy, in three bands:
 
 - **≥ 90% — advance:** climb one bucket (capped at 5), next review further out.
 - **85–89% — hold:** stay on the current bucket, no penalty.
-- **< 85% — miss:** eases off one bucket (or holds — configurable in Settings).
+- **< 85% — miss:** eases off one bucket (or holds — configurable as "demote" vs "hold" in Settings).
 
 It **never resets to bucket 0** from a high bucket and never drops below 0, so a
 single stumble on a well-learned verse only nudges it back one step.
 
-**Due badge.** The **Study** nav tab carries a small badge with the number of
-verses **due for review** right now (learning + reviewing whose time has come),
-and it hides itself when nothing is due. It updates live after a study session,
-gate review, or schedule change.
+**Due badge & practice counter.** The **Study** nav tab carries a live badge with the number of
+verses **due for review** right now (learning + reviewing whose time has come). The header also displays your cumulative **verses practiced** count (e.g. `⚡ 12`), updating automatically after every completed session.
 
 **Per-verse schedule at a glance.** The Library table and each collection's verse
 cards show a compact **Review** indicator per verse — when it's next due (e.g.
 "Due in 3d", "Due now") plus its frequency (e.g. "Every 7d", "Daily", or "New"
-when it hasn't been scheduled yet). Hover for the full phrasing.
+when it hasn't been scheduled yet).
 
 **Adjusting a verse's schedule.** A verse's detail page has a **Review schedule**
 card where you can pick its review **frequency** from preset levels (Learning
@@ -102,12 +101,14 @@ service worker intercepts:
 - **address-bar** navigations (typed URLs, omnibox searches, chosen bookmarks).
 
 It redirects the tab to a full-screen gate that picks a verse from your chosen
-collections and runs your configured review mode. The gate **surfaces verses
+collections or verse subset and runs your configured review mode. The gate **surfaces verses
 that are due for review first** (most overdue first), falling back to a random
 verse when nothing is due. Finishing the review (pass *or* fail — it rewards
 engagement) reveals a **Proceed to site** button, and **advances that verse's
 spaced-repetition schedule** just like a Study Today review — for every mode,
 including the two arcade games.
+
+**Mastery Filtering.** Gate settings allow turning on a mastery filter (e.g., threshold ≥ 80%), so the gate exclusively quizzes verses that have achieved your target mastery score.
 
 The gate deliberately **fails open**: if it's off, unconfigured, pointed at an
 empty verse set, or the destination is whitelisted, it never blocks you.

@@ -12,7 +12,6 @@ import { CollectionsPage } from "./pages/CollectionsPage";
 import { CollectionDetailPage } from "./pages/CollectionDetailPage";
 import { AddVersePage } from "./pages/AddVersePage";
 import { ReviewPage } from "./pages/ReviewPage";
-import { ImportPage } from "./pages/ImportPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { GatePage } from "./pages/GatePage";
 
@@ -86,7 +85,6 @@ function AppLayout() {
           <Route path="/collections/:id" element={<CollectionDetailPage />} />
           <Route path="/add" element={<AddVersePage />} />
           <Route path="/review" element={<ReviewPage />} />
-          <Route path="/import" element={<ImportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/gate" element={<GatePage />} />
         </Routes>
