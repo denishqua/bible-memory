@@ -36,6 +36,11 @@ export type ReviewResult =
       livesRemaining: number;
       totalKeystrokes: number;
       correctKeystrokes: number;
+      // Word-based score fields (Verse Defender). Optional because old persisted
+      // history records predate them — legacy "lives" records fall back to the
+      // keystroke formula in getDisplayAccuracy, so no migration is needed.
+      correctWords?: number;
+      totalWords?: number;
       passed: boolean;
     };
 
@@ -52,6 +57,13 @@ export interface ReviewSession {
 // branches on `result.type` itself.
 export function getDisplayAccuracy(result: ReviewResult): number {
   if (result.type === "accuracy") return result.accuracy;
+  // Word-based accuracy for Verse Defender records that carry word metrics.
+  if (result.totalWords !== undefined) {
+    return result.totalWords === 0
+      ? 100
+      : Math.round(((result.correctWords ?? 0) / result.totalWords) * 100);
+  }
+  // Legacy lives records (including old Lane Defender) — keystroke formula.
   return result.totalKeystrokes === 0
     ? 100
     : Math.round((result.correctKeystrokes / result.totalKeystrokes) * 100);

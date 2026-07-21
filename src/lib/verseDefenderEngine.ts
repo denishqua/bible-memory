@@ -52,6 +52,15 @@ export interface VerseDefenderState {
   totalKeystrokes: number;
   correctKeystrokes: number;
   /**
+   * True once the current target word has had any wrong keystroke or breach.
+   * Reset to false when the next word begins. A word is only "correct" (counted
+   * toward correctWords) if it was destroyed while still clean — repeated wrong
+   * attempts on the same word keep this true but never double-count.
+   */
+  currentWordDirty: boolean;
+  /** Count of words destroyed while clean (no wrong keystroke, no breach). */
+  correctWords: number;
+  /**
    * Collection scope: set (and never cleared) the first time lives hit 0 on
    * any verse — finishing the marathon after that still records passed: false.
    */
@@ -175,6 +184,8 @@ export function createInitialState(tokens: Token[], isCollection: boolean): Vers
     livesRemaining: maxLives,
     totalKeystrokes: 0,
     correctKeystrokes: 0,
+    currentWordDirty: false,
+    correctWords: 0,
     everRanOutOfLives: false,
     status: queue.length === 0 ? "complete" : "spawning-playing",
   };
@@ -191,6 +202,11 @@ function advanceAfterCorrect(state: VerseDefenderState): VerseDefenderState {
   const counted = {
     totalKeystrokes: state.totalKeystrokes + 1,
     correctKeystrokes: state.correctKeystrokes + 1,
+    // The word just destroyed counts as correct only if it was never dirtied
+    // (no wrong keystroke, no breach) during its descent.
+    correctWords: state.currentWordDirty ? state.correctWords : state.correctWords + 1,
+    // Reset for the next word.
+    currentWordDirty: false,
   };
 
   if (nextIndex >= state.queue.length) {
@@ -223,7 +239,7 @@ export function handleKeystroke(state: VerseDefenderState, char: string): VerseD
     return advanceAfterCorrect(state);
   }
 
-  return { ...state, totalKeystrokes: state.totalKeystrokes + 1 };
+  return { ...state, totalKeystrokes: state.totalKeystrokes + 1, currentWordDirty: true };
 }
 
 /**
@@ -238,13 +254,14 @@ export function registerBreach(state: VerseDefenderState): VerseDefenderState {
   const lives = state.livesRemaining - 1;
 
   if (!state.isCollection && lives <= 0) {
-    return { ...state, livesRemaining: 0, status: "failed" };
+    return { ...state, livesRemaining: 0, currentWordDirty: true, status: "failed" };
   }
 
   const clamped = Math.max(0, lives);
   return {
     ...state,
     livesRemaining: clamped,
+    currentWordDirty: true,
     everRanOutOfLives: state.everRanOutOfLives || clamped === 0,
     status: "breach-paused",
   };
@@ -270,6 +287,8 @@ export function buildSessionResult(state: VerseDefenderState): LivesResult {
     livesRemaining,
     totalKeystrokes: state.totalKeystrokes,
     correctKeystrokes: state.correctKeystrokes,
+    correctWords: state.correctWords,
+    totalWords: state.queue.length,
     passed,
   };
 }
