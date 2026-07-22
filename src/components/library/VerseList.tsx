@@ -139,14 +139,10 @@ const getSegmentBtnStyle = (isActive: boolean, isDanger = false): React.CSSPrope
 function BulkEditDialog({
   selectedVerseIds,
   onClose,
-  collectionId,
-  onRemoveFromCollection,
   verses,
 }: {
   selectedVerseIds: string[];
   onClose: () => void;
-  collectionId?: string;
-  onRemoveFromCollection?: (id: string) => void;
   verses: Verse[];
 }) {
   const {
@@ -155,27 +151,66 @@ function BulkEditDialog({
     createCollection,
     addVerseToCollection,
     removeVerseFromCollection,
+    getCollectionsForVerse,
   } = useCollections();
   const { setSrsState } = useVerses();
 
   const [applying, setApplying] = useState(false);
+  const [creating, setCreating] = useState(false);
 
-  // Collections state
-  const [collectionAction, setCollectionAction] = useState<"none" | "add" | "remove" | "remove-current">("none");
-  const [selectedCollectionId, setSelectedCollectionId] = useState("");
+  // Collections selection states
+  const [selectedCollections, setSelectedCollections] = useState<Set<string>>(new Set());
+  const [dirtyCollections, setDirtyCollections] = useState<Set<string>>(new Set());
+  const [hasInitializedCollections, setHasInitializedCollections] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
 
   // Frequency/Countdown state
   const [frequencyAction, setFrequencyAction] = useState<"none" | "change" | "unschedule">("none");
   const [targetBucket, setTargetBucket] = useState("0");
   const [restartCountdown, setRestartCountdown] = useState(false);
 
+  // Initialize selected collections once loaded
   useEffect(() => {
-    if (collections.length > 0) {
-      setSelectedCollectionId(collections[0].id);
-    }
-  }, [collections]);
+    if (!collectionsLoading && !hasInitializedCollections) {
+      const counts = new Map<string, number>();
+      for (const id of selectedVerseIds) {
+        const memberCols = getCollectionsForVerse(id);
+        for (const col of memberCols) {
+          counts.set(col.id, (counts.get(col.id) || 0) + 1);
+        }
+      }
 
+      const initialSelected = new Set<string>();
+      for (const [colId, count] of counts.entries()) {
+        if (count === selectedVerseIds.length) {
+          initialSelected.add(colId);
+        }
+      }
+
+      setSelectedCollections(initialSelected);
+      setHasInitializedCollections(true);
+    }
+  }, [collectionsLoading, selectedVerseIds, getCollectionsForVerse, hasInitializedCollections]);
+
+  // Handle recently created collection selection
+  useEffect(() => {
+    if (justCreatedId) {
+      setSelectedCollections((prev) => {
+        const next = new Set(prev);
+        next.add(justCreatedId);
+        return next;
+      });
+      setDirtyCollections((prev) => {
+        const next = new Set(prev);
+        next.add(justCreatedId);
+        return next;
+      });
+      setJustCreatedId(null);
+    }
+  }, [justCreatedId]);
+
+  // Escape key listener to close popup
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -186,32 +221,51 @@ function BulkEditDialog({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  const hasRemoveCurrentOption = Boolean(collectionId && onRemoveFromCollection);
+  const handleToggleCollection = (colId: string) => {
+    const nextSelected = new Set(selectedCollections);
+    const nextDirty = new Set(dirtyCollections);
+
+    if (nextSelected.has(colId)) {
+      nextSelected.delete(colId);
+    } else {
+      nextSelected.add(colId);
+    }
+    nextDirty.add(colId);
+
+    setSelectedCollections(nextSelected);
+    setDirtyCollections(nextDirty);
+  };
+
+  async function handleCreateCollectionInline() {
+    const name = newCollectionName.trim();
+    if (!name) return;
+    setCreating(true);
+    try {
+      const col = await createCollection(name);
+      setJustCreatedId(col.id);
+      setNewCollectionName("");
+    } finally {
+      setCreating(false);
+    }
+  }
 
   async function handleApply() {
     setApplying(true);
     try {
       const now = new Date().toISOString();
 
-      // 1. Handle Collections
-      let colId = selectedCollectionId;
-      if (collectionAction === "add" && newCollectionName.trim()) {
-        const newCol = await createCollection(newCollectionName.trim());
-        colId = newCol.id;
-      }
-
-      if (collectionAction === "add" && colId) {
-        await Promise.all(
-          selectedVerseIds.map((id) => addVerseToCollection(colId, id))
-        );
-      } else if (collectionAction === "remove" && colId) {
-        await Promise.all(
-          selectedVerseIds.map((id) => removeVerseFromCollection(colId, id))
-        );
-      } else if (collectionAction === "remove-current" && onRemoveFromCollection) {
-        await Promise.all(
-          selectedVerseIds.map((id) => onRemoveFromCollection(id))
-        );
+      // 1. Handle Collections (Apply dirty changes)
+      for (const colId of dirtyCollections) {
+        const shouldBeMember = selectedCollections.has(colId);
+        if (shouldBeMember) {
+          await Promise.all(
+            selectedVerseIds.map((id) => addVerseToCollection(colId, id))
+          );
+        } else {
+          await Promise.all(
+            selectedVerseIds.map((id) => removeVerseFromCollection(colId, id))
+          );
+        }
       }
 
       // 2. Handle Schedule Frequency & Countdown
@@ -283,114 +337,84 @@ function BulkEditDialog({
           </p>
         </div>
 
-        {/* Section 1: Collections */}
+        {/* Section 1: Collections Checklist */}
         <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "1.25rem" }}>
           <h4 style={{ fontSize: "0.72rem", fontWeight: 700, marginBottom: "0.6rem", fontFamily: "var(--font-sans)", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-muted)" }}>
-            Collections
+            Collections (optional)
           </h4>
-          
-          <div style={segmentedControlStyle}>
-            <button
-              type="button"
-              onClick={() => setCollectionAction("none")}
-              style={getSegmentBtnStyle(collectionAction === "none")}
-            >
-              No change
-            </button>
-            <button
-              type="button"
-              onClick={() => setCollectionAction("add")}
-              style={getSegmentBtnStyle(collectionAction === "add")}
-            >
-              Add
-            </button>
-            {!collectionsLoading && collections.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setCollectionAction("remove")}
-                style={getSegmentBtnStyle(collectionAction === "remove")}
-              >
-                Remove
-              </button>
-            )}
-            {hasRemoveCurrentOption && (
-              <button
-                type="button"
-                onClick={() => setCollectionAction("remove-current")}
-                style={getSegmentBtnStyle(collectionAction === "remove-current", true)}
-              >
-                Remove Current
-              </button>
-            )}
-          </div>
 
-          {collectionAction === "add" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
-              {collectionsLoading ? (
-                <p style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>Loading collections…</p>
-              ) : collections.length > 0 ? (
-                <select
-                  value={selectedCollectionId}
-                  onChange={(e) => setSelectedCollectionId(e.target.value)}
-                  style={{
-                    padding: "0.5rem 0.75rem",
-                    borderRadius: "0.5rem",
-                    border: "1px solid var(--color-border)",
-                    background: "var(--color-surface)",
-                    color: "var(--color-ink)",
-                    fontSize: "0.9rem",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  {collections.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-              <input
-                type="text"
-                value={newCollectionName}
-                onChange={(e) => setNewCollectionName(e.target.value)}
-                placeholder="Or type a new collection name"
-                style={{
-                  padding: "0.5rem 0.75rem",
-                  borderRadius: "0.5rem",
-                  border: "1px solid var(--color-border)",
-                  background: "var(--color-surface)",
-                  color: "var(--color-ink)",
-                  fontSize: "0.9rem",
-                  fontFamily: "inherit",
-                }}
-              />
-            </div>
-          )}
-
-          {collectionAction === "remove" && collections.length > 0 && (
-            <div style={{ marginTop: "0.5rem" }}>
-              <select
-                value={selectedCollectionId}
-                onChange={(e) => setSelectedCollectionId(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem 0.75rem",
-                  borderRadius: "0.5rem",
-                  border: "1px solid var(--color-border)",
-                  background: "var(--color-surface)",
-                  color: "var(--color-ink)",
-                  fontSize: "0.9rem",
-                  fontFamily: "inherit",
-                }}
-              >
-                {collections.map((c) => (
-                  <option key={c.id} value={c.id}>
+          {collectionsLoading ? (
+            <p style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>Loading collections…</p>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.6rem",
+                marginBottom: "0.85rem",
+                maxHeight: "10rem",
+                overflowY: "auto",
+                paddingRight: "0.5rem",
+              }}
+            >
+              {collections.map((c) => {
+                const isChecked = selectedCollections.has(c.id);
+                return (
+                  <label
+                    key={c.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.95rem",
+                      cursor: "pointer",
+                      color: "var(--color-ink)",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => handleToggleCollection(c.id)}
+                    />
                     {c.name}
-                  </option>
-                ))}
-              </select>
+                  </label>
+                );
+              })}
+              {collections.length === 0 && (
+                <p style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem", fontStyle: "italic" }}>
+                  No collections yet. Create one below.
+                </p>
+              )}
             </div>
           )}
+
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+            <input
+              type="text"
+              value={newCollectionName}
+              onChange={(e) => setNewCollectionName(e.target.value)}
+              placeholder="New collection name"
+              style={{
+                flex: 1,
+                padding: "0.45rem 0.75rem",
+                borderRadius: "0.5rem",
+                border: "1px solid var(--color-border)",
+                background: "var(--color-surface)",
+                color: "var(--color-ink)",
+                fontSize: "0.9rem",
+                fontFamily: "inherit",
+              }}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!newCollectionName.trim() || creating}
+              onClick={handleCreateCollectionInline}
+              style={{ padding: "0.45rem 1rem", fontSize: "0.85rem" }}
+            >
+              Create
+            </Button>
+          </div>
         </div>
 
         {/* Section 2: Review Schedule */}
@@ -765,8 +789,6 @@ export function VerseList({
             setShowEditDialog(false);
             setSelected(new Set());
           }}
-          collectionId={collectionId}
-          onRemoveFromCollection={onRemoveFromCollection}
           verses={verses}
         />
       )}
