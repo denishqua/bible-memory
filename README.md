@@ -12,19 +12,15 @@ verses, collections, and settings live in `localStorage` (web) or
 ## Features
 
 - **Verse library** — Add verses manually or look them up via the ESV API
-  (your own key). Sort columns by canonical Bible book order (Genesis → Revelation),
-  mastery score, or review schedule. Each verse tracks a mastery score and per-review history.
-- **Collections** — Group verses into collections, reorder them via drag-and-drop,
-  rename inline, and run reviews over a whole collection, a selected subset, or a random verse.
+  (your own key). Automatic passage text formatting strips footnotes (`[1]`) and paragraph numbers while preserving poetry line breaks. Per-verse `...` actions menu to Edit, Add to Collection, or Delete. Sort columns by canonical Bible book order (Genesis → Revelation), mastery score, or review schedule.
+- **Bulk verse actions** — Select multiple verses via checkboxes (with range selection and select-all support) to run continuous **Bulk Reviews**, shuffled **Random Reviews**, or launch the **Bulk Edit** modal to update collection memberships, set review frequencies, or restart SRS countdowns across all selected verses at once.
+- **Collections** — Group verses into collections, rename inline, add verses directly, and run reviews over a whole collection, a selected subset, or a random verse.
 - **Six review modes** — from plain typing and reference recall to arcade games (see below).
 - **First-letter or whole-word input** — practice by typing just the first
-  letter of each word, or typing the full word with a live Hint button.
+  letter of each word, or typing the full word with a live Hint button. Switch input style anytime in **Settings → Review Input**.
 - **The verse gate (extension only)** — when enabled, opening a new tab or
-  typing a URL in the address bar redirects you to a full-screen verse review.
-  Complete it to proceed. Supports collection pooling and verse-level subsets. Whitelist domains you don't want gated, and
-  optionally set a **cooldown** so one review buys you a stretch of gate-free
-  browsing.
-- **Backups & data management** — export all your data as a JSON file, import backups additively, or clear all stored data with 2-step confirmation.
+  typing a URL in the address bar redirects you to a full-screen verse review. Complete it to proceed. Supports collection pooling, verse-level subset filtering, configurable review mode picker, "Due first" vs "Random (all)" verse selection, and an in-review **Skip** button. Whitelist domains via right-click context menu (`"Whitelist this domain"`), and optionally set a **cooldown** so one review buys you a stretch of gate-free browsing. Clicking the toolbar extension icon focuses an existing app tab.
+- **Backups & data management** — export all your data as a JSON file, import backups additively (deduplicates review history, upserts verses/collections, preserves cumulative practice counts), or clear all stored data with 2-step confirmation.
 - **Light / dark / system theme.**
 
 ### Review modes
@@ -97,7 +93,7 @@ cards show a compact **Review** indicator per verse — when it's next due (e.g.
 "Due in 3d", "Due now") plus its frequency (e.g. "Every 7d", "Daily", or "New"
 when it hasn't been scheduled yet).
 
-**Adjusting a verse's schedule.** A verse's detail page has a **Review schedule**
+**Adjusting a verse's schedule.** A verse's detail page (and the bulk edit dialog) has a **Review schedule**
 card where you can pick its review **frequency** from preset levels (Learning
 daily up to every 30 days) — changing it restarts the schedule from today — and
 **Restart countdown** to reset the days-until-due without changing the frequency.
@@ -110,7 +106,7 @@ service worker intercepts:
 - the first navigation of a **newly opened tab**, and
 - **address-bar** navigations (typed URLs, omnibox searches, chosen bookmarks).
 
-It redirects the tab to a full-screen gate that picks a verse from your chosen
+It redirects the tab to a full-screen gate page (`/gate`) that picks a verse from your chosen
 collections or verse subset and runs your configured review mode. By default, the gate **surfaces verses
 that are due for review first** (most overdue first), falling back to a random
 verse when nothing is due. Alternatively, you can configure the gate to pick any verse from the pool at random, bypassing spaced-repetition checks. Finishing the review (pass *or* fail — it rewards
@@ -118,13 +114,13 @@ engagement) reveals a **Proceed to site** button, and **advances that verse's
 spaced-repetition schedule** just like a Study Today review — for every mode
 that counts toward the schedule, including the two arcade games. (Reference It
 is practice-only, so completing a Reference It gate never advances the
-schedule.)
-
+schedule.) An in-review **Skip** button lets you cycle to another verse in the pool.
 
 The gate deliberately **fails open**: if it's off, unconfigured, pointed at an
 empty verse set, or the destination is whitelisted, it never blocks you.
 Clicked links, redirects, reloads, and back/forward are never gated. You can
-whitelist the current domain from the right-click context menu.
+whitelist the current domain from Settings or via the right-click context menu
+(`"Whitelist this domain"`) on any webpage or toolbar icon.
 
 **Cooldown.** Optionally set a review cooldown (in minutes) in Settings. While
 it's active, completing *any* verse review — at the gate itself or in a normal
@@ -206,6 +202,7 @@ rebuild — Chrome does not hot-reload unpacked extensions. (Watch mode skips th
 - **Backups include your ESV API key in plaintext.** The JSON produced by
   Settings → Export contains everything, including the key — treat the file
   accordingly and don't commit or share it.
+- **Additive Import.** Importing a backup JSON file merges data additively — deduplicating review sessions, upserting verses/collections, and retaining the highest cumulative practice count.
 
 ## Tech stack
 

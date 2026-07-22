@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { useStorage } from "../data/storageContext";
+import { useStorage } from "../hooks/useStorage";
 import { useSettings, SETTINGS_UPDATED_EVENT } from "../hooks/useSettings";
 import { PROFILE_UPDATED_EVENT } from "../hooks/useProfile";
 import { useTheme, type ThemePreference } from "../hooks/useTheme";

@@ -1,50 +1,6 @@
 import { Card } from "../ui/Card";
 import type { ReviewMode } from "../../types/review";
-
-interface ModeOption {
-  value: ReviewMode;
-  label: string;
-  description: string;
-}
-
-// No auto-progression logic here per the plan — just a simple selector. Which
-// mode "should" come next (e.g. by past performance) is a future concern.
-// Exported as the single canonical value/label list of review modes (the
-// Settings page's gate mode picker maps over it too).
-export const MODE_OPTIONS: ModeOption[] = [
-  {
-    value: "type-it",
-    label: "Type It",
-    description: "See the whole verse. Type the first letter of each word to move through it.",
-  },
-  {
-    value: "memorize-it",
-    label: "Memorize It",
-    description: "Every other word is hidden — recall it before you can type past it.",
-  },
-  {
-    value: "master-it",
-    label: "Master It",
-    description: "The whole verse is hidden. Recall every word from just its first letter.",
-  },
-  {
-    value: "reference-it",
-    label: "Reference It",
-    description: "See the whole verse. Recall and type only the reference.",
-  },
-  {
-    value: "verse-defender",
-    label: "Verse Defender",
-    description:
-      "Asteroids descend toward your base. Type each word's first letter fast enough to blast it before it lands.",
-  },
-  {
-    value: "lane-defender",
-    label: "Lane Defender",
-    description:
-      "Words fall across four lanes — hit D/F/J/K to fire at the lane holding the correct next word.",
-  },
-];
+import { MODE_OPTIONS } from "../../lib/reviewModes";
 
 interface ModePickerProps {
   onSelect: (mode: ReviewMode) => void;

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { useStorage } from "../data/storageContext";
+import { useStorage } from "./useStorage";
 import { createId } from "../data/ids";
 import type { Collection, CollectionVerseLink } from "../types/collection";
+import { resolveCollectionVerseIds } from "../lib/collectionReview";
 
 export function useCollections() {
   const storage = useStorage();
@@ -81,22 +82,8 @@ export function useCollections() {
   );
 
   const unionVerseIds = useCallback(
-    // Deduped union of verse ids across the given collections, preserving order
-    // (collection order, then verse order within each) so a verse in two
-    // selected collections appears once. Used to resolve the study pool and the
-    // verse-gate pool from a set of selected collections.
-    (collectionIds: string[]): string[] => {
-      const seen = new Set<string>();
-      const ids: string[] = [];
-      for (const collectionId of collectionIds) {
-        for (const id of getVerseIdsForCollection(collectionId)) {
-          if (seen.has(id)) continue;
-          seen.add(id);
-          ids.push(id);
-        }
-      }
-      return ids;
-    },
+    (collectionIds: string[]): string[] =>
+      resolveCollectionVerseIds(collectionIds, getVerseIdsForCollection),
     [getVerseIdsForCollection],
   );
 

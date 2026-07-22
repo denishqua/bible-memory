@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
-import { MODE_OPTIONS } from "../review/ModePicker";
+import { MODE_OPTIONS } from "../../lib/reviewModes";
 import { useCollections } from "../../hooks/useCollections";
 import { useVerses } from "../../hooks/useVerses";
 

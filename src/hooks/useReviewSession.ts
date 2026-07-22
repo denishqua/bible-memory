@@ -153,7 +153,7 @@ export function useReviewSession(
   // than leave a half-typed word straddling two input styles.
   const reset = useCallback(() => {
     setState(initialize(tokens, mode));
-  }, [tokens, mode, requireWholeWord]);
+  }, [tokens, mode]);
 
   const handleKeyPress = useCallback(
     (char: string) => {

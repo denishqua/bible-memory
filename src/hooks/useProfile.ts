@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useStorage } from "../data/storageContext";
+import { useStorage } from "./useStorage";
 import type { Profile } from "../types/profile";
 
 // Multiple components mount their own useProfile() instance (the header's

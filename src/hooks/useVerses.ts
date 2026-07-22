@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useStorage } from "../data/storageContext";
+import { useStorage } from "./useStorage";
 import { createId } from "../data/ids";
 import type { EditVerseInput, NewVerseInput, Verse } from "../types/verse";
 

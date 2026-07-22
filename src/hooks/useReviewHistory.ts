@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useStorage } from "../data/storageContext";
+import { useStorage } from "./useStorage";
 import type { ReviewSession } from "../types/review";
 
 // Loads the full review-session history. Consumers derive per-verse scores from

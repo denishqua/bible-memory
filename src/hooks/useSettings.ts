@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useStorage } from "../data/storageContext";
+import { useStorage } from "./useStorage";
 import type { Settings } from "../types/settings";
 
 // Mirrors useProfile: multiple components can mount their own useSettings()
