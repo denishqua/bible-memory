@@ -4,10 +4,9 @@ import { useVerses } from "../hooks/useVerses";
 import type { EditVerseInput } from "../types/verse";
 import { useReviewHistory } from "../hooks/useReviewHistory";
 import { computeVerseScore, verseScoringSessions } from "../lib/verseScore";
-import { dueLabel, frequencyLabel, scheduleForBucket } from "../lib/srs";
+import { dueLabel, frequencyLabel } from "../lib/srs";
 import { getDisplayAccuracy, type ReviewMode } from "../types/review";
 import { EditVerseForm } from "../components/library/EditVerseForm";
-import { ReviewScheduleEditor } from "../components/library/ReviewScheduleEditor";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { ConfirmActionButton } from "../components/ui/ConfirmActionButton";
@@ -20,7 +19,7 @@ const SCORING_MODE_LABELS: Partial<Record<ReviewMode, string>> = {
 
 export function VerseDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { verses, loading, updateVerse, setSrsState, deleteVerse } = useVerses();
+  const { verses, loading, updateVerse, deleteVerse } = useVerses();
   const { sessions } = useReviewHistory();
   const [isEditing, setIsEditing] = useState(false);
   const navigate = useNavigate();
@@ -50,17 +49,6 @@ export function VerseDetailPage() {
   async function handleDelete() {
     await deleteVerse(verse!.id);
     navigate("/");
-  }
-
-  // Setting a frequency (or restarting the countdown) restarts the schedule from
-  // now at the chosen bucket's interval — see scheduleForBucket.
-  async function handleFrequencyChange(bucket: number) {
-    await setSrsState(verse!.id, scheduleForBucket(bucket, new Date().toISOString()));
-  }
-
-  async function handleRestartCountdown() {
-    if (verse!.srsBucket === undefined) return;
-    await setSrsState(verse!.id, scheduleForBucket(verse!.srsBucket, new Date().toISOString()));
   }
 
   return (
@@ -177,22 +165,35 @@ export function VerseDetailPage() {
 
       {!isEditing && (
         <Card style={{ marginTop: "1.25rem" }}>
-          <ReviewScheduleEditor
-            frequencyValue={verse.srsBucket !== undefined ? String(verse.srsBucket) : "unscheduled"}
-            onFrequencyChange={(val) => {
-              if (val === "unscheduled") {
-                void setSrsState(verse.id, { srsBucket: undefined, dueAt: undefined });
-              } else {
-                void handleFrequencyChange(Number(val));
-              }
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              gap: "1rem",
             }}
-            restartActive={false}
-            onRestartToggle={() => void handleRestartCountdown()}
-            restartDisabled={verse.srsBucket === undefined}
-            frequencyText={frequencyLabel(verse)}
-            dueText={dueLabel(verse, new Date())}
-            showNoChangeOption={false}
-          />
+          >
+            <div>
+              <h2 style={{ fontSize: "1rem", marginBottom: "0.15rem" }}>Review schedule</h2>
+              <p style={{ color: "var(--color-ink-muted)", fontSize: "0.8rem" }}>
+                How often this verse resurfaces in Study Today
+              </p>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontSize: "1.5rem",
+                  color: verse.srsBucket !== undefined ? "var(--color-ink)" : "var(--color-ink-muted)",
+                }}
+              >
+                {frequencyLabel(verse)}
+              </span>
+              <p style={{ color: "var(--color-ink-muted)", fontSize: "0.8rem" }}>
+                {dueLabel(verse, new Date())}
+              </p>
+            </div>
+          </div>
         </Card>
       )}
     </div>
