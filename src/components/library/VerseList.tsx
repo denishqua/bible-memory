@@ -9,7 +9,8 @@ import { VerseRow, VERSE_GRID_TEMPLATE } from "./VerseRow";
 import { Tooltip } from "../ui/Tooltip";
 import { useCollections } from "../../hooks/useCollections";
 import { useVerses } from "../../hooks/useVerses";
-import { SRS_LEVELS, scheduleForBucket, INTERVAL_DAYS, dueLabel } from "../../lib/srs";
+import { scheduleForBucket, INTERVAL_DAYS, dueLabel } from "../../lib/srs";
+import { ReviewScheduleEditor } from "./ReviewScheduleEditor";
 
 interface VerseListProps {
   verses: Verse[];
@@ -411,78 +412,17 @@ function BulkEditDialog({
         </div>
 
         {/* Section 2: Review Schedule (Reusing VerseDetailPage layout) */}
-        <div
-          style={{
-            borderTop: "1px solid var(--color-border)",
-            paddingTop: "1.25rem",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-            gap: "1.5rem",
-          }}
-        >
-          <div style={{ flex: 1 }}>
-            <h4 style={{ fontSize: "1rem", fontWeight: 500, color: "var(--color-ink)", marginBottom: "0.15rem", fontFamily: "var(--font-serif)" }}>
-              Review schedule
-            </h4>
-            <p style={{ color: "var(--color-ink-muted)", fontSize: "0.8rem", marginBottom: "1rem" }}>
-              How often this verse resurfaces in Study Today
-            </p>
-            
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-              <span style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-ink-muted)" }}>
-                Frequency
-              </span>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-                <select
-                  value={frequencySelection}
-                  onChange={(e) => setFrequencySelection(e.target.value)}
-                  style={{
-                    padding: "0.4rem 0.6rem",
-                    fontSize: "0.9rem",
-                    color: "var(--color-ink)",
-                    background: "var(--color-surface)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "0.5rem",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  <option value="none">-- No change --</option>
-                  {SRS_LEVELS.map((lvl) => (
-                    <option key={lvl.bucket} value={lvl.bucket}>
-                      {lvl.label}
-                    </option>
-                  ))}
-                  <option value="unscheduled">Unscheduled (Remove from rotation)</option>
-                </select>
-                
-                <Button
-                  type="button"
-                  variant={restartCountdown ? "primary" : "secondary"}
-                  onClick={() => setRestartCountdown(!restartCountdown)}
-                  style={{ padding: "0.4rem 0.75rem", fontSize: "0.85rem" }}
-                  disabled={frequencySelection === "unscheduled"}
-                >
-                  {restartCountdown ? "✓ Restarting countdown" : "Restart countdown"}
-                </Button>
-              </div>
-            </div>
-          </div>
-          
-          <div style={{ textAlign: "right", flexShrink: 0 }}>
-            <span
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontSize: "1.5rem",
-                color: "var(--color-ink)",
-              }}
-            >
-              {frequencyText}
-            </span>
-            <p style={{ color: "var(--color-ink-muted)", fontSize: "0.8rem" }}>
-              {dueText}
-            </p>
-          </div>
+        <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "1.25rem" }}>
+          <ReviewScheduleEditor
+            frequencyValue={frequencySelection}
+            onFrequencyChange={setFrequencySelection}
+            restartActive={restartCountdown}
+            onRestartToggle={() => setRestartCountdown(!restartCountdown)}
+            restartDisabled={frequencySelection === "unscheduled"}
+            frequencyText={frequencyText}
+            dueText={dueText}
+            showNoChangeOption={true}
+          />
         </div>
 
         {/* Actions */}
