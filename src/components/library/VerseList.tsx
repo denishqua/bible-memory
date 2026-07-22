@@ -176,6 +176,16 @@ function BulkEditDialog({
     }
   }, [collections]);
 
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   const hasRemoveCurrentOption = Boolean(collectionId && onRemoveFromCollection);
 
   async function handleApply() {
