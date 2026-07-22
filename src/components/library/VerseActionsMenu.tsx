@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Verse } from "../../types/verse";
+import { ModalDialog } from "../ui/ModalDialog";
+import { Button } from "../ui/Button";
 
 interface VerseActionsMenuProps {
   verse: Verse;
@@ -30,13 +32,12 @@ export function VerseActionsMenu({
   onRemoveFromCollection,
 }: VerseActionsMenuProps) {
   const [open, setOpen] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   function close() {
     setOpen(false);
-    setConfirmingDelete(false);
   }
 
   useEffect(() => {
@@ -46,14 +47,12 @@ export function VerseActionsMenu({
       const container = containerRef.current;
       if (container && !container.contains(event.target as Node)) {
         setOpen(false);
-        setConfirmingDelete(false);
       }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setOpen(false);
-        setConfirmingDelete(false);
       }
     }
 
@@ -66,144 +65,134 @@ export function VerseActionsMenu({
   }, [open]);
 
   return (
-    <div ref={containerRef} style={{ position: "relative", display: "inline-flex" }}>
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={`More actions for ${verse.reference}`}
-        onClick={() => (open ? close() : setOpen(true))}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: "2rem",
-          height: "2rem",
-          padding: 0,
-          borderRadius: "0.6rem",
-          border: "1px solid var(--color-border)",
-          background: open ? "var(--color-bg)" : "transparent",
-          color: "var(--color-ink)",
-          fontSize: "1.1rem",
-          lineHeight: 1,
-          cursor: "pointer",
-        }}
-      >
-        ⋯
-      </button>
-
-      {open ? (
-        <div
-          role="menu"
-          aria-label={`Actions for ${verse.reference}`}
+    <>
+      <div ref={containerRef} style={{ position: "relative", display: "inline-flex" }}>
+        <button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={`More actions for ${verse.reference}`}
+          onClick={() => (open ? close() : setOpen(true))}
           style={{
-            position: "absolute",
-            top: "calc(100% + 0.35rem)",
-            right: 0,
-            zIndex: 50,
-            minWidth: "12rem",
-            padding: "0.3rem",
-            background: "var(--color-surface)",
-            border: "1px solid var(--color-border)",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "2rem",
+            height: "2rem",
+            padding: 0,
             borderRadius: "0.6rem",
-            boxShadow: "var(--shadow-soft)",
+            border: "1px solid var(--color-border)",
+            background: open ? "var(--color-bg)" : "transparent",
+            color: "var(--color-ink)",
+            fontSize: "1.1rem",
+            lineHeight: 1,
+            cursor: "pointer",
           }}
         >
-          {confirmingDelete ? (
-            <div style={{ padding: "0.35rem 0.45rem" }}>
-              <p
-                style={{
-                  fontSize: "0.85rem",
-                  color: "var(--color-ink-muted)",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                Delete {verse.reference}?
-              </p>
-              <div style={{ display: "flex", gap: "0.4rem" }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onDelete(verse.id);
-                    close();
-                  }}
-                  style={{
-                    ...menuItemStyle,
-                    width: "auto",
-                    flex: 1,
-                    textAlign: "center",
-                    color: "var(--color-danger)",
-                    border: "1px solid var(--color-danger)",
-                    padding: "0.4rem 0.6rem",
-                  }}
-                >
-                  Delete
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmingDelete(false)}
-                  style={{
-                    ...menuItemStyle,
-                    width: "auto",
-                    flex: 1,
-                    textAlign: "center",
-                    border: "1px solid var(--color-border)",
-                    padding: "0.4rem 0.6rem",
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                style={menuItemStyle}
-                onClick={() => {
-                  close();
-                  navigate(`/verse/${verse.id}`);
-                }}
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                style={menuItemStyle}
-                onClick={() => {
-                  close();
-                  onAddToCollection(verse);
-                }}
-              >
-                Add to Collection
-              </button>
-              {onRemoveFromCollection && (
-                <button
-                  type="button"
-                  role="menuitem"
-                  style={{ ...menuItemStyle, color: "var(--color-danger)" }}
-                  onClick={() => {
-                    close();
-                    onRemoveFromCollection(verse.id);
-                  }}
-                >
-                  Remove from Collection
-                </button>
-              )}
+          ⋯
+        </button>
+
+        {open ? (
+          <div
+            role="menu"
+            aria-label={`Actions for ${verse.reference}`}
+            style={{
+              position: "absolute",
+              top: "calc(100% + 0.35rem)",
+              right: 0,
+              zIndex: 50,
+              minWidth: "12rem",
+              padding: "0.3rem",
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+              borderRadius: "0.6rem",
+              boxShadow: "var(--shadow-soft)",
+            }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              style={menuItemStyle}
+              onClick={() => {
+                close();
+                navigate(`/verse/${verse.id}`);
+              }}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              style={menuItemStyle}
+              onClick={() => {
+                close();
+                onAddToCollection(verse);
+              }}
+            >
+              Add to Collection
+            </button>
+            {onRemoveFromCollection && (
               <button
                 type="button"
                 role="menuitem"
                 style={{ ...menuItemStyle, color: "var(--color-danger)" }}
-                onClick={() => setConfirmingDelete(true)}
+                onClick={() => {
+                  close();
+                  onRemoveFromCollection(verse.id);
+                }}
               >
-                Delete
+                Remove from Collection
               </button>
-            </>
-          )}
-        </div>
-      ) : null}
-    </div>
+            )}
+            <button
+              type="button"
+              role="menuitem"
+              style={{ ...menuItemStyle, color: "var(--color-danger)" }}
+              onClick={() => {
+                close();
+                setShowDeleteModal(true);
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {showDeleteModal && (
+        <ModalDialog
+          onClose={() => setShowDeleteModal(false)}
+          ariaLabel="Delete Verse"
+          cardStyle={{
+            maxWidth: "26rem",
+            padding: "1.5rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "1.25rem",
+          }}
+        >
+          <div>
+            <h3 style={{ marginBottom: "0.5rem", fontSize: "1.15rem", fontWeight: 600 }}>Delete Verse</h3>
+            <p style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem", lineHeight: 1.5 }}>
+              Are you sure you want to delete <strong>{verse.reference}</strong>? This action cannot be undone.
+            </p>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+            <Button variant="ghost" onClick={() => setShowDeleteModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                onDelete(verse.id);
+                setShowDeleteModal(false);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        </ModalDialog>
+      )}
+    </>
   );
 }

@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
+import { ModalDialog } from "../ui/ModalDialog";
 import { sectionTitleStyle, helperTextStyle } from "./styles";
 import { useDataBackup } from "../../hooks/useDataBackup";
 
@@ -66,22 +67,37 @@ export function DataBackupSection() {
           borderTop: "1px solid var(--color-border)",
         }}
       >
-        {clearArmed ? (
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-            <span style={{ color: "var(--color-danger)", fontSize: "0.9rem", fontWeight: 600 }}>
-              Really clear? This can’t be undone.
-            </span>
-            <Button type="button" variant="danger" onClick={handleClearAll} disabled={clearing}>
-              {clearing ? "Clearing…" : "Yes, clear everything"}
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => setClearArmed(false)} disabled={clearing}>
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <Button type="button" variant="danger" onClick={() => setClearArmed(true)}>
-            Clear all data
-          </Button>
+        <Button type="button" variant="danger" onClick={() => setClearArmed(true)}>
+          Clear all data
+        </Button>
+
+        {clearArmed && (
+          <ModalDialog
+            onClose={() => setClearArmed(false)}
+            ariaLabel="Clear All Data"
+            cardStyle={{
+              maxWidth: "26rem",
+              padding: "1.5rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.25rem",
+            }}
+          >
+            <div>
+              <h3 style={{ marginBottom: "0.5rem", fontSize: "1.15rem", fontWeight: 600 }}>Clear All Data</h3>
+              <p style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem", lineHeight: 1.5 }}>
+                Are you sure you want to clear all data? This will permanently erase your verses, collections, review history, and settings. This action cannot be undone.
+              </p>
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+              <Button type="button" variant="ghost" onClick={() => setClearArmed(false)} disabled={clearing}>
+                Cancel
+              </Button>
+              <Button type="button" variant="danger" onClick={handleClearAll} disabled={clearing}>
+                {clearing ? "Clearing…" : "Yes, clear everything"}
+              </Button>
+            </div>
+          </ModalDialog>
         )}
       </div>
     </Card>

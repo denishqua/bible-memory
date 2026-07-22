@@ -25,7 +25,13 @@ export function CollectionCard({ collection, verseCount, onDelete }: CollectionC
         <Link to={`/collections/${collection.id}`} style={{ textDecoration: "none" }}>
           <Button variant="ghost">Open</Button>
         </Link>
-        <ConfirmActionButton onConfirm={() => onDelete(collection.id)} />
+        <ConfirmActionButton
+          initialLabel="Delete"
+          modalTitle="Delete Collection"
+          modalMessage={`Are you sure you want to delete "${collection.name}"? This action cannot be undone.`}
+          confirmLabel="Delete"
+          onConfirm={() => onDelete(collection.id)}
+        />
       </div>
     </Card>
   );

@@ -167,6 +167,10 @@ export function EditVerseForm({ verse, onSubmit, onCancel, onDelete }: EditVerse
         </Button>
         {onDelete && (
           <ConfirmActionButton
+            initialLabel="Delete"
+            modalTitle="Delete Verse"
+            modalMessage={`Are you sure you want to delete "${verse.reference}"? This action cannot be undone.`}
+            confirmLabel="Delete"
             onConfirm={onDelete}
             style={{ marginLeft: "auto" }}
           />
