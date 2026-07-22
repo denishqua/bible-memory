@@ -106,6 +106,36 @@ function SortableHeader({
   );
 }
 
+// Styling tokens for modern, iOS-like segmented controls
+const segmentedControlStyle: React.CSSProperties = {
+  display: "flex",
+  background: "var(--color-bg)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "0.6rem",
+  padding: "0.2rem",
+  gap: "0.2rem",
+  marginBottom: "0.75rem",
+  width: "100%",
+};
+
+const getSegmentBtnStyle = (isActive: boolean, isDanger = false): React.CSSProperties => ({
+  flex: 1,
+  background: isActive ? "var(--color-surface)" : "transparent",
+  border: "none",
+  borderRadius: "0.45rem",
+  padding: "0.55rem 0.5rem",
+  fontSize: "0.85rem",
+  fontWeight: isActive ? 600 : 500,
+  color: isActive
+    ? isDanger ? "var(--color-danger)" : "var(--color-ink)"
+    : "var(--color-ink-muted)",
+  cursor: "pointer",
+  boxShadow: isActive ? "0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)" : "none",
+  transition: "all 0.15s ease",
+  textAlign: "center",
+  fontFamily: "inherit",
+});
+
 function BulkEditDialog({
   selectedVerseIds,
   onClose,
@@ -224,112 +254,82 @@ function BulkEditDialog({
     >
       <Card
         style={{
-          maxWidth: "32rem",
+          maxWidth: "34rem",
           width: "100%",
           maxHeight: "90vh",
           overflowY: "auto",
           display: "flex",
           flexDirection: "column",
-          gap: "1.25rem",
+          gap: "1.5rem",
+          padding: "1.75rem",
+          boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         <div>
-          <h3 style={{ marginBottom: "0.25rem" }}>Bulk Edit Verses</h3>
+          <h3 style={{ marginBottom: "0.25rem", fontSize: "1.35rem" }}>Bulk Edit Verses</h3>
           <p style={{ color: "var(--color-ink-muted)", fontSize: "0.85rem" }}>
             Apply changes to {selectedVerseIds.length} selected {selectedVerseIds.length === 1 ? "verse" : "verses"}
           </p>
         </div>
 
         {/* Section 1: Collections */}
-        <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "1rem" }}>
-          <h4 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.6rem", fontFamily: "var(--font-sans)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-ink-muted)" }}>
+        <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "1.25rem" }}>
+          <h4 style={{ fontSize: "0.72rem", fontWeight: 700, marginBottom: "0.6rem", fontFamily: "var(--font-sans)", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-muted)" }}>
             Collections
           </h4>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", fontSize: "0.95rem", cursor: "pointer" }}>
-              <input
-                type="radio"
-                name="collectionAction"
-                checked={collectionAction === "none"}
-                onChange={() => setCollectionAction("none")}
-              />
+          
+          <div style={segmentedControlStyle}>
+            <button
+              type="button"
+              onClick={() => setCollectionAction("none")}
+              style={getSegmentBtnStyle(collectionAction === "none")}
+            >
               No change
-            </label>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", fontSize: "0.95rem", cursor: "pointer" }}>
-              <input
-                type="radio"
-                name="collectionAction"
-                checked={collectionAction === "add"}
-                onChange={() => setCollectionAction("add")}
-              />
-              Add to collection
-            </label>
-            {collectionAction === "add" && (
-              <div style={{ paddingLeft: "1.5rem", display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.25rem" }}>
-                {collectionsLoading ? (
-                  <p style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>Loading collections…</p>
-                ) : collections.length > 0 ? (
-                  <select
-                    value={selectedCollectionId}
-                    onChange={(e) => setSelectedCollectionId(e.target.value)}
-                    style={{
-                      padding: "0.4rem 0.6rem",
-                      borderRadius: "0.375rem",
-                      border: "1px solid var(--color-border)",
-                      background: "var(--color-surface)",
-                      color: "var(--color-ink)",
-                      fontSize: "0.9rem",
-                    }}
-                  >
-                    {collections.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
-                <input
-                  type="text"
-                  value={newCollectionName}
-                  onChange={(e) => setNewCollectionName(e.target.value)}
-                  placeholder="Or create a new collection name"
-                  style={{
-                    padding: "0.4rem 0.6rem",
-                    borderRadius: "0.375rem",
-                    border: "1px solid var(--color-border)",
-                    background: "var(--color-surface)",
-                    color: "var(--color-ink)",
-                    fontSize: "0.9rem",
-                  }}
-                />
-              </div>
-            )}
-
+            </button>
+            <button
+              type="button"
+              onClick={() => setCollectionAction("add")}
+              style={getSegmentBtnStyle(collectionAction === "add")}
+            >
+              Add
+            </button>
             {!collectionsLoading && collections.length > 0 && (
-              <label style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", fontSize: "0.95rem", cursor: "pointer" }}>
-                <input
-                  type="radio"
-                  name="collectionAction"
-                  checked={collectionAction === "remove"}
-                  onChange={() => setCollectionAction("remove")}
-                />
-                Remove from collection
-              </label>
+              <button
+                type="button"
+                onClick={() => setCollectionAction("remove")}
+                style={getSegmentBtnStyle(collectionAction === "remove")}
+              >
+                Remove
+              </button>
             )}
-            {collectionAction === "remove" && collections.length > 0 && (
-              <div style={{ paddingLeft: "1.5rem", marginTop: "0.25rem" }}>
+            {hasRemoveCurrentOption && (
+              <button
+                type="button"
+                onClick={() => setCollectionAction("remove-current")}
+                style={getSegmentBtnStyle(collectionAction === "remove-current", true)}
+              >
+                Remove Current
+              </button>
+            )}
+          </div>
+
+          {collectionAction === "add" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
+              {collectionsLoading ? (
+                <p style={{ color: "var(--color-ink-muted)", fontSize: "0.9rem" }}>Loading collections…</p>
+              ) : collections.length > 0 ? (
                 <select
                   value={selectedCollectionId}
                   onChange={(e) => setSelectedCollectionId(e.target.value)}
                   style={{
-                    width: "100%",
-                    padding: "0.4rem 0.6rem",
-                    borderRadius: "0.375rem",
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: "0.5rem",
                     border: "1px solid var(--color-border)",
                     background: "var(--color-surface)",
                     color: "var(--color-ink)",
                     fontSize: "0.9rem",
+                    fontFamily: "inherit",
                   }}
                 >
                   {collections.map((c) => (
@@ -338,101 +338,148 @@ function BulkEditDialog({
                     </option>
                   ))}
                 </select>
-              </div>
-            )}
+              ) : null}
+              <input
+                type="text"
+                value={newCollectionName}
+                onChange={(e) => setNewCollectionName(e.target.value)}
+                placeholder="Or type a new collection name"
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--color-surface)",
+                  color: "var(--color-ink)",
+                  fontSize: "0.9rem",
+                  fontFamily: "inherit",
+                }}
+              />
+            </div>
+          )}
 
-            {hasRemoveCurrentOption && (
-              <label style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", fontSize: "0.95rem", cursor: "pointer", color: "var(--color-danger)" }}>
-                <input
-                  type="radio"
-                  name="collectionAction"
-                  checked={collectionAction === "remove-current"}
-                  onChange={() => setCollectionAction("remove-current")}
-                />
-                Remove from this collection
-              </label>
-            )}
-          </div>
+          {collectionAction === "remove" && collections.length > 0 && (
+            <div style={{ marginTop: "0.5rem" }}>
+              <select
+                value={selectedCollectionId}
+                onChange={(e) => setSelectedCollectionId(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--color-surface)",
+                  color: "var(--color-ink)",
+                  fontSize: "0.9rem",
+                  fontFamily: "inherit",
+                }}
+              >
+                {collections.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Section 2: Review Schedule */}
-        <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "1rem" }}>
-          <h4 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.6rem", fontFamily: "var(--font-sans)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-ink-muted)" }}>
+        <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "1.25rem" }}>
+          <h4 style={{ fontSize: "0.72rem", fontWeight: 700, marginBottom: "0.6rem", fontFamily: "var(--font-sans)", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-muted)" }}>
             Review Schedule
           </h4>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", fontSize: "0.95rem", cursor: "pointer" }}>
-              <input
-                type="radio"
-                name="frequencyAction"
-                checked={frequencyAction === "none"}
-                onChange={() => setFrequencyAction("none")}
-              />
+
+          <div style={segmentedControlStyle}>
+            <button
+              type="button"
+              onClick={() => setFrequencyAction("none")}
+              style={getSegmentBtnStyle(frequencyAction === "none")}
+            >
               No change
-            </label>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", fontSize: "0.95rem", cursor: "pointer" }}>
-              <input
-                type="radio"
-                name="frequencyAction"
-                checked={frequencyAction === "change"}
-                onChange={() => setFrequencyAction("change")}
-              />
-              Change frequency (restarts countdown)
-            </label>
-            {frequencyAction === "change" && (
-              <div style={{ paddingLeft: "1.5rem", marginTop: "0.25rem" }}>
-                <select
-                  value={targetBucket}
-                  onChange={(e) => setTargetBucket(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "0.4rem 0.6rem",
-                    borderRadius: "0.375rem",
-                    border: "1px solid var(--color-border)",
-                    background: "var(--color-surface)",
-                    color: "var(--color-ink)",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  {SRS_LEVELS.map((lvl) => (
-                    <option key={lvl.bucket} value={lvl.bucket}>
-                      {lvl.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <label style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", fontSize: "0.95rem", cursor: "pointer" }}>
-              <input
-                type="radio"
-                name="frequencyAction"
-                checked={frequencyAction === "unschedule"}
-                onChange={() => setFrequencyAction("unschedule")}
-              />
-              Unschedule (Remove from rotation)
-            </label>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFrequencyAction("change")}
+              style={getSegmentBtnStyle(frequencyAction === "change")}
+            >
+              Set Frequency
+            </button>
+            <button
+              type="button"
+              onClick={() => setFrequencyAction("unschedule")}
+              style={getSegmentBtnStyle(frequencyAction === "unschedule")}
+            >
+              Unschedule
+            </button>
           </div>
+
+          {frequencyAction === "change" && (
+            <div style={{ marginTop: "0.5rem" }}>
+              <select
+                value={targetBucket}
+                onChange={(e) => setTargetBucket(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--color-surface)",
+                  color: "var(--color-ink)",
+                  fontSize: "0.9rem",
+                  fontFamily: "inherit",
+                }}
+              >
+                {SRS_LEVELS.map((lvl) => (
+                  <option key={lvl.bucket} value={lvl.bucket}>
+                    {lvl.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Section 3: Countdown Restart */}
         {frequencyAction === "none" && (
-          <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "1rem" }}>
-            <h4 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.6rem", fontFamily: "var(--font-sans)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-ink-muted)" }}>
+          <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "1.25rem" }}>
+            <h4 style={{ fontSize: "0.72rem", fontWeight: 700, marginBottom: "0.6rem", fontFamily: "var(--font-sans)", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-muted)" }}>
               Countdown
             </h4>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", fontSize: "0.95rem", cursor: "pointer" }}>
+            
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "0.75rem 1rem",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-border)",
+                borderRadius: "0.6rem",
+                cursor: "pointer",
+                transition: "background-color 0.15s ease",
+              }}
+              onClick={() => setRestartCountdown(!restartCountdown)}
+            >
+              <span style={{ fontSize: "0.9rem", fontWeight: 500, color: "var(--color-ink)" }}>
+                Restart countdown timer for scheduled verses
+              </span>
               <input
                 type="checkbox"
                 checked={restartCountdown}
                 onChange={(e) => setRestartCountdown(e.target.checked)}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  width: "1.15rem",
+                  height: "1.15rem",
+                  cursor: "pointer",
+                }}
               />
-              Restart countdown for all scheduled verses
-            </label>
+            </div>
           </div>
         )}
 
         {/* Actions */}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", borderTop: "1px solid var(--color-border)", paddingTop: "1rem" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", borderTop: "1px solid var(--color-border)", paddingTop: "1.25rem" }}>
           <Button variant="ghost" onClick={onClose} disabled={applying}>
             Cancel
           </Button>
@@ -440,6 +487,7 @@ function BulkEditDialog({
             variant="primary"
             onClick={handleApply}
             disabled={applying}
+            style={{ minWidth: "8rem" }}
           >
             {applying ? "Applying…" : "Apply Changes"}
           </Button>
