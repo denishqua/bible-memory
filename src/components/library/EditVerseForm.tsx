@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, useMemo } from "react";
 import { Button } from "../ui/Button";
-import { inputStyle, labelStyle } from "../ui/formStyles";
-import { CollectionSelector } from "./CollectionSelector";
+import { VerseEditorFields } from "./VerseEditorFields";
 import { useCollections } from "../../hooks/useCollections";
 import { useCollectionSelection } from "../../hooks/useCollectionSelection";
 import { ReviewScheduleEditor } from "./ReviewScheduleEditor";
@@ -127,50 +126,19 @@ export function EditVerseForm({ verse, onSubmit, onCancel, onDelete }: EditVerse
       onSubmit={handleSubmit}
       style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "32rem" }}
     >
-      <div>
-        <label style={labelStyle} htmlFor="edit-verse-reference">
-          Reference
-        </label>
-        <input
-          id="edit-verse-reference"
-          type="text"
-          value={reference}
-          onChange={(e) => setReference(e.target.value)}
-          style={inputStyle}
-        />
-      </div>
-      <div>
-        <label style={labelStyle} htmlFor="edit-verse-text">
-          Text
-        </label>
-        <textarea
-          id="edit-verse-text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={6}
-          style={{ ...inputStyle, fontFamily: "var(--font-serif)", resize: "vertical" }}
-        />
-      </div>
-      <div>
-        <label style={labelStyle} htmlFor="edit-verse-translation">
-          Translation
-        </label>
-        <input
-          id="edit-verse-translation"
-          type="text"
-          value={translation}
-          onChange={(e) => setTranslation(e.target.value)}
-          style={{ ...inputStyle, maxWidth: "10rem" }}
-        />
-      </div>
-      <CollectionSelector
+      <VerseEditorFields
+        reference={reference}
+        onChangeReference={setReference}
+        text={text}
+        onChangeText={setText}
+        translation={translation}
+        onChangeTranslation={setTranslation}
+        showLookup={false}
         collections={collections}
         selectedCollectionIds={selectedIds}
         onToggleCollection={toggle}
         onCreateCollection={createAndSelect}
         creating={creating}
-        inputStyle={inputStyle}
-        labelStyle={labelStyle}
       />
 
       <div
