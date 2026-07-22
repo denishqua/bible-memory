@@ -9,7 +9,7 @@ import { VerseRow, VERSE_GRID_TEMPLATE } from "./VerseRow";
 import { Tooltip } from "../ui/Tooltip";
 import { useCollections } from "../../hooks/useCollections";
 import { useVerses } from "../../hooks/useVerses";
-import { SRS_LEVELS, scheduleForBucket } from "../../lib/srs";
+import { SRS_LEVELS, scheduleForBucket, INTERVAL_DAYS, dueLabel } from "../../lib/srs";
 
 interface VerseListProps {
   verses: Verse[];
@@ -106,36 +106,6 @@ function SortableHeader({
   );
 }
 
-// Styling tokens for modern, iOS-like segmented controls
-const segmentedControlStyle: React.CSSProperties = {
-  display: "flex",
-  background: "var(--color-bg)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "0.6rem",
-  padding: "0.2rem",
-  gap: "0.2rem",
-  marginBottom: "0.75rem",
-  width: "100%",
-};
-
-const getSegmentBtnStyle = (isActive: boolean, isDanger = false): React.CSSProperties => ({
-  flex: 1,
-  background: isActive ? "var(--color-surface)" : "transparent",
-  border: "none",
-  borderRadius: "0.45rem",
-  padding: "0.55rem 0.5rem",
-  fontSize: "0.85rem",
-  fontWeight: isActive ? 600 : 500,
-  color: isActive
-    ? isDanger ? "var(--color-danger)" : "var(--color-ink)"
-    : "var(--color-ink-muted)",
-  cursor: "pointer",
-  boxShadow: isActive ? "0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)" : "none",
-  transition: "all 0.15s ease",
-  textAlign: "center",
-  fontFamily: "inherit",
-});
-
 function BulkEditDialog({
   selectedVerseIds,
   onClose,
@@ -166,8 +136,7 @@ function BulkEditDialog({
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
 
   // Frequency/Countdown state
-  const [frequencyAction, setFrequencyAction] = useState<"none" | "change" | "unschedule">("none");
-  const [targetBucket, setTargetBucket] = useState("0");
+  const [frequencySelection, setFrequencySelection] = useState<string>("none");
   const [restartCountdown, setRestartCountdown] = useState(false);
 
   // Initialize selected collections once loaded
@@ -249,6 +218,30 @@ function BulkEditDialog({
     }
   }
 
+  // Calculate shared frequency/due labels for display on the right side
+  const sharedBucket = useMemo(() => {
+    if (selectedVerseIds.length === 0) return undefined;
+    const targetVerses = verses.filter((v) => selectedVerseIds.includes(v.id));
+    const firstBucket = targetVerses[0]?.srsBucket;
+    const allSame = targetVerses.every((v) => v.srsBucket === firstBucket);
+    return allSame ? firstBucket : undefined;
+  }, [selectedVerseIds, verses]);
+
+  const frequencyText = useMemo(() => {
+    if (sharedBucket === undefined) return "Multiple";
+    if (sharedBucket === 0) return "Daily";
+    return `Every ${INTERVAL_DAYS[sharedBucket]}d`;
+  }, [sharedBucket]);
+
+  const dueText = useMemo(() => {
+    if (selectedVerseIds.length === 0) return "";
+    const targetVerses = verses.filter((v) => selectedVerseIds.includes(v.id));
+    const now = new Date();
+    const firstDueLabel = dueLabel(targetVerses[0], now);
+    const allSame = targetVerses.every((v) => dueLabel(v, now) === firstDueLabel);
+    return allSame ? firstDueLabel : "Various schedules";
+  }, [selectedVerseIds, verses]);
+
   async function handleApply() {
     setApplying(true);
     try {
@@ -269,14 +262,14 @@ function BulkEditDialog({
       }
 
       // 2. Handle Schedule Frequency & Countdown
-      if (frequencyAction === "unschedule") {
+      if (frequencySelection === "unschedule") {
         await Promise.all(
           selectedVerseIds.map((id) =>
             setSrsState(id, { srsBucket: undefined, dueAt: undefined })
           )
         );
-      } else if (frequencyAction === "change") {
-        const bucket = Number(targetBucket);
+      } else if (frequencySelection !== "none") {
+        const bucket = Number(frequencySelection);
         await Promise.all(
           selectedVerseIds.map((id) =>
             setSrsState(id, scheduleForBucket(bucket, now))
@@ -417,100 +410,80 @@ function BulkEditDialog({
           </div>
         </div>
 
-        {/* Section 2: Review Schedule */}
-        <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "1.25rem" }}>
-          <h4 style={{ fontSize: "0.72rem", fontWeight: 700, marginBottom: "0.6rem", fontFamily: "var(--font-sans)", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-muted)" }}>
-            Review Schedule
-          </h4>
-
-          <div style={segmentedControlStyle}>
-            <button
-              type="button"
-              onClick={() => setFrequencyAction("none")}
-              style={getSegmentBtnStyle(frequencyAction === "none")}
-            >
-              No change
-            </button>
-            <button
-              type="button"
-              onClick={() => setFrequencyAction("change")}
-              style={getSegmentBtnStyle(frequencyAction === "change")}
-            >
-              Set Frequency
-            </button>
-            <button
-              type="button"
-              onClick={() => setFrequencyAction("unschedule")}
-              style={getSegmentBtnStyle(frequencyAction === "unschedule")}
-            >
-              Unschedule
-            </button>
-          </div>
-
-          {frequencyAction === "change" && (
-            <div style={{ marginTop: "0.5rem" }}>
-              <select
-                value={targetBucket}
-                onChange={(e) => setTargetBucket(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem 0.75rem",
-                  borderRadius: "0.5rem",
-                  border: "1px solid var(--color-border)",
-                  background: "var(--color-surface)",
-                  color: "var(--color-ink)",
-                  fontSize: "0.9rem",
-                  fontFamily: "inherit",
-                }}
-              >
-                {SRS_LEVELS.map((lvl) => (
-                  <option key={lvl.bucket} value={lvl.bucket}>
-                    {lvl.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-
-        {/* Section 3: Countdown Restart */}
-        {frequencyAction === "none" && (
-          <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "1.25rem" }}>
-            <h4 style={{ fontSize: "0.72rem", fontWeight: 700, marginBottom: "0.6rem", fontFamily: "var(--font-sans)", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-muted)" }}>
-              Countdown
+        {/* Section 2: Review Schedule (Reusing VerseDetailPage layout) */}
+        <div
+          style={{
+            borderTop: "1px solid var(--color-border)",
+            paddingTop: "1.25rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            gap: "1.5rem",
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <h4 style={{ fontSize: "1rem", fontWeight: 500, color: "var(--color-ink)", marginBottom: "0.15rem", fontFamily: "var(--font-serif)" }}>
+              Review schedule
             </h4>
+            <p style={{ color: "var(--color-ink-muted)", fontSize: "0.8rem", marginBottom: "1rem" }}>
+              How often this verse resurfaces in Study Today
+            </p>
             
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "0.75rem 1rem",
-                background: "var(--color-bg)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "0.6rem",
-                cursor: "pointer",
-                transition: "background-color 0.15s ease",
-              }}
-              onClick={() => setRestartCountdown(!restartCountdown)}
-            >
-              <span style={{ fontSize: "0.9rem", fontWeight: 500, color: "var(--color-ink)" }}>
-                Restart countdown timer for scheduled verses
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+              <span style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-ink-muted)" }}>
+                Frequency
               </span>
-              <input
-                type="checkbox"
-                checked={restartCountdown}
-                onChange={(e) => setRestartCountdown(e.target.checked)}
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  width: "1.15rem",
-                  height: "1.15rem",
-                  cursor: "pointer",
-                }}
-              />
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+                <select
+                  value={frequencySelection}
+                  onChange={(e) => setFrequencySelection(e.target.value)}
+                  style={{
+                    padding: "0.4rem 0.6rem",
+                    fontSize: "0.9rem",
+                    color: "var(--color-ink)",
+                    background: "var(--color-surface)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "0.5rem",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <option value="none">-- No change --</option>
+                  {SRS_LEVELS.map((lvl) => (
+                    <option key={lvl.bucket} value={lvl.bucket}>
+                      {lvl.label}
+                    </option>
+                  ))}
+                  <option value="unscheduled">Unscheduled (Remove from rotation)</option>
+                </select>
+                
+                <Button
+                  type="button"
+                  variant={restartCountdown ? "primary" : "secondary"}
+                  onClick={() => setRestartCountdown(!restartCountdown)}
+                  style={{ padding: "0.4rem 0.75rem", fontSize: "0.85rem" }}
+                  disabled={frequencySelection === "unscheduled"}
+                >
+                  {restartCountdown ? "✓ Restarting countdown" : "Restart countdown"}
+                </Button>
+              </div>
             </div>
           </div>
-        )}
+          
+          <div style={{ textAlign: "right", flexShrink: 0 }}>
+            <span
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: "1.5rem",
+                color: "var(--color-ink)",
+              }}
+            >
+              {frequencyText}
+            </span>
+            <p style={{ color: "var(--color-ink-muted)", fontSize: "0.8rem" }}>
+              {dueText}
+            </p>
+          </div>
+        </div>
 
         {/* Actions */}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", borderTop: "1px solid var(--color-border)", paddingTop: "1.25rem" }}>
