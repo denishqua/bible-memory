@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSettings } from "../hooks/useSettings";
 import { useVerses } from "../hooks/useVerses";
@@ -74,6 +74,26 @@ export function GatePage() {
       window.location.href = targetUrl;
     }
   }, [targetUrl, navigate]);
+
+  // Once the review is done (or the gate has failed open), the proceed block is
+  // the only actionable control, so let Enter trigger it.
+  const proceedShown =
+    !loading &&
+    (completed ||
+      !gate?.enabled ||
+      gate.collectionIds.length === 0 ||
+      pool.length === 0);
+
+  useEffect(() => {
+    if (!proceedShown) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      handleProceed();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [proceedShown, handleProceed]);
 
   const loadingScreen = (
     <p style={{ textAlign: "center", color: "var(--color-ink-muted)" }}>Loading…</p>
