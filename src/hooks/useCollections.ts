@@ -71,31 +71,11 @@ export function useCollections() {
     [storage, refresh],
   );
 
-  const reorderCollectionVerses = useCallback(
-    async (collectionId: string, orderedVerseIds: string[]): Promise<void> => {
-      await storage.reorderCollectionVerses(collectionId, orderedVerseIds);
-      await refresh();
-    },
-    [storage, refresh],
-  );
-
   const getVerseIdsForCollection = useCallback(
-    // Ordering rule: links with an explicit sortOrder (written by the last
-    // reorder) come first, sorted by it; links without one (added later, or in
-    // a never-reordered collection) follow, sorted by addedAt ascending. A
-    // never-reordered collection therefore keeps pure date-added order.
-    // ISO 8601 strings sort correctly lexicographically.
     (collectionId: string): string[] =>
       links
         .filter((link) => link.collectionId === collectionId)
-        .sort((a, b) => {
-          if (a.sortOrder !== undefined && b.sortOrder !== undefined) {
-            return a.sortOrder - b.sortOrder;
-          }
-          if (a.sortOrder !== undefined) return -1;
-          if (b.sortOrder !== undefined) return 1;
-          return a.addedAt.localeCompare(b.addedAt);
-        })
+        .sort((a, b) => a.addedAt.localeCompare(b.addedAt))
         .map((link) => link.verseId),
     [links],
   );
@@ -139,7 +119,6 @@ export function useCollections() {
     renameCollection,
     addVerseToCollection,
     removeVerseFromCollection,
-    reorderCollectionVerses,
     getVerseIdsForCollection,
     unionVerseIds,
     getCollectionsForVerse,

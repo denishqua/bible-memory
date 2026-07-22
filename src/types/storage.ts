@@ -14,10 +14,7 @@ export interface StorageAdapter {
   getCollectionLinks(): Promise<CollectionVerseLink[]>;
   addVerseToCollection(link: CollectionVerseLink): Promise<void>;
   removeVerseFromCollection(collectionId: string, verseId: string): Promise<void>;
-  // Persists an explicit order: each link of `collectionId` whose verseId
-  // appears in `orderedVerseIds` gets sortOrder = its index. Links of other
-  // collections (and unnamed links of this one) are left untouched.
-  reorderCollectionVerses(collectionId: string, orderedVerseIds: string[]): Promise<void>;
+
   getReviewSessions(): Promise<ReviewSession[]>;
   // Appends a review record to history. The backup-import path also calls this
   // (per imported record), so it deliberately does NOT touch the gate cooldown

@@ -57,26 +57,30 @@ export function ReviewPage() {
       .filter((v): v is Verse => v !== undefined);
   }, [collectionId, getVerseIdsForCollection, verses]);
 
-  // The verses actually reviewed: the navigation-state selection (kept in
-  // collection order, not click order) when present; otherwise all verses.
-  // If the selection filters down to nothing (e.g. verses deleted since),
-  // fall back to all rather than a dead end.
-  const selectedCollectionVerses = useMemo<Verse[]>(() => {
-    if (!stateVerseIds) return collectionVerses;
-    const wanted = new Set(stateVerseIds);
-    const subset = collectionVerses.filter((v) => wanted.has(v.id));
-    return subset.length > 0 ? subset : collectionVerses;
-  }, [collectionVerses, stateVerseIds]);
+  // The verses actually reviewed. If in a collection, filter based on selection.
+  // Otherwise, if stateVerseIds is provided (ad-hoc selection), resolve from all verses.
+  const selectedVerses = useMemo<Verse[]>(() => {
+    if (collectionId) {
+      if (!stateVerseIds) return collectionVerses;
+      const wanted = new Set(stateVerseIds);
+      const subset = collectionVerses.filter((v) => wanted.has(v.id));
+      return subset.length > 0 ? subset : collectionVerses;
+    } else {
+      if (!stateVerseIds) return [];
+      const wanted = new Set(stateVerseIds);
+      return verses.filter((v) => wanted.has(v.id));
+    }
+  }, [collectionId, collectionVerses, stateVerseIds, verses]);
 
   const { tokens, scope } = useMemo<{ tokens: Token[]; scope: ReviewScope | null }>(() => {
-    if (collectionId) {
-      if (selectedCollectionVerses.length === 0) return { tokens: [], scope: null };
+    if (collectionId || selectedVerses.length > 0) {
+      if (selectedVerses.length === 0) return { tokens: [], scope: null };
       return {
-        tokens: buildCollectionReviewTokens(selectedCollectionVerses),
+        tokens: buildCollectionReviewTokens(selectedVerses),
         scope: {
           type: "collection",
-          collectionId,
-          verseIds: selectedCollectionVerses.map((v) => v.id),
+          collectionId: collectionId ?? "selection",
+          verseIds: selectedVerses.map((v) => v.id),
         },
       };
     }
@@ -89,14 +93,14 @@ export function ReviewPage() {
       };
     }
     return { tokens: [], scope: null };
-  }, [collectionId, selectedCollectionVerses, verse, mode]);
+  }, [collectionId, selectedVerses, verse, mode]);
 
   if (loading) {
     return <p style={{ color: "var(--color-ink-muted)" }}>Loading…</p>;
   }
 
-  if (collectionId) {
-    if (!collection) {
+  if (collectionId || selectedVerses.length > 0) {
+    if (collectionId && !collection) {
       return (
         <div>
           <p style={{ color: "var(--color-ink-muted)" }}>Collection not found.</p>
@@ -105,22 +109,26 @@ export function ReviewPage() {
       );
     }
 
-    if (collectionVerses.length === 0) {
+    if (collectionId && collectionVerses.length === 0) {
       return (
         <div>
           <p style={{ color: "var(--color-ink-muted)", marginBottom: "1rem" }}>
-            "{collection.name}" has no verses yet. Add some from the Library before starting a
+            "{collection!.name}" has no verses yet. Add some from the Library before starting a
             bulk review.
           </p>
-          <Link to={`/collections/${collection.id}`}>Back to {collection.name}</Link>
+          <Link to={`/collections/${collection!.id}`}>Back to {collection!.name}</Link>
         </div>
       );
     }
 
+    const title = collection ? collection.name : "Selected Verses";
+    const backToPath = collection ? `/collections/${collection.id}` : "/";
+    const backToLabel = collection ? `Back to ${collection.name}` : "Back to Library";
+
     return (
       <div>
         <Link
-          to={`/collections/${collection.id}`}
+          to={backToPath}
           style={{
             display: "inline-block",
             marginBottom: "1.25rem",
@@ -128,24 +136,24 @@ export function ReviewPage() {
             fontSize: "0.9rem",
           }}
         >
-          ← Back to {collection.name}
+          ← {backToLabel}
         </Link>
-        <h1 style={{ marginBottom: "0.25rem" }}>{collection.name}</h1>
+        <h1 style={{ marginBottom: "0.25rem" }}>{title}</h1>
         <p style={{ color: "var(--color-ink-muted)", marginBottom: "1.25rem", fontSize: "0.9rem" }}>
           {random ? (
             <>
-              Random review — {selectedCollectionVerses.length} verse
-              {selectedCollectionVerses.length === 1 ? "" : "s"}, one at a time in shuffled order
+              Random review — {selectedVerses.length} verse
+              {selectedVerses.length === 1 ? "" : "s"}, one at a time in shuffled order
             </>
           ) : (
             <>
-              Bulk review — {selectedCollectionVerses.length} verse
-              {selectedCollectionVerses.length === 1 ? "" : "s"} in one continuous session
+              Bulk review — {selectedVerses.length} verse
+              {selectedVerses.length === 1 ? "" : "s"} in one continuous session
             </>
           )}
         </p>
         {random ? (
-          <RandomReviewFlow collection={collection} verses={selectedCollectionVerses} />
+          <RandomReviewFlow collection={collection ?? undefined} verses={selectedVerses} />
         ) : mode === null || scope === null ? (
           <ModePicker onSelect={setMode} />
         ) : (
@@ -156,7 +164,7 @@ export function ReviewPage() {
             scope,
             tokens,
             onChangeMode: () => setMode(null),
-            verseReferences: selectedCollectionVerses.map((v) => v.reference),
+            verseReferences: selectedVerses.map((v) => v.reference),
           })
         )}
       </div>

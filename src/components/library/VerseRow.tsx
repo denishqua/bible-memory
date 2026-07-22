@@ -9,9 +9,9 @@ import { VerseActionsMenu } from "./VerseActionsMenu";
 
 // Shared between the header row and verse rows so the columns line up.
 // Fixed-ish tracks (no auto/max-content) keep every row's tracks identical.
-// Columns: Reference · Verse · Trans. · Score · Review · Actions.
+// Columns: Checkbox · Reference · Verse · Trans. · Score · Review · Actions.
 export const VERSE_GRID_TEMPLATE =
-  "clamp(6.5rem, 22vw, 11rem) minmax(0, 1fr) 3.5rem 3.25rem 6.25rem 7.5rem";
+  "2.5rem clamp(6.5rem, 22vw, 11rem) minmax(0, 1fr) 3.5rem 3.25rem 6.25rem 7.5rem";
 
 interface VerseRowProps {
   verse: Verse;
@@ -19,9 +19,21 @@ interface VerseRowProps {
   reviewCount: number; // contributing sessions, for the tooltip
   onDelete: (id: string) => void;
   onAddToCollection: (verse: Verse) => void;
+  isSelected: boolean;
+  onToggleSelect: () => void;
+  onRemoveFromCollection?: (id: string) => void;
 }
 
-export function VerseRow({ verse, score, reviewCount, onDelete, onAddToCollection }: VerseRowProps) {
+export function VerseRow({
+  verse,
+  score,
+  reviewCount,
+  onDelete,
+  onAddToCollection,
+  isSelected,
+  onToggleSelect,
+  onRemoveFromCollection,
+}: VerseRowProps) {
   return (
     <div
       role="row"
@@ -34,6 +46,15 @@ export function VerseRow({ verse, score, reviewCount, onDelete, onAddToCollectio
         borderTop: "1px solid var(--color-border)",
       }}
     >
+      <div role="cell" style={{ display: "flex", alignItems: "center" }}>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={onToggleSelect}
+          aria-label={`Select ${verse.reference}`}
+        />
+      </div>
+
       <div role="cell" style={{ minWidth: 0 }}>
         <Link
           to={`/verse/${verse.id}`}
@@ -139,6 +160,7 @@ export function VerseRow({ verse, score, reviewCount, onDelete, onAddToCollectio
           verse={verse}
           onDelete={onDelete}
           onAddToCollection={onAddToCollection}
+          onRemoveFromCollection={onRemoveFromCollection}
         />
       </div>
     </div>

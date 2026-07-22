@@ -21,7 +21,7 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 interface RandomReviewFlowProps {
-  collection: Collection;
+  collection?: Collection;
   // Already filtered to the user's selection, in collection order.
   verses: Verse[];
 }
@@ -54,13 +54,16 @@ export function RandomReviewFlow({ collection, verses }: RandomReviewFlowProps) 
     [verse],
   );
 
+  const backToPath = collection ? `/collections/${collection.id}` : "/";
+  const backToLabel = collection ? `Back to ${collection.name}` : "Back to Library";
+
   if (shuffledIds.length === 0) {
     return (
       <div>
         <p style={{ color: "var(--color-ink-muted)", marginBottom: "1rem" }}>
           No verses to review.
         </p>
-        <Link to={`/collections/${collection.id}`}>Back to {collection.name}</Link>
+        <Link to={backToPath}>{backToLabel}</Link>
       </div>
     );
   }
@@ -72,7 +75,7 @@ export function RandomReviewFlow({ collection, verses }: RandomReviewFlowProps) 
         <p style={{ color: "var(--color-ink-muted)", marginBottom: "1.25rem" }}>
           {shuffledIds.length} verse{shuffledIds.length === 1 ? "" : "s"} reviewed.
         </p>
-        <Link to={`/collections/${collection.id}`}>Back to {collection.name}</Link>
+        <Link to={backToPath}>{backToLabel}</Link>
       </div>
     );
   }

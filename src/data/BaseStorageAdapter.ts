@@ -117,23 +117,6 @@ export abstract class BaseStorageAdapter implements StorageAdapter {
     );
   }
 
-  async reorderCollectionVerses(collectionId: string, orderedVerseIds: string[]): Promise<void> {
-    const links = await this.getCollectionLinks();
-    const existingMap = new Map(
-      links.filter((l) => l.collectionId === collectionId).map((l) => [l.verseId, l])
-    );
-    const otherLinks = links.filter((l) => l.collectionId !== collectionId);
-    const updatedCollectionLinks: CollectionVerseLink[] = orderedVerseIds.map((verseId, index) => {
-      const existing = existingMap.get(verseId);
-      return {
-        collectionId,
-        verseId,
-        addedAt: existing?.addedAt ?? new Date().toISOString(),
-        sortOrder: index,
-      };
-    });
-    await this.setArray(STORAGE_KEYS.collectionLinks, [...otherLinks, ...updatedCollectionLinks]);
-  }
 
   async getReviewSessions(): Promise<ReviewSession[]> {
     return this.getArray<ReviewSession>(STORAGE_KEYS.reviewSessions);

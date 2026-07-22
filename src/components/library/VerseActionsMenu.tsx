@@ -6,6 +6,7 @@ interface VerseActionsMenuProps {
   verse: Verse;
   onDelete: (id: string) => void;
   onAddToCollection: (verse: Verse) => void;
+  onRemoveFromCollection?: (id: string) => void;
 }
 
 const menuItemStyle: React.CSSProperties = {
@@ -22,7 +23,12 @@ const menuItemStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export function VerseActionsMenu({ verse, onDelete, onAddToCollection }: VerseActionsMenuProps) {
+export function VerseActionsMenu({
+  verse,
+  onDelete,
+  onAddToCollection,
+  onRemoveFromCollection,
+}: VerseActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -173,6 +179,19 @@ export function VerseActionsMenu({ verse, onDelete, onAddToCollection }: VerseAc
               >
                 Add to Collection
               </button>
+              {onRemoveFromCollection && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  style={{ ...menuItemStyle, color: "var(--color-danger)" }}
+                  onClick={() => {
+                    close();
+                    onRemoveFromCollection(verse.id);
+                  }}
+                >
+                  Remove from Collection
+                </button>
+              )}
               <button
                 type="button"
                 role="menuitem"

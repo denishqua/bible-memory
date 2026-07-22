@@ -10,9 +10,4 @@ export interface CollectionVerseLink {
   collectionId: string;
   verseId: string;
   addedAt: string;
-  // Explicit position within the collection, written by
-  // StorageAdapter.reorderCollectionVerses. Optional: links created after the
-  // last reorder (or in never-reordered collections) have none and sort by
-  // addedAt AFTER all explicitly-ordered links.
-  sortOrder?: number;
 }
