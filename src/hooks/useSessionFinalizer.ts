@@ -4,12 +4,12 @@ import { useProfile } from "./useProfile";
 import { createId } from "../data/ids";
 import { getDisplayAccuracy, type ReviewMode, type ReviewResult, type ReviewScope, type ReviewSession } from "../types/review";
 
-export interface SessionCompletionSummary {
+interface SessionCompletionSummary {
   accuracy: number;
   passed: boolean;
 }
 
-export interface UseSessionFinalizerOptions {
+interface UseSessionFinalizerOptions {
   isComplete: boolean;
   scope: ReviewScope;
   mode: ReviewMode;

@@ -4,7 +4,7 @@
 // by the caller (network vs. not-found vs. bad-API-key) so the UI can show a
 // precise inline message while always leaving manual entry usable.
 
-export type EsvApiErrorCode = "network" | "not-found" | "api-key" | "unknown";
+type EsvApiErrorCode = "network" | "not-found" | "api-key" | "unknown";
 
 export class EsvApiError extends Error {
   readonly code: EsvApiErrorCode;
@@ -16,7 +16,7 @@ export class EsvApiError extends Error {
   }
 }
 
-export interface EsvPassageResult {
+interface EsvPassageResult {
   reference: string; // API's own "canonical" field, e.g. "Psalm 23:1–3"
   rawText: string; // uncleaned passages[0], still needing cleanEsvText() before storage
 }

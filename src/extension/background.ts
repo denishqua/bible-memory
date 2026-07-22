@@ -370,8 +370,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const url = new URL(rawUrl);
     if (url.protocol !== "http:" && url.protocol !== "https:") return;
     // Mirrors normalizeDomain() in src/lib/domainWhitelist.ts: lowercase,
-    // strip the noise "www." prefix.
-    host = url.hostname.toLowerCase().replace(/^www\./, "");
+    // strip the noise "www." prefix, and strip any trailing dot(s) so a
+    // fully-qualified "example.com." is stored as "example.com" and matches.
+    host = url.hostname.toLowerCase().replace(/^www\./, "").replace(/\.+$/, "");
   } catch {
     return;
   }

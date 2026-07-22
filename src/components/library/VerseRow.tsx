@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import type { Verse } from "../../types/verse";
+import { previewLine } from "../../lib/verseTextCleanup";
+import { masteryScoreTooltip } from "../../lib/verseScore";
 import { Button } from "../ui/Button";
 import { Tooltip } from "../ui/Tooltip";
 import { ReviewScheduleBadge } from "../ui/ReviewScheduleBadge";
@@ -17,10 +19,6 @@ interface VerseRowProps {
   reviewCount: number; // contributing sessions, for the tooltip
   onDelete: (id: string) => void;
   onAddToCollection: (verse: Verse) => void;
-}
-
-function preview(text: string): string {
-  return text.replace(/\n+/g, " ").trim();
 }
 
 export function VerseRow({ verse, score, reviewCount, onDelete, onAddToCollection }: VerseRowProps) {
@@ -66,9 +64,9 @@ export function VerseRow({ verse, score, reviewCount, onDelete, onAddToCollectio
           overflow: "hidden",
           textOverflow: "ellipsis",
         }}
-        title={preview(verse.text)}
+        title={previewLine(verse.text)}
       >
-        {preview(verse.text)}
+        {previewLine(verse.text)}
       </div>
 
       <div role="cell" style={{ minWidth: 0 }}>
@@ -107,11 +105,7 @@ export function VerseRow({ verse, score, reviewCount, onDelete, onAddToCollectio
         }}
       >
         <Tooltip
-          label={
-            reviewCount > 0
-              ? `Mastery score (0–100): your average accuracy across ${reviewCount} recall review${reviewCount === 1 ? "" : "s"} of this verse — Master It, Verse Defender, and Lane Defender.`
-              : "Mastery score (0–100): your average recall accuracy for this verse. Review it in Master It, Verse Defender, or Lane Defender to build a score."
-          }
+          label={masteryScoreTooltip(reviewCount)}
           placement="top"
           align="end"
           focusable={false}

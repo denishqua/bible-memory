@@ -4,8 +4,9 @@
 // (the reserved `srsBucket` / `dueAt` fields) and from review history:
 //
 //   - Phase (from srsBucket): undefined → "new", 0 → "learning", >=1 → "reviewing".
-//   - A Leitner review schedule: each pass climbs one bucket (longer interval),
-//     each fail drops back to bucket 0 (due immediately).
+//   - A Leitner review schedule: each pass (>= 90%) climbs one bucket (longer
+//     interval); a fail (< 90%) leaves the schedule unchanged, so the verse
+//     stays due without being demoted.
 //
 // The difficulty of the auto-picked review mode ramps with the phase:
 //   new → type-it (verse visible), learning → memorize-it (every other word
@@ -28,7 +29,7 @@ export const MAX_BUCKET = INTERVAL_DAYS.length - 1;
 //   < 90         → Fail  (no change to bucket or due time)
 export const PASS_THRESHOLD = 90;
 
-export type Phase = "new" | "learning" | "reviewing";
+type Phase = "new" | "learning" | "reviewing";
 
 // One entry in the day's study queue: the verse, the auto-picked mode for it,
 // and the phase it was in when the queue was snapshotted.
@@ -39,12 +40,12 @@ export interface StudyItem {
 }
 
 // The SRS state written back to a verse after a review (see useVerses.setSrsState).
-export interface SrsState {
+interface SrsState {
   srsBucket?: number;
   dueAt?: string;
 }
 
-export interface StudyQueueParams {
+interface StudyQueueParams {
   verses: Verse[];
   now: string;
   // null = the whole library; otherwise only verses whose id is in this list
@@ -104,11 +105,8 @@ export function applyReview(
     const days = nextBucket === 0 ? 1 : INTERVAL_DAYS[nextBucket];
     return { srsBucket: nextBucket, dueAt: addDays(now, days) };
   } else {
-    // Under 90%: don't reset dueAt or make any changes to review interval
-    return {
-      srsBucket: bucket ?? undefined,
-      dueAt: verse.dueAt ?? undefined,
-    };
+    // Under 90%: leave the schedule untouched (no bucket or dueAt change).
+    return { srsBucket: verse.srsBucket, dueAt: verse.dueAt };
   }
 }
 
@@ -188,7 +186,7 @@ export function selectDueFirst(
   const due = pool.filter((v) => isDue(v, now)).sort((a, b) => dueTime(a) - dueTime(b));
   if (due.length === 0) return null;
   const candidates = due.length > 1 ? due.filter((v) => v.id !== excludeId) : due;
-  return candidates[0] ?? due[0];
+  return candidates[0];
 }
 
 function toItem(verse: Verse): StudyItem {

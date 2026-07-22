@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Collection } from "../../types/collection";
 import { Button } from "../ui/Button";
 
-export interface CollectionSelectorProps {
+interface CollectionSelectorProps {
   collections: Collection[];
   selectedCollectionIds: Set<string>;
   onToggleCollection: (collectionId: string) => void;

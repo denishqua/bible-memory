@@ -11,7 +11,7 @@ import { resolveCollectionVerseIds, resolveCollectionVerses } from "../lib/colle
 // Backs both the header due badge and the Study Today progress dashboard, so
 // they read from one live source (useVerses broadcasts VERSES_UPDATED_EVENT on
 // every mutation, keeping this in sync after a study session or schedule edit).
-export interface StudyStats extends PoolSummary {
+interface StudyStats extends PoolSummary {
   loading: boolean;
 }
 

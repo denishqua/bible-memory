@@ -22,16 +22,27 @@ import { isMaskableReviewMode, type ReviewMode, type ReviewScope } from "../../t
 // buildVerseReviewTokens), so it recalls inline as part of the same session.
 // `onHideReference` lets the host hide its own reference chrome (page heading,
 // gate) once the player is ~25% through the verse.
-export function renderSession(
-  mode: ReviewMode,
-  scope: ReviewScope,
-  tokens: Token[],
-  onChangeMode: () => void,
-  onComplete?: (outcome?: { accuracy: number; passed: boolean }) => void,
+interface RenderSessionOptions {
+  mode: ReviewMode;
+  scope: ReviewScope;
+  tokens: Token[];
+  onChangeMode: () => void;
+  onComplete?: (outcome?: { accuracy: number; passed: boolean }) => void;
+  embedded?: boolean;
+  verseReferences?: string[];
+  onHideReference?: (hidden: boolean) => void;
+}
+
+export function renderSession({
+  mode,
+  scope,
+  tokens,
+  onChangeMode,
+  onComplete,
   embedded = false,
-  verseReferences?: string[],
-  onHideReference?: (hidden: boolean) => void,
-) {
+  verseReferences,
+  onHideReference,
+}: RenderSessionOptions) {
   if (isMaskableReviewMode(mode)) {
     return (
       <ReviewSession

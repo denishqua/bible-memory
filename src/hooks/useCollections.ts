@@ -100,6 +100,26 @@ export function useCollections() {
     [links],
   );
 
+  const unionVerseIds = useCallback(
+    // Deduped union of verse ids across the given collections, preserving order
+    // (collection order, then verse order within each) so a verse in two
+    // selected collections appears once. Used to resolve the study pool and the
+    // verse-gate pool from a set of selected collections.
+    (collectionIds: string[]): string[] => {
+      const seen = new Set<string>();
+      const ids: string[] = [];
+      for (const collectionId of collectionIds) {
+        for (const id of getVerseIdsForCollection(collectionId)) {
+          if (seen.has(id)) continue;
+          seen.add(id);
+          ids.push(id);
+        }
+      }
+      return ids;
+    },
+    [getVerseIdsForCollection],
+  );
+
   const getCollectionsForVerse = useCallback(
     (verseId: string): Collection[] => {
       const collectionIds = new Set(
@@ -121,6 +141,7 @@ export function useCollections() {
     removeVerseFromCollection,
     reorderCollectionVerses,
     getVerseIdsForCollection,
+    unionVerseIds,
     getCollectionsForVerse,
     refresh,
   };

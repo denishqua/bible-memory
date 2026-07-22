@@ -39,19 +39,25 @@ export abstract class BaseStorageAdapter implements StorageAdapter {
     await this.driver.set(key, value);
   }
 
+  // Insert `item` into the array at `key`, or replace the existing entry that
+  // shares its id. Shared by saveVerse / saveCollection / appendReviewSession.
+  protected async upsertById<T extends { id: string }>(key: string, item: T): Promise<void> {
+    const items = await this.getArray<T>(key);
+    const index = items.findIndex((existing) => existing.id === item.id);
+    if (index === -1) {
+      items.push(item);
+    } else {
+      items[index] = item;
+    }
+    await this.setArray(key, items);
+  }
+
   async getVerses(): Promise<Verse[]> {
     return this.getArray<Verse>(STORAGE_KEYS.verses);
   }
 
   async saveVerse(v: Verse): Promise<void> {
-    const verses = await this.getVerses();
-    const index = verses.findIndex((existing) => existing.id === v.id);
-    if (index === -1) {
-      verses.push(v);
-    } else {
-      verses[index] = v;
-    }
-    await this.setArray(STORAGE_KEYS.verses, verses);
+    await this.upsertById(STORAGE_KEYS.verses, v);
   }
 
   async deleteVerse(id: string): Promise<void> {
@@ -72,14 +78,7 @@ export abstract class BaseStorageAdapter implements StorageAdapter {
   }
 
   async saveCollection(c: Collection): Promise<void> {
-    const collections = await this.getCollections();
-    const index = collections.findIndex((existing) => existing.id === c.id);
-    if (index === -1) {
-      collections.push(c);
-    } else {
-      collections[index] = c;
-    }
-    await this.setArray(STORAGE_KEYS.collections, collections);
+    await this.upsertById(STORAGE_KEYS.collections, c);
   }
 
   async deleteCollection(id: string): Promise<void> {
@@ -141,14 +140,7 @@ export abstract class BaseStorageAdapter implements StorageAdapter {
   }
 
   async appendReviewSession(s: ReviewSession): Promise<void> {
-    const sessions = await this.getReviewSessions();
-    const index = sessions.findIndex((existing) => existing.id === s.id);
-    if (index === -1) {
-      sessions.push(s);
-    } else {
-      sessions[index] = s;
-    }
-    await this.setArray(STORAGE_KEYS.reviewSessions, sessions);
+    await this.upsertById(STORAGE_KEYS.reviewSessions, s);
   }
 
   async touchGateReview(): Promise<void> {

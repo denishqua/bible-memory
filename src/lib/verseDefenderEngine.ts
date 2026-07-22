@@ -5,6 +5,7 @@
 // reviewModes.ts/tokenize.ts DOM-free.
 
 import { isBetweenVerseReferenceMarker, type Token } from "./tokenize";
+import { charsMatch } from "./keyboard";
 import type { ReviewResult } from "../types/review";
 import { countPassageVerses } from "./verseReview";
 
@@ -101,20 +102,6 @@ export function maskedGlyphs(normalized: string, revealedCount: number): string 
     .join("");
 }
 
-/**
- * Reference-marker tokens are the only tokens in a collection stream that are
- * non-matchable but neither line breaks nor verse numbers (see
- * collectionReview.ts — "— Romans 8:28 —" spliced between verses).
- */
-function isReferenceMarker(token: Token): boolean {
-  // The `!token.isReference` clause (inside the shared predicate) excludes the
-  // single-verse reference delimiter: it has this same non-matchable shape but
-  // must NOT open a new verse (which would inflate the shield pool). The
-  // appended reference WORDS are matchable and simply join the destroy queue as
-  // ordinary targets.
-  return isBetweenVerseReferenceMarker(token);
-}
-
 export function createInitialState(tokens: Token[], isCollection: boolean): VerseDefenderState {
   const queue: Token[] = [];
   const verseBoundaries = new Set<number>();
@@ -122,9 +109,13 @@ export function createInitialState(tokens: Token[], isCollection: boolean): Vers
   for (const token of tokens) {
     if (token.matchable) {
       queue.push(token);
-    } else if (isCollection && isReferenceMarker(token)) {
-      // The next matchable token starts a new verse; its queue index is
-      // however many matchable tokens preceded this marker.
+    } else if (isCollection && isBetweenVerseReferenceMarker(token)) {
+      // A between-verse "— Romans 8:28 —" marker (the only non-matchable token
+      // that is neither a line break nor a verse number) starts a new verse; its
+      // queue index is however many matchable tokens preceded it. The predicate's
+      // `!isReference` clause excludes the single-verse reference delimiter, which
+      // shares this shape but must NOT open a verse (that would inflate the
+      // shield pool); its appended words are matchable and join the queue normally.
       verseBoundaries.add(queue.length);
     }
   }
@@ -198,8 +189,7 @@ export function handleKeystroke(state: VerseDefenderState, char: string): VerseD
   }
 
   const word = state.queue[state.currentWordIndex];
-  const expected = word?.normalized[0];
-  const isMatch = expected !== undefined && char.toLowerCase() === expected.toLowerCase();
+  const isMatch = charsMatch(char, word?.normalized[0]);
 
   if (isMatch) {
     return advanceAfterCorrect(state);

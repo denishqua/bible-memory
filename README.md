@@ -76,14 +76,18 @@ it's due. You can scope the study pool to specific collections in Settings
 (default: whole library).
 
 **Schedule.** Review intervals by bucket are `0, 1, 3, 7, 14, 30` days. Each
-review adjusts the bucket by its accuracy, in three bands:
+review adjusts the bucket by its accuracy, in two bands:
 
-- **≥ 90% — advance:** climb one bucket (capped at 5), next review further out.
-- **85–89% — hold:** stay on the current bucket, no penalty.
-- **< 85% — miss:** eases off one bucket (or holds — configurable as "demote" vs "hold" in Settings).
+- **≥ 90% — pass:** climb one bucket (capped at 5), so the next review lands
+  further out.
+- **< 90% — fail:** the schedule is left **unchanged** — same bucket, same due
+  date — so the verse simply stays due (or comes due again) instead of being
+  penalized.
 
-It **never resets to bucket 0** from a high bucket and never drops below 0, so a
-single stumble on a well-learned verse only nudges it back one step.
+A verse's first review drops it into the schedule at bucket 0 (due the next
+day); from there each pass moves it one rung up the interval ladder. A missed
+review never demotes or resets it, so a well-learned verse that slips once just
+resurfaces on its normal cadence.
 
 **Due badge & practice counter.** The **Study** nav tab carries a live badge with the number of
 verses **due for review** right now (learning + reviewing whose time has come). The header also displays your cumulative **verses practiced** count (e.g. `⚡ 12`), updating automatically after every completed session.

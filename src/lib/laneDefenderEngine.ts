@@ -22,18 +22,18 @@ export const LANE_KEYS = ["d", "f", "j", "k"] as const;
 // How long a word takes to fall from the top of its lane to the firing line.
 export const DESCENT_DURATION_MS = 7000;
 // Randomized per-lane delay before an empty lane spawns its next word.
-export const SPAWN_DELAY_MIN_MS = 200;
-export const SPAWN_DELAY_MAX_MS = 900;
+const SPAWN_DELAY_MIN_MS = 200;
+const SPAWN_DELAY_MAX_MS = 900;
 // spawnPointer never runs more than this many words ahead of nextTargetIndex —
 // with 4 lanes this guarantees a slot is always reachable for the target.
-export const MAX_SPAWN_LEAD = 4;
+const MAX_SPAWN_LEAD = 4;
 // Runs at or above this percentage count as a pass (same bar as the other
 // review modes).
 export const PASS_THRESHOLD = 90;
 
 export type LaneDefenderStatus = "playing" | "complete";
 
-export interface FallingWordState {
+interface FallingWordState {
   queueIndex: number;
   token: Token;
   spawnedAt: number; // performance.now() timestamp at spawn
@@ -63,7 +63,7 @@ export interface EngineState {
 
 // The ordered destroy queue is just the matchable tokens; line breaks,
 // verse-number markers, and between-verse reference markers are all skipped.
-export function buildQueue(tokens: Token[]): Token[] {
+function buildQueue(tokens: Token[]): Token[] {
   return tokens.filter((token) => token.matchable);
 }
 
@@ -91,7 +91,7 @@ export function getWordProgress(word: FallingWordState, now: number): number {
   return Math.min(1, Math.max(0, (now - word.spawnedAt) / DESCENT_DURATION_MS));
 }
 
-export function isTargetInFlight(state: EngineState): boolean {
+function isTargetInFlight(state: EngineState): boolean {
   return state.lanes.some((w) => w !== null && w.queueIndex === state.nextTargetIndex);
 }
 
@@ -170,7 +170,7 @@ export function handleLaneKey(state: EngineState, laneIndex: number): LaneKeyOut
   return "miss";
 }
 
-export type BottomOutcome = "target-miss" | "decoy-despawn" | "none";
+type BottomOutcome = "target-miss" | "decoy-despawn" | "none";
 
 // A word's descent finished without being shot. Target: charged as one mistake
 // and it will respawn via trySpawn's target guarantee — nextTargetIndex never

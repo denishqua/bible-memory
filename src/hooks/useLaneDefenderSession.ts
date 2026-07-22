@@ -35,7 +35,7 @@ export interface ShotEvent {
   outcome: LaneKeyOutcome;
 }
 
-export interface LaneDefenderView {
+interface LaneDefenderView {
   lanes: (LaneWordView | null)[];
   status: LaneDefenderStatus;
   destroyedCount: number;

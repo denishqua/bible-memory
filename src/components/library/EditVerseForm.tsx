@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "../ui/Button";
+import { inputStyle, labelStyle } from "../ui/formStyles";
 import { CollectionSelector } from "./CollectionSelector";
 import { useCollections } from "../../hooks/useCollections";
+import { useCollectionSelection } from "../../hooks/useCollectionSelection";
 import type { EditVerseInput, Verse } from "../../types/verse";
 
 interface EditVerseFormProps {
@@ -9,24 +11,6 @@ interface EditVerseFormProps {
   onSubmit: (input: EditVerseInput) => void | Promise<void>;
   onCancel: () => void;
 }
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "0.6rem 0.75rem",
-  borderRadius: "0.5rem",
-  border: "1px solid var(--color-border)",
-  background: "var(--color-surface)",
-  color: "var(--color-ink)",
-  fontFamily: "inherit",
-  fontSize: "0.95rem",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  marginBottom: "0.35rem",
-  fontSize: "0.85rem",
-  color: "var(--color-ink-muted)",
-};
 
 export function EditVerseForm({ verse, onSubmit, onCancel }: EditVerseFormProps) {
   const {
@@ -46,8 +30,8 @@ export function EditVerseForm({ verse, onSubmit, onCancel }: EditVerseFormProps)
   // Which collections this verse should belong to after saving. Seeded once
   // from the verse's current membership (below), then edited freely; the diff
   // against the stored membership is only persisted at submit time.
-  const [selectedCollectionIds, setSelectedCollectionIds] = useState<Set<string>>(new Set());
-  const [creatingCollection, setCreatingCollection] = useState(false);
+  const { selectedIds, setSelectedIds, toggle, createAndSelect, creating } =
+    useCollectionSelection(createCollection);
 
   // Seed the checkboxes from the verse's current membership as soon as the
   // links have loaded (getCollectionsForVerse is empty until then). Guarded so
@@ -57,30 +41,10 @@ export function EditVerseForm({ verse, onSubmit, onCancel }: EditVerseFormProps)
   useEffect(() => {
     if (collectionsLoading || seededRef.current) return;
     seededRef.current = true;
-    setSelectedCollectionIds(new Set(getCollectionsForVerse(verse.id).map((c) => c.id)));
-  }, [collectionsLoading, getCollectionsForVerse, verse.id]);
+    setSelectedIds(new Set(getCollectionsForVerse(verse.id).map((c) => c.id)));
+  }, [collectionsLoading, getCollectionsForVerse, verse.id, setSelectedIds]);
 
   const canSubmit = reference.trim().length > 0 && text.trim().length > 0 && !submitting;
-
-  function toggleCollection(id: string) {
-    setSelectedCollectionIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  async function handleCreateCollection(name: string) {
-    if (creatingCollection) return;
-    setCreatingCollection(true);
-    try {
-      const collection = await createCollection(name);
-      setSelectedCollectionIds((prev) => new Set(prev).add(collection.id));
-    } finally {
-      setCreatingCollection(false);
-    }
-  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -92,8 +56,8 @@ export function EditVerseForm({ verse, onSubmit, onCancel }: EditVerseFormProps)
       // finish first. Diff against the freshly-read stored membership so a
       // collection created mid-edit is treated as an add, not a no-op.
       const current = new Set(getCollectionsForVerse(verse.id).map((c) => c.id));
-      const toAdd = [...selectedCollectionIds].filter((id) => !current.has(id));
-      const toRemove = [...current].filter((id) => !selectedCollectionIds.has(id));
+      const toAdd = [...selectedIds].filter((id) => !current.has(id));
+      const toRemove = [...current].filter((id) => !selectedIds.has(id));
       for (const id of toAdd) await addVerseToCollection(id, verse.id);
       for (const id of toRemove) await removeVerseFromCollection(id, verse.id);
 
@@ -150,10 +114,10 @@ export function EditVerseForm({ verse, onSubmit, onCancel }: EditVerseFormProps)
       </div>
       <CollectionSelector
         collections={collections}
-        selectedCollectionIds={selectedCollectionIds}
-        onToggleCollection={toggleCollection}
-        onCreateCollection={handleCreateCollection}
-        creating={creatingCollection}
+        selectedCollectionIds={selectedIds}
+        onToggleCollection={toggle}
+        onCreateCollection={createAndSelect}
+        creating={creating}
         inputStyle={inputStyle}
         labelStyle={labelStyle}
       />

@@ -11,9 +11,9 @@ import type { ReviewMode } from "../types/review";
 //   - guards against repeats via a useRef<Set> keyed by verse id, so a Retry that
 //     re-fires onComplete for the same verse advances the schedule at most once
 //     within a mounted flow,
-//   - computes applyReview(verse, accuracy, now, onFailBehavior) and persists it
-//     through useVerses.setSrsState (which broadcasts the update so the due badge
-//     and dashboards refresh live).
+//   - computes applyReview(verse, accuracy, now) and persists it through
+//     useVerses.setSrsState (which broadcasts the update so the due badge and
+//     dashboards refresh live).
 // A brand-new verse (undefined bucket) lands at bucket 0 on its first review —
 // this is how a verse ENTERS the SRS rotation the first time it's reviewed as a
 // single verse (Study Today, the verse gate, or a normal single-verse Review).
@@ -34,18 +34,13 @@ export function useSrsAdvance() {
       if (processedRef.current.has(verse.id)) return;
       processedRef.current.add(verse.id);
       // `passed` drives only the recorded ReviewResult / summary UI (owned by the
-      // session component). The SRS decision uses the raw accuracy so it applies
-      // the gracious three-band model with the configured miss policy.
+      // session component). The SRS decision uses the raw accuracy: a pass
+      // (>= 90%) advances one bucket, a fail leaves the schedule unchanged.
       const srs = applyReview(verse, outcome.accuracy, new Date().toISOString());
       void setSrsState(verse.id, srs);
     },
     [setSrsState],
   );
 
-  // Lets a flow start a fresh once-per-verse scope if it ever needs to (optional).
-  const reset = useCallback(() => {
-    processedRef.current = new Set();
-  }, []);
-
-  return { advance, reset };
+  return { advance };
 }

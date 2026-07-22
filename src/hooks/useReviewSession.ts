@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { isBetweenVerseReferenceMarker, type Token } from "../lib/tokenize";
 import { initialVisibility, type Visibility } from "../lib/reviewModes";
 import { calculateAccuracy } from "../lib/accuracy";
-import { isPrintableCharacter } from "../lib/keyboard";
+import { isPrintableCharacter, charsMatch } from "../lib/keyboard";
 import type { MaskableReviewMode } from "../types/review";
 
 export interface WordRuntimeState {
@@ -22,9 +22,9 @@ export interface WordRuntimeState {
 // is a presentation concern, so `attempts` here is stored uncapped (a plain
 // count of wrong keystrokes on the current word).
 
-export type ReviewStatus = "in-progress" | "complete";
+type ReviewStatus = "in-progress" | "complete";
 
-export interface UseReviewSessionResult {
+interface UseReviewSessionResult {
   words: WordRuntimeState[];
   currentIndex: number;
   // LIVE running accuracy over only the words ENGAGED so far (completed OR
@@ -100,19 +100,6 @@ function liveAccuracy(words: WordRuntimeState[]): number {
   return calculateAccuracy(clean, engaged.length);
 }
 
-// A reference marker is the non-matchable, display-only "— John 3:16 —" token
-// spliced between verses in a bulk (collection) review — distinguished from a
-// line break or a verse-number marker, which are also non-matchable but not
-// verse boundaries. (See buildCollectionReviewTokens.)
-function isReferenceMarker(word: WordRuntimeState): boolean {
-  // The shared predicate's `!token.isReference` clause excludes the single-verse
-  // reference delimiter, which shares this "non-matchable, non-break, non-number"
-  // shape but is NOT a between-verse boundary (bulk review, the only caller of
-  // perVerseAccuracy, never appends a reference — this just keeps the two
-  // concepts from colliding).
-  return isBetweenVerseReferenceMarker(word.token);
-}
-
 // Segments a runtime word stream into per-verse groups at reference-marker
 // boundaries and returns each group's LIVE accuracy (same engaged-based formula
 // as the headline number), one entry per verse in order. The first group is
@@ -128,7 +115,11 @@ export function perVerseAccuracy(
   let start = 0;
   let group: WordRuntimeState[] = [];
   for (let i = 0; i < words.length; i++) {
-    if (isReferenceMarker(words[i])) {
+    // A between-verse "— John 3:16 —" marker (non-matchable, not a line break or
+    // verse number) opens a new segment. The predicate's `!isReference` clause
+    // excludes the single-verse reference delimiter, which shares this shape but
+    // is not a verse boundary (bulk review never appends one).
+    if (isBetweenVerseReferenceMarker(words[i].token)) {
       segments.push({ startIndex: start, accuracy: liveAccuracy(group) });
       start = i;
       group = [];
@@ -198,7 +189,7 @@ export function useReviewSession(
           // by itself complete the word; that waits for space (above). A wrong
           // char marks the word (attempts++) but never rewinds progress.
           const expected = currentWord.token.normalized[currentWord.typedCount];
-          const isMatch = expected !== undefined && char.toLowerCase() === expected.toLowerCase();
+          const isMatch = charsMatch(char, expected);
 
           if (isMatch) {
             const typedCount = currentWord.typedCount + 1;
@@ -242,7 +233,7 @@ export function useReviewSession(
         // First-letter mode (default): one correct first letter completes and
         // advances the word.
         const expected = currentWord.token.normalized[0];
-        const isMatch = expected !== undefined && char.toLowerCase() === expected.toLowerCase();
+        const isMatch = charsMatch(char, expected);
 
         if (isMatch) {
           words[prev.currentIndex] = { ...currentWord, completed: true };

@@ -151,15 +151,13 @@ export function ReviewPage() {
         ) : (
           // verseReferences (in review order) label the per-verse accuracy
           // breakdown for a bulk collection review; single-verse behaves as before.
-          renderSession(
+          renderSession({
             mode,
             scope,
             tokens,
-            () => setMode(null),
-            undefined,
-            false,
-            selectedCollectionVerses.map((v) => v.reference),
-          )
+            onChangeMode: () => setMode(null),
+            verseReferences: selectedCollectionVerses.map((v) => v.reference),
+          })
         )}
       </div>
     );
@@ -208,16 +206,14 @@ export function ReviewPage() {
       {mode === null ? (
         <ModePicker onSelect={setMode} />
       ) : (
-        renderSession(
+        renderSession({
           mode,
           scope,
           tokens,
-          () => setMode(null),
-          (outcome) => advanceSrs(verse, outcome, mode),
-          false,
-          undefined,
-          setHideReference,
-        )
+          onChangeMode: () => setMode(null),
+          onComplete: (outcome) => advanceSrs(verse, outcome, mode),
+          onHideReference: setHideReference,
+        })
       )}
     </div>
   );

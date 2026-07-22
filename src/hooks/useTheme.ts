@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { THEME_KEY } from "../data/BaseStorageAdapter";
 
 export type ThemePreference = "light" | "dark" | "system";
-export type ResolvedTheme = "light" | "dark";
-
-const THEME_KEY = "bm.theme.v1";
+type ResolvedTheme = "light" | "dark";
 
 function readStoredPreference(): ThemePreference {
   const stored = localStorage.getItem(THEME_KEY);

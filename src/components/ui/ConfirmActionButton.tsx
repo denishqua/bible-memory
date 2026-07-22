@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Button } from "./Button";
 
-export interface ConfirmActionButtonProps {
+interface ConfirmActionButtonProps {
   initialLabel?: ReactNode;
   confirmLabel?: ReactNode;
   cancelLabel?: ReactNode;

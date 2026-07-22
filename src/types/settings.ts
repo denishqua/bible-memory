@@ -59,7 +59,7 @@ export interface SchedulerSettings {
   collectionIds: string[] | null;
 }
 
-export function defaultSchedulerSettings(): SchedulerSettings {
+function defaultSchedulerSettings(): SchedulerSettings {
   return { collectionIds: null };
 }
 

@@ -1,6 +1,6 @@
 // Shared keyboard event filtering helpers.
 
-export const NON_CHARACTER_KEYS = new Set([
+const NON_CHARACTER_KEYS = new Set([
   "Shift",
   "Control",
   "Alt",
@@ -26,4 +26,11 @@ export function isPrintableCharacter(char: string): boolean {
   if (NON_CHARACTER_KEYS.has(char)) return false;
   // Named keys (like 'Shift' or 'Enter') have length > 1.
   return char.length === 1;
+}
+
+// Case-insensitive single-character match against the expected letter, treating
+// a missing expected letter (past the end of a word) as no match. Shared by the
+// review session and the Verse Defender engine.
+export function charsMatch(typed: string, expected: string | undefined): boolean {
+  return expected !== undefined && typed.toLowerCase() === expected.toLowerCase();
 }

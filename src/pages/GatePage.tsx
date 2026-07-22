@@ -44,7 +44,7 @@ function pickRandomVerse(pool: Verse[], excludeId: string | null): Verse | null 
 export function GatePage() {
   const { settings, loading: settingsLoading } = useSettings();
   const { verses, loading: versesLoading, setSrsState } = useVerses();
-  const { loading: collectionsLoading, getVerseIdsForCollection } = useCollections();
+  const { loading: collectionsLoading, unionVerseIds } = useCollections();
 
   const navigate = useNavigate();
 
@@ -69,7 +69,7 @@ export function GatePage() {
   // selected collections appears once, narrowed to the selected subset when one
   // is set, keeping only verses that still exist. Empty when no collection is
   // selected.
-  const basePool = useMemo<Verse[]>(() => {
+  const pool = useMemo<Verse[]>(() => {
     // Legacy fallback: data stored before the gate supported multiple
     // collections carried a single `collectionId` (no longer in the type, so
     // read it through a widened view).
@@ -77,23 +77,13 @@ export function GatePage() {
     const collectionIds = gate?.collectionIds ?? (legacyId ? [legacyId] : []);
     if (collectionIds.length === 0) return [];
     const byId = new Map(verses.map((v) => [v.id, v] as const));
-    const seen = new Set<string>();
-    let ids: string[] = [];
-    for (const collectionId of collectionIds) {
-      for (const id of getVerseIdsForCollection(collectionId)) {
-        if (seen.has(id)) continue;
-        seen.add(id);
-        ids.push(id);
-      }
-    }
+    let ids = unionVerseIds(collectionIds);
     if (gate?.verseIds != null) {
       const wanted = new Set(gate.verseIds);
       ids = ids.filter((id) => wanted.has(id));
     }
     return ids.map((id) => byId.get(id)).filter((v): v is Verse => v !== undefined);
-  }, [gate, verses, getVerseIdsForCollection]);
-
-  const pool = basePool;
+  }, [gate, verses, unionVerseIds]);
 
   const [currentVerseId, setCurrentVerseId] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
@@ -284,16 +274,15 @@ export function GatePage() {
           changes the id: it's disabled when the pool has fewer than 2 verses,
           and pickRandomVerse excludes the current verse otherwise. */}
       <div key={currentVerse.id}>
-        {renderSession(
-          gate.mode,
+        {renderSession({
+          mode: gate.mode,
           scope,
           tokens,
-          () => {},
-          handleComplete,
-          true,
-          undefined,
-          setHideReference,
-        )}
+          onChangeMode: () => {},
+          onComplete: handleComplete,
+          embedded: true,
+          onHideReference: setHideReference,
+        })}
       </div>
 
       {completed && (

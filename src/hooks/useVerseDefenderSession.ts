@@ -17,17 +17,17 @@ import {
 
 /** One destroyed asteroid: `id` increments per hit (animation key), `progress`
  * is where the asteroid was on its descent when the laser connected. */
-export interface HitEvent {
+interface HitEvent {
   id: number;
   progress: number;
 }
 
 /** One wrong keystroke: `id` increments per miss (animation key). */
-export interface MissEvent {
+interface MissEvent {
   id: number;
 }
 
-export interface UseVerseDefenderSessionResult {
+interface UseVerseDefenderSessionResult {
   status: VerseDefenderStatus;
   /** The word the in-flight (or breached) asteroid represents; null once done. */
   currentWord: Token | null;

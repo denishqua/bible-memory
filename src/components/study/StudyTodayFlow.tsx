@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { renderSession } from "../review/renderSession";
+import { VerseRunnerView } from "../review/VerseRunnerView";
 import { buildVerseReviewTokens } from "../../lib/verseReview";
 import { buildStudyQueue, type StudyItem } from "../../lib/srs";
 import { useSrsAdvance } from "../../hooks/useSrsAdvance";
+import { useVerseRunner } from "../../hooks/useVerseRunner";
 import { Button } from "../ui/Button";
 import type { Verse } from "../../types/verse";
 import type { ReviewScope } from "../../types/review";
@@ -29,17 +31,14 @@ export function StudyTodayFlow({ verses, poolVerseIds, onDone }: StudyTodayFlowP
       poolVerseIds,
     }),
   );
-  const [index, setIndex] = useState(0);
-  const [finished, setFinished] = useState(false);
-  // Hide the reference in the progress line once the player is ~25% through the
-  // current verse, so the appended reference can't be read while it's recalled.
-  const [hideReference, setHideReference] = useState(false);
+  const { index, isLast, finished, hideReference, setHideReference, advance } = useVerseRunner(
+    queue.length,
+  );
   // Advances the current verse's SRS schedule once per verse (guards Retry).
   const { advance: advanceSrs } = useSrsAdvance();
 
   const item = queue[index];
   const verse = item?.verse;
-  const isLast = index >= queue.length - 1;
 
   const tokens = useMemo(
     () => (verse ? buildVerseReviewTokens(verse.text, verse.reference) : []),
@@ -78,46 +77,26 @@ export function StudyTodayFlow({ verses, poolVerseIds, onDone }: StudyTodayFlowP
     );
   }
 
-  const advance = () => {
-    setHideReference(false);
-    if (isLast) {
-      setFinished(true);
-    } else {
-      setIndex((i) => i + 1);
-    }
-  };
+  const heading = `Verse ${index + 1} of ${queue.length}${
+    verse && !hideReference ? ` — ${verse.reference}` : ""
+  }`;
 
   return (
-    <div>
-      <p style={{ color: "var(--color-ink-muted)", marginBottom: "1rem", fontSize: "0.95rem" }}>
-        Verse {index + 1} of {queue.length}
-        {verse && !hideReference ? ` — ${verse.reference}` : ""}
-      </p>
+    <VerseRunnerView heading={heading} verseMissing={!verse || !scope} isLast={isLast} onAdvance={advance}>
+      {/* Keyed by verseId so the session component fully unmounts/remounts (and
+          resets its state) between verses. */}
       {verse && scope ? (
-        // Keyed by verseId so the session component fully unmounts/remounts (and
-        // resets its state) between verses.
         <div key={verse.id}>
-          {renderSession(
-            item.mode,
+          {renderSession({
+            mode: item.mode,
             scope,
             tokens,
-            () => {},
-            handleComplete,
-            false,
-            undefined,
-            setHideReference,
-          )}
+            onChangeMode: () => {},
+            onComplete: handleComplete,
+            onHideReference: setHideReference,
+          })}
         </div>
-      ) : (
-        <p style={{ color: "var(--color-ink-muted)" }}>
-          This verse is no longer in your library — skip ahead.
-        </p>
-      )}
-      <div style={{ marginTop: "1.25rem" }}>
-        <Button variant="ghost" onClick={advance}>
-          {isLast ? "Finish" : "Next Verse →"}
-        </Button>
-      </div>
-    </div>
+      ) : null}
+    </VerseRunnerView>
   );
 }

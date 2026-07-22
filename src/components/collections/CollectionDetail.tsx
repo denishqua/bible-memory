@@ -3,7 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useCollections } from "../../hooks/useCollections";
 import { useVerses } from "../../hooks/useVerses";
 import { useReviewHistory } from "../../hooks/useReviewHistory";
-import { computeVerseScores } from "../../lib/verseScore";
+import { computeVerseScores, masteryScoreTooltip } from "../../lib/verseScore";
+import { previewLine } from "../../lib/verseTextCleanup";
 import { Button } from "../ui/Button";
 import { ConfirmActionButton } from "../ui/ConfirmActionButton";
 import { Card } from "../ui/Card";
@@ -13,12 +14,6 @@ import type { Verse } from "../../types/verse";
 
 interface CollectionDetailProps {
   collectionId: string;
-}
-
-// Collapse newlines to a single line so the preview truncates cleanly,
-// mirroring the Library's verse preview.
-function preview(text: string): string {
-  return text.replace(/\n+/g, " ").trim();
 }
 
 // True when dropping `from` at insertion point `to` would leave the order
@@ -372,18 +367,14 @@ export function CollectionDetail({ collectionId }: CollectionDetailProps) {
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                   }}
-                  title={preview(verse.text)}
+                  title={previewLine(verse.text)}
                 >
-                  {preview(verse.text)}
+                  {previewLine(verse.text)}
                 </p>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                 <Tooltip
-                  label={
-                    verseScore
-                      ? `Mastery score (0–100): your average accuracy across ${verseScore.count} recall review${verseScore.count === 1 ? "" : "s"} of this verse — Master It, Verse Defender, and Lane Defender.`
-                      : "Mastery score (0–100): your average recall accuracy for this verse. Review it in Master It, Verse Defender, or Lane Defender to build a score."
-                  }
+                  label={masteryScoreTooltip(verseScore?.count ?? 0)}
                   placement="top"
                   align="end"
                   focusable={false}

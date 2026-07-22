@@ -2,8 +2,9 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ModePicker } from "./ModePicker";
 import { renderSession } from "./renderSession";
+import { VerseRunnerView } from "./VerseRunnerView";
 import { buildVerseReviewTokens } from "../../lib/verseReview";
-import { Button } from "../ui/Button";
+import { useVerseRunner } from "../../hooks/useVerseRunner";
 import type { Verse } from "../../types/verse";
 import type { Collection } from "../../types/collection";
 import type { ReviewMode, ReviewScope } from "../../types/review";
@@ -35,18 +36,14 @@ export function RandomReviewFlow({ collection, verses }: RandomReviewFlowProps) 
   // the verses prop identity changes (e.g. a hook refresh after a session logs).
   const [shuffledIds] = useState<string[]>(() => shuffle(verses.map((v) => v.id)));
   const [mode, setMode] = useState<ReviewMode | null>(null);
-  const [index, setIndex] = useState(0);
-  const [finished, setFinished] = useState(false);
-  // Set true once the player is ~25% through the current verse — from then on
-  // hide the reference in the progress line so the appended reference can't be
-  // read while it's being recalled.
-  const [hideReference, setHideReference] = useState(false);
+  const { index, isLast, finished, hideReference, setHideReference, advance } = useVerseRunner(
+    shuffledIds.length,
+  );
 
   const versesById = useMemo(() => new Map(verses.map((v) => [v.id, v] as const)), [verses]);
 
   const currentVerseId = shuffledIds[index];
   const verse = currentVerseId ? versesById.get(currentVerseId) : undefined;
-  const isLast = index >= shuffledIds.length - 1;
 
   const tokens = useMemo(
     () => (verse && mode ? buildVerseReviewTokens(verse.text, verse.reference, mode) : []),
@@ -80,49 +77,30 @@ export function RandomReviewFlow({ collection, verses }: RandomReviewFlowProps) 
     );
   }
 
-  const advance = () => {
-    if (isLast) {
-      setFinished(true);
-    } else {
-      setIndex((i) => i + 1);
-    }
-  };
-
   if (mode === null) {
     return <ModePicker onSelect={setMode} />;
   }
 
+  const showReference = verse && !hideReference && mode !== "reference-it";
+  const heading = `Verse ${index + 1} of ${shuffledIds.length}${
+    showReference ? ` — ${verse.reference}` : ""
+  }`;
+
   return (
-    <div>
-      <p style={{ color: "var(--color-ink-muted)", marginBottom: "1rem", fontSize: "0.95rem" }}>
-        Verse {index + 1} of {shuffledIds.length}
-        {verse && !hideReference && mode !== "reference-it" ? ` — ${verse.reference}` : ""}
-      </p>
+    <VerseRunnerView heading={heading} verseMissing={!verse || !scope} isLast={isLast} onAdvance={advance}>
+      {/* Keyed by verseId so the session component fully unmounts/remounts
+          (and resets its state) between verses. */}
       {verse && scope ? (
-        // Keyed by verseId so the session component fully unmounts/remounts
-        // (and resets its state) between verses.
         <div key={verse.id}>
-          {renderSession(
+          {renderSession({
             mode,
             scope,
             tokens,
-            () => setMode(null),
-            undefined,
-            false,
-            undefined,
-            setHideReference,
-          )}
+            onChangeMode: () => setMode(null),
+            onHideReference: setHideReference,
+          })}
         </div>
-      ) : (
-        <p style={{ color: "var(--color-ink-muted)" }}>
-          This verse is no longer in your library — skip ahead.
-        </p>
-      )}
-      <div style={{ marginTop: "1.25rem" }}>
-        <Button variant="ghost" onClick={advance}>
-          {isLast ? "Finish" : "Next Verse →"}
-        </Button>
-      </div>
-    </div>
+      ) : null}
+    </VerseRunnerView>
   );
 }

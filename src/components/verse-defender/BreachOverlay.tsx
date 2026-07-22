@@ -3,7 +3,6 @@ import { maskedGlyphs } from "../../lib/verseDefenderEngine";
 
 interface BreachOverlayProps {
   word: Token;
-  livesRemaining: number; // already clamped >= 0
   outOfLives: boolean; // collection scope hit 0 lives — softer "keep going" copy
   /** Hint active: show the full raw word in the ghost style instead of the
       almost-full mask. */

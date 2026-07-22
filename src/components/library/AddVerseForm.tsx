@@ -1,8 +1,10 @@
 import { useState, type FormEvent, type KeyboardEvent } from "react";
 import { Button } from "../ui/Button";
+import { inputStyle, labelStyle } from "../ui/formStyles";
 import { CollectionSelector } from "./CollectionSelector";
 import type { NewVerseInput, Verse } from "../../types/verse";
 import { useCollections } from "../../hooks/useCollections";
+import { useCollectionSelection } from "../../hooks/useCollectionSelection";
 import { fetchEsvPassage, EsvApiError } from "../../lib/esvApi";
 import { cleanEsvText } from "../../lib/verseTextCleanup";
 import { useSettings } from "../../hooks/useSettings";
@@ -16,24 +18,6 @@ interface AddVerseFormProps {
   // Overrides the submit button's idle label (e.g. "Add to Psalms").
   submitLabel?: string;
 }
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "0.6rem 0.75rem",
-  borderRadius: "0.5rem",
-  border: "1px solid var(--color-border)",
-  background: "var(--color-surface)",
-  color: "var(--color-ink)",
-  fontFamily: "inherit",
-  fontSize: "0.95rem",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  marginBottom: "0.35rem",
-  fontSize: "0.85rem",
-  color: "var(--color-ink-muted)",
-};
 
 export function AddVerseForm({
   onSubmit,
@@ -49,13 +33,12 @@ export function AddVerseForm({
   const [source, setSource] = useState<Verse["source"]>("manual");
   const [submitting, setSubmitting] = useState(false);
 
-  // Collections to add this verse to on save. Membership is only persisted at
-  // submit time (via onSubmit) — except a newly created collection, which is
-  // saved immediately so it can appear in the list and be pre-checked.
-  const [selectedCollectionIds, setSelectedCollectionIds] = useState<Set<string>>(
-    () => new Set(initialCollectionIds ?? []),
+  // Collections to add this verse to on save (persisted at submit time via
+  // onSubmit); a newly created one is selected immediately.
+  const { selectedIds, toggle, createAndSelect, creating } = useCollectionSelection(
+    createCollection,
+    initialCollectionIds,
   );
-  const [creatingCollection, setCreatingCollection] = useState(false);
 
   const [looking, setLooking] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -110,26 +93,6 @@ export function AddVerseForm({
     }
   }
 
-  function toggleCollection(id: string) {
-    setSelectedCollectionIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  async function handleCreateCollection(name: string) {
-    if (creatingCollection) return;
-    setCreatingCollection(true);
-    try {
-      const collection = await createCollection(name);
-      setSelectedCollectionIds((prev) => new Set(prev).add(collection.id));
-    } finally {
-      setCreatingCollection(false);
-    }
-  }
-
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!canSubmit) return;
@@ -142,7 +105,7 @@ export function AddVerseForm({
           translation: translation.trim() || "ESV",
           source,
         },
-        [...selectedCollectionIds],
+        [...selectedIds],
       );
     } finally {
       setSubmitting(false);
@@ -216,10 +179,10 @@ export function AddVerseForm({
       </div>
       <CollectionSelector
         collections={collections}
-        selectedCollectionIds={selectedCollectionIds}
-        onToggleCollection={toggleCollection}
-        onCreateCollection={handleCreateCollection}
-        creating={creatingCollection}
+        selectedCollectionIds={selectedIds}
+        onToggleCollection={toggle}
+        onCreateCollection={createAndSelect}
+        creating={creating}
         inputStyle={inputStyle}
         labelStyle={labelStyle}
       />

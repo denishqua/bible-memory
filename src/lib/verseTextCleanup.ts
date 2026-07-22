@@ -46,3 +46,9 @@ export function cleanEsvText(rawText: string): string {
     .join("\n")
     .trim();
 }
+
+// Collapse newlines to a single line so a verse preview truncates cleanly on one
+// row. Shared by the Library and collection verse rows.
+export function previewLine(text: string): string {
+  return text.replace(/\n+/g, " ").trim();
+}

@@ -6,7 +6,7 @@
 import { getDisplayAccuracy, type ReviewMode, type ReviewSession } from "../types/review";
 
 // The recall modes that contribute to a verse's score.
-export const SCORING_MODES: ReadonlySet<ReviewMode> = new Set<ReviewMode>([
+const SCORING_MODES: ReadonlySet<ReviewMode> = new Set<ReviewMode>([
   "master-it",
   "verse-defender",
   "lane-defender",
@@ -48,6 +48,15 @@ export function computeVerseScore(sessions: ReviewSession[], verseId: string): n
 export interface VerseScore {
   score: number; // 0–100, rounded mean; 0 when count === 0
   count: number; // number of contributing sessions
+}
+
+// The per-verse mastery-score tooltip copy, shared by the Library and collection
+// verse rows. `count` is the number of contributing (scoring-mode) sessions;
+// 0 gives the "not scored yet" phrasing.
+export function masteryScoreTooltip(count: number): string {
+  return count > 0
+    ? `Mastery score (0–100): your average accuracy across ${count} recall review${count === 1 ? "" : "s"} of this verse — Master It, Verse Defender, and Lane Defender.`
+    : "Mastery score (0–100): your average recall accuracy for this verse. Review it in Master It, Verse Defender, or Lane Defender to build a score.";
 }
 
 // One-pass score for every verse that has any qualifying session, for callers

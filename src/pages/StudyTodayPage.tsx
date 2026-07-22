@@ -16,7 +16,7 @@ export function StudyTodayPage() {
   const { verses, loading: versesLoading, deleteVerse, refresh: refreshVerses } = useVerses();
   const { sessions, loading: sessionsLoading, refresh: refreshSessions } = useReviewHistory();
   const { settings, loading: settingsLoading } = useSettings();
-  const { loading: collectionsLoading, getVerseIdsForCollection } = useCollections();
+  const { loading: collectionsLoading, unionVerseIds } = useCollections();
 
   const [started, setStarted] = useState(false);
   const [addingToCollection, setAddingToCollection] = useState<Verse | null>(null);
@@ -29,17 +29,8 @@ export function StudyTodayPage() {
   // verse ids.
   const poolVerseIds = useMemo<string[] | null>(() => {
     if (!scheduler || scheduler.collectionIds === null) return null;
-    const seen = new Set<string>();
-    const ids: string[] = [];
-    for (const collectionId of scheduler.collectionIds) {
-      for (const id of getVerseIdsForCollection(collectionId)) {
-        if (seen.has(id)) continue;
-        seen.add(id);
-        ids.push(id);
-      }
-    }
-    return ids;
-  }, [scheduler, getVerseIdsForCollection]);
+    return unionVerseIds(scheduler.collectionIds);
+  }, [scheduler, unionVerseIds]);
 
   // The verses due for review right now, most-overdue first — the exact set and
   // order the "Review all" session plays through (buildStudyQueue).

@@ -1,7 +1,7 @@
 import { Card } from "../ui/Card";
 import type { ReviewMode } from "../../types/review";
 
-export interface ModeOption {
+interface ModeOption {
   value: ReviewMode;
   label: string;
   description: string;

@@ -11,7 +11,7 @@ export type SortDirection = "asc" | "desc";
 
 // The 66 books of the Protestant canon, in canonical order. A reference's book
 // index into this list drives "where it is in the Bible" sorting.
-export const BIBLE_BOOKS: readonly string[] = [
+const BIBLE_BOOKS: readonly string[] = [
   "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy",
   "Joshua", "Judges", "Ruth", "1 Samuel", "2 Samuel",
   "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra",
@@ -51,7 +51,7 @@ const BOOK_INDEX: Map<string, number> = new Map(
 // [bookIndex, chapter, verse]. Unknown books sort AFTER every known book (so a
 // free-form reference lands at the end) but stay ordered among themselves by
 // the original string. Missing chapter/verse count as 0.
-export interface ReferenceKey {
+interface ReferenceKey {
   bookIndex: number;
   chapter: number;
   verse: number;

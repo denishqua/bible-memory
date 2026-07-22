@@ -35,12 +35,11 @@ export interface Token {
 // Convention assumed for verse-number markers in the *input* to tokenize():
 // a standalone bracketed integer, e.g. "[16]", surrounded by whitespace (or at a
 // text boundary). This mirrors how the ESV API itself renders verse numbers when
-// `include-verse-numbers=true` is requested (the option the plan's esvApi.ts
-// calls for specifically so cleanup can choose to keep them). The not-yet-built
-// `verseTextCleanup.ts` is expected to normalize whatever the API/manual entry
-// produces into this "[N]" form and leave it in place (never strip it), per
-// spec-review fix #4 — this file documents that assumption since cleanup lands
-// in a later phase and isn't implemented yet.
+// `include-verse-numbers=true` is requested (the option esvApi.ts uses so
+// cleanup can choose to keep them). `verseTextCleanup.ts` (cleanEsvText, applied
+// when a verse is added) normalizes whatever the API/manual entry produces into
+// this "[N]" form and leaves it in place (never strips it), so tokenize() can
+// assume the marker convention below.
 //
 // A verse number fused directly onto the next word with no separating
 // whitespace (e.g. a raw "16For" before cleanup runs) is NOT handled here —

@@ -36,7 +36,7 @@ export function VerseGateCard({
   updateSettings: (next: Settings) => Promise<void>;
 }) {
   const gate = settings.newTabGate;
-  const { collections, getVerseIdsForCollection } = useCollections();
+  const { collections, unionVerseIds } = useCollections();
   const { verses } = useVerses();
 
 
@@ -82,18 +82,10 @@ export function VerseGateCard({
   // subset is always intersected with this, so verses later removed from a
   // collection silently drop out of the pool. Memoized — this card also holds
   // controlled text inputs, so it re-renders on every keystroke.
-  const collectionVerseIds = useMemo(() => {
-    const seen = new Set<string>();
-    const ids: string[] = [];
-    for (const collectionId of gate.collectionIds) {
-      for (const id of getVerseIdsForCollection(collectionId)) {
-        if (seen.has(id)) continue;
-        seen.add(id);
-        ids.push(id);
-      }
-    }
-    return ids;
-  }, [gate.collectionIds, getVerseIdsForCollection]);
+  const collectionVerseIds = useMemo(
+    () => unionVerseIds(gate.collectionIds),
+    [gate.collectionIds, unionVerseIds],
+  );
   const versesById = useMemo(() => new Map(verses.map((v) => [v.id, v])), [verses]);
   const checkedIds = useMemo(
     () => new Set(gate.verseIds ?? collectionVerseIds),

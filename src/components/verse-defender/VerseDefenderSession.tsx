@@ -15,8 +15,7 @@ import { LaserBeam } from "./LaserBeam";
 import { MissBolt } from "./MissBolt";
 import { LivesDisplay } from "./LivesDisplay";
 import { BreachOverlay } from "./BreachOverlay";
-import { MissionFailedScreen } from "./MissionFailedScreen";
-import { MissionCompleteScreen } from "./MissionCompleteScreen";
+import { MissionResultScreen } from "./MissionResultScreen";
 
 const RECOIL_DURATION_MS = 150;
 // Slightly longer than the longest laser CSS animation (burst: 300ms) so the
@@ -188,16 +187,13 @@ export function VerseDefenderSession({
       </div>
 
       {isDone && result !== null ? (
-        status === "failed" ? (
-          <MissionFailedScreen result={result} onRetry={handleRetry} maxLives={maxLives} backTo={embedded ? null : "/"} />
-        ) : (
-          <MissionCompleteScreen
-            result={result}
-            onRetry={handleRetry}
-            maxLives={maxLives}
-            backTo={embedded ? null : "/"}
-          />
-        )
+        <MissionResultScreen
+          result={result}
+          onRetry={handleRetry}
+          maxLives={maxLives}
+          failed={status === "failed"}
+          backTo={embedded ? null : "/"}
+        />
       ) : (
         <div
           style={{ position: "relative", cursor: "text" }}
@@ -228,7 +224,6 @@ export function VerseDefenderSession({
             {status === "breach-paused" && currentWord !== null && (
               <BreachOverlay
                 word={currentWord}
-                livesRemaining={livesRemaining}
                 outOfLives={livesRemaining === 0}
                 hinted={hintActive}
               />
