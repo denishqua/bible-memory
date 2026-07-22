@@ -4,6 +4,8 @@ import { createId } from "../data/ids";
 import type { Collection, CollectionVerseLink } from "../types/collection";
 import { resolveCollectionVerseIds } from "../lib/collectionReview";
 
+export const COLLECTIONS_UPDATED_EVENT = "bm:collections-updated";
+
 export function useCollections() {
   const storage = useStorage();
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -24,11 +26,20 @@ export function useCollections() {
     refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    const handleExternalUpdate = () => {
+      refresh();
+    };
+    window.addEventListener(COLLECTIONS_UPDATED_EVENT, handleExternalUpdate);
+    return () => window.removeEventListener(COLLECTIONS_UPDATED_EVENT, handleExternalUpdate);
+  }, [refresh]);
+
   const createCollection = useCallback(
     async (name: string): Promise<Collection> => {
       const collection: Collection = { id: createId(), name, createdAt: new Date().toISOString() };
       await storage.saveCollection(collection);
       await refresh();
+      window.dispatchEvent(new Event(COLLECTIONS_UPDATED_EVENT));
       return collection;
     },
     [storage, refresh],
@@ -38,20 +49,18 @@ export function useCollections() {
     async (id: string): Promise<void> => {
       await storage.deleteCollection(id);
       await refresh();
+      window.dispatchEvent(new Event(COLLECTIONS_UPDATED_EVENT));
     },
     [storage, refresh],
   );
 
   const renameCollection = useCallback(
     async (id: string, name: string): Promise<void> => {
-      // Read the current record from storage rather than the `collections`
-      // state, so this callback's identity doesn't churn on every refresh
-      // (matching the other mutations) and it never acts on a stale copy.
       const existing = (await storage.getCollections()).find((c) => c.id === id);
       if (!existing) return;
-      // saveCollection upserts by id, so this only changes the name.
       await storage.saveCollection({ ...existing, name });
       await refresh();
+      window.dispatchEvent(new Event(COLLECTIONS_UPDATED_EVENT));
     },
     [storage, refresh],
   );
@@ -60,6 +69,7 @@ export function useCollections() {
     async (collectionId: string, verseId: string): Promise<void> => {
       await storage.addVerseToCollection({ collectionId, verseId, addedAt: new Date().toISOString() });
       await refresh();
+      window.dispatchEvent(new Event(COLLECTIONS_UPDATED_EVENT));
     },
     [storage, refresh],
   );
@@ -68,6 +78,7 @@ export function useCollections() {
     async (collectionId: string, verseId: string): Promise<void> => {
       await storage.removeVerseFromCollection(collectionId, verseId);
       await refresh();
+      window.dispatchEvent(new Event(COLLECTIONS_UPDATED_EVENT));
     },
     [storage, refresh],
   );
@@ -112,3 +123,4 @@ export function useCollections() {
     refresh,
   };
 }
+

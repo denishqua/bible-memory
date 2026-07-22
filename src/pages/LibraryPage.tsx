@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useVerses } from "../hooks/useVerses";
 import { useReviewHistory } from "../hooks/useReviewHistory";
@@ -13,6 +13,14 @@ export function LibraryPage() {
   const { sessions } = useReviewHistory();
   const scores = useMemo(() => computeVerseScores(sessions), [sessions]);
   const [addingToCollection, setAddingToCollection] = useState<Verse | null>(null);
+
+  const handleAddToCollection = useCallback((verse: Verse) => {
+    setAddingToCollection(verse);
+  }, []);
+
+  const handleCloseDialog = useCallback(() => {
+    setAddingToCollection(null);
+  }, []);
 
   return (
     <div>
@@ -39,7 +47,7 @@ export function LibraryPage() {
           verses={verses}
           scores={scores}
           onDelete={deleteVerse}
-          onAddToCollection={(verse) => setAddingToCollection(verse)}
+          onAddToCollection={handleAddToCollection}
         />
       )}
 
@@ -47,9 +55,10 @@ export function LibraryPage() {
         <AddToCollectionDialog
           verseId={addingToCollection.id}
           verseReference={addingToCollection.reference}
-          onClose={() => setAddingToCollection(null)}
+          onClose={handleCloseDialog}
         />
       ) : null}
     </div>
   );
 }
+

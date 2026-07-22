@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useVerses } from "../hooks/useVerses";
 import { useCollections } from "../hooks/useCollections";
 import { useReviewHistory } from "../hooks/useReviewHistory";
+import { useReviewParams } from "../hooks/useReviewParams";
 import { computeVerseScore } from "../lib/verseScore";
 import { buildCollectionReviewTokens } from "../lib/collectionReview";
 import { buildVerseReviewTokens } from "../lib/verseReview";
@@ -15,40 +16,19 @@ import type { Verse } from "../types/verse";
 import type { ReviewMode, ReviewScope } from "../types/review";
 
 export function ReviewPage() {
-  const [searchParams] = useSearchParams();
-  const location = useLocation();
-  const verseId = searchParams.get("verseId");
-  const collectionId = searchParams.get("collectionId");
-  const random = searchParams.get("random") === "1";
+  const { verseId, collectionId, random, stateVerseIds } = useReviewParams();
   const { verses, loading: versesLoading } = useVerses();
   const { collections, loading: collectionsLoading, getVerseIdsForCollection } = useCollections();
   const { sessions } = useReviewHistory();
-  // Advances a single verse's SRS schedule when its review completes — this is
-  // how reviewing a verse from the Library first enters it into the rotation.
   const { advance: advanceSrs } = useSrsAdvance();
   const [mode, setMode] = useState<ReviewMode | null>(null);
-  // Set true once the player is ~25% through a single-verse review — from then
-  // on we hide the reference from the page chrome (heading + back link) so the
-  // appended reference can't be read off the screen while it's being recalled.
   const [hideReference, setHideReference] = useState(false);
-
-  // Verse selection handed over by CollectionDetail via router navigation
-  // state. Absent on deep links / refreshes — in that case we review ALL
-  // verses, exactly like before selection existed.
-  const stateVerseIds = useMemo<string[] | null>(() => {
-    const state = location.state as { verseIds?: unknown } | null;
-    if (!state || !Array.isArray(state.verseIds)) return null;
-    const ids = state.verseIds.filter((id): id is string => typeof id === "string");
-    return ids.length > 0 ? ids : null;
-  }, [location.state]);
 
   const loading = versesLoading || (collectionId !== null && collectionsLoading);
 
   const verse = verseId ? verses.find((v) => v.id === verseId) : undefined;
   const collection = collectionId ? collections.find((c) => c.id === collectionId) : undefined;
 
-  // In collection order — explicit sortOrder first, then addedAt; see
-  // useCollections.getVerseIdsForCollection.
   const collectionVerses = useMemo<Verse[]>(() => {
     if (!collectionId) return [];
     const byId = new Map(verses.map((v) => [v.id, v] as const));
@@ -57,8 +37,6 @@ export function ReviewPage() {
       .filter((v): v is Verse => v !== undefined);
   }, [collectionId, getVerseIdsForCollection, verses]);
 
-  // The verses actually reviewed. If in a collection, filter based on selection.
-  // Otherwise, if stateVerseIds is provided (ad-hoc selection), resolve from all verses.
   const selectedVerses = useMemo<Verse[]>(() => {
     if (collectionId) {
       if (!stateVerseIds) return collectionVerses;
@@ -85,8 +63,6 @@ export function ReviewPage() {
       };
     }
     if (verse) {
-      // Single-verse review appends the reference to the token stream so it's
-      // recalled inline as part of the same session (buildVerseReviewTokens).
       return {
         tokens: buildVerseReviewTokens(verse.text, verse.reference, mode ?? undefined),
         scope: { type: "verse", verseId: verse.id },
@@ -157,8 +133,6 @@ export function ReviewPage() {
         ) : mode === null || scope === null ? (
           <ModePicker onSelect={setMode} />
         ) : (
-          // verseReferences (in review order) label the per-verse accuracy
-          // breakdown for a bulk collection review; single-verse behaves as before.
           renderSession({
             mode,
             scope,
@@ -226,3 +200,4 @@ export function ReviewPage() {
     </div>
   );
 }
+

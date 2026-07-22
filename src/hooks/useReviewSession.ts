@@ -2,8 +2,10 @@ import { useCallback, useState } from "react";
 import { isBetweenVerseReferenceMarker, type Token } from "../lib/tokenize";
 import { initialVisibility, type Visibility } from "../lib/reviewModes";
 import { calculateAccuracy } from "../lib/accuracy";
-import { isPrintableCharacter, charsMatch } from "../lib/keyboard";
+import { isPrintableCharacter } from "../lib/keyboard";
 import type { MaskableReviewMode } from "../types/review";
+import { reduceFirstLetterInput, reduceWholeWordInput, firstPendingMatchableIndex } from "../lib/reviewReducers";
+
 
 export interface WordRuntimeState {
   index: number;
@@ -65,16 +67,7 @@ function buildInitialWords(tokens: Token[], mode: MaskableReviewMode): WordRunti
   }));
 }
 
-// Spec-review fix #2: currentIndex must skip past any non-matchable token
-// (line breaks, verse-number markers, stray punctuation-only tokens) without
-// ever waiting for a keystroke. Used both on init and after every completion.
-function firstPendingMatchableIndex(words: WordRuntimeState[], from: number): number {
-  let i = from;
-  while (i < words.length && !words[i].token.matchable) {
-    i++;
-  }
-  return i;
-}
+
 
 function initialize(tokens: Token[], mode: MaskableReviewMode): InternalState {
   const words = buildInitialWords(tokens, mode);
@@ -160,92 +153,10 @@ export function useReviewSession(
       if (!isPrintableCharacter(char)) return;
 
       setState((prev) => {
-        if (prev.currentIndex >= prev.words.length) return prev; // already complete
-
-        const currentWord = prev.words[prev.currentIndex];
-        const words = prev.words.slice();
-
-        if (requireWholeWord) {
-          // Whole-word mode types the verse out like a real sentence: letters
-          // fill in the current word, and SPACE is the separator that commits a
-          // finished word and moves to the next. Typing the last letter does
-          // NOT auto-advance (the sole exception is the final matchable word,
-          // below) — the player hits space, just as they would between words.
-          const fullyTyped = currentWord.typedCount === currentWord.token.normalized.length;
-
-          if (char === " ") {
-            // Space is a control key here, not a character to match. It only
-            // acts once the current word is fully typed; a space on an empty or
-            // half-typed word is ignored (no miss, no reveal) so a stray or
-            // leading space can never score against the player.
-            if (!fullyTyped) return prev;
-            words[prev.currentIndex] = { ...currentWord, completed: true };
-            const nextIndex = firstPendingMatchableIndex(words, prev.currentIndex + 1);
-            return { words, currentIndex: nextIndex };
-          }
-
-          // Match the next expected char at the current typed offset. A correct
-          // char advances typedCount but — unlike first-letter mode — does not
-          // by itself complete the word; that waits for space (above). A wrong
-          // char marks the word (attempts++) but never rewinds progress.
-          const expected = currentWord.token.normalized[currentWord.typedCount];
-          const isMatch = charsMatch(char, expected);
-
-          if (isMatch) {
-            const typedCount = currentWord.typedCount + 1;
-            // A finished word normally waits for the player to press space (the
-            // separator) before advancing. Two cases auto-advance on the final
-            // letter with no space:
-            //   1. the very last matchable word — there's no next word to space
-            //      into, and the input is disabled once the session completes;
-            //   2. a token that ATTACHES to the next (a reference number run like
-            //      "16:2-3" renders with no gaps, so its digits are typed
-            //      continuously — "1623" — rather than "1 6 2 3").
-            if (typedCount === currentWord.token.normalized.length) {
-              const nextIndex = firstPendingMatchableIndex(words, prev.currentIndex + 1);
-              if (nextIndex >= words.length || currentWord.token.attachNext) {
-                words[prev.currentIndex] = { ...currentWord, typedCount, completed: true };
-                return { words, currentIndex: nextIndex };
-              }
-            }
-            words[prev.currentIndex] = { ...currentWord, typedCount };
-            return { ...prev, words };
-          }
-
-          // A miss also advances the reveal frontier by one letter — a
-          // progressive hint mirroring first-letter mode's reveal-on-miss, but
-          // for whole-word input. It reveals from wherever the player is stuck,
-          // one letter past the current max(revealed, typed) frontier, capped at
-          // the word length. `attempts` still owns scoring/flash; `revealedCount`
-          // is purely presentational.
-          const revealedCount = Math.min(
-            currentWord.token.normalized.length,
-            Math.max(currentWord.revealedCount, currentWord.typedCount) + 1,
-          );
-          words[prev.currentIndex] = {
-            ...currentWord,
-            attempts: currentWord.attempts + 1,
-            revealedCount,
-          };
-          return { ...prev, words };
-        }
-
-        // First-letter mode (default): one correct first letter completes and
-        // advances the word.
-        const expected = currentWord.token.normalized[0];
-        const isMatch = charsMatch(char, expected);
-
-        if (isMatch) {
-          words[prev.currentIndex] = { ...currentWord, completed: true };
-          const nextIndex = firstPendingMatchableIndex(words, prev.currentIndex + 1);
-          return { words, currentIndex: nextIndex };
-        }
-
-        // Mismatch: attempts++ drives both the progressive reveal cap and the
-        // word-based score — a word with attempts > 0 is a "wrong" word, counted
-        // once no matter how many times it's missed.
-        words[prev.currentIndex] = { ...currentWord, attempts: currentWord.attempts + 1 };
-        return { ...prev, words };
+        if (prev.currentIndex >= prev.words.length) return prev;
+        return requireWholeWord
+          ? reduceWholeWordInput(prev, char)
+          : reduceFirstLetterInput(prev, char);
       });
     },
     [requireWholeWord],

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useVerses } from "../hooks/useVerses";
 import { useReviewHistory } from "../hooks/useReviewHistory";
 import { useSettings } from "../hooks/useSettings";
@@ -24,16 +24,11 @@ export function StudyTodayPage() {
   const loading = versesLoading || sessionsLoading || settingsLoading || collectionsLoading;
   const scheduler = settings?.scheduler;
 
-  // Resolve the study pool from the scheduler's collection selection: null means
-  // the whole library; otherwise the deduped union of the selected collections'
-  // verse ids.
   const poolVerseIds = useMemo<string[] | null>(() => {
     if (!scheduler || scheduler.collectionIds === null) return null;
     return unionVerseIds(scheduler.collectionIds);
   }, [scheduler, unionVerseIds]);
 
-  // The verses due for review right now, most-overdue first — the exact set and
-  // order the "Review all" session plays through (buildStudyQueue).
   const dueVerses = useMemo(
     () =>
       buildStudyQueue({ verses, now: new Date().toISOString(), poolVerseIds }).map(
@@ -43,6 +38,20 @@ export function StudyTodayPage() {
   );
 
   const scores = useMemo(() => computeVerseScores(sessions), [sessions]);
+
+  const handleFlowDone = useCallback(() => {
+    void refreshVerses();
+    void refreshSessions();
+    setStarted(false);
+  }, [refreshVerses, refreshSessions]);
+
+  const handleAddToCollection = useCallback((verse: Verse) => {
+    setAddingToCollection(verse);
+  }, []);
+
+  const handleCloseDialog = useCallback(() => {
+    setAddingToCollection(null);
+  }, []);
 
   if (loading || !scheduler) {
     return (
@@ -60,13 +69,7 @@ export function StudyTodayPage() {
         <StudyTodayFlow
           verses={verses}
           poolVerseIds={poolVerseIds}
-          onDone={() => {
-            // Reload the underlying data so the due list reflects the verses just
-            // reviewed, then return to it.
-            void refreshVerses();
-            void refreshSessions();
-            setStarted(false);
-          }}
+          onDone={handleFlowDone}
         />
       </div>
     );
@@ -105,7 +108,7 @@ export function StudyTodayPage() {
           verses={dueVerses}
           scores={scores}
           onDelete={deleteVerse}
-          onAddToCollection={(verse) => setAddingToCollection(verse)}
+          onAddToCollection={handleAddToCollection}
         />
       )}
 
@@ -113,9 +116,10 @@ export function StudyTodayPage() {
         <AddToCollectionDialog
           verseId={addingToCollection.id}
           verseReference={addingToCollection.reference}
-          onClose={() => setAddingToCollection(null)}
+          onClose={handleCloseDialog}
         />
       ) : null}
     </div>
   );
 }
+

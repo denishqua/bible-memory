@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { Verse } from "../../types/verse";
 import type { VerseScore } from "../../lib/verseScore";
@@ -158,35 +158,38 @@ export function VerseList({
     }
   }, [isIndeterminate]);
 
-  const handleToggleAll = () => {
+  const handleToggleAll = useCallback(() => {
     if (allChecked) {
       setSelected(new Set());
     } else {
       setSelected(new Set(verses.map((v) => v.id)));
     }
-  };
+  }, [allChecked, setSelected, verses]);
 
-  const handleToggleRow = (verseId: string) => {
-    const next = new Set(selected);
-    if (next.has(verseId)) {
-      next.delete(verseId);
-    } else {
-      next.add(verseId);
-    }
-    setSelected(next);
-  };
+  const handleToggleRow = useCallback(
+    (verseId: string) => {
+      const next = new Set(selected);
+      if (next.has(verseId)) {
+        next.delete(verseId);
+      } else {
+        next.add(verseId);
+      }
+      setSelected(next);
+    },
+    [selected, setSelected],
+  );
 
-  const handleSort = (column: SortColumn) => {
+  const handleSort = useCallback((column: SortColumn) => {
     if (column === sortColumn) {
       setDirection((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortColumn(column);
       setDirection("asc");
     }
-  };
+  }, [sortColumn]);
 
   // Bulk actions handlers
-  const handleStartSelectionReview = (randomMode: boolean) => {
+  const handleStartSelectionReview = useCallback((randomMode: boolean) => {
     const query = collectionId
       ? randomMode
         ? `/review?collectionId=${collectionId}&random=1`
@@ -195,7 +198,7 @@ export function VerseList({
         ? `/review?random=1`
         : `/review`;
     navigate(query, { state: { verseIds: Array.from(selected) } });
-  };
+  }, [collectionId, navigate, selected]);
 
   const sortedVerses = useMemo(() => {
     if (sortColumn === null) return verses;

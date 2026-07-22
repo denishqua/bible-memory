@@ -17,6 +17,13 @@ interface UseSessionFinalizerOptions {
   onComplete?: (summary: SessionCompletionSummary) => void;
 }
 
+type CompletionStage = "in-progress" | "notified" | "finalized";
+
+interface SessionState {
+  startedAt: string;
+  stage: CompletionStage;
+}
+
 export function useSessionFinalizer({
   isComplete,
   scope,
@@ -27,46 +34,54 @@ export function useSessionFinalizer({
   const storage = useStorage();
   const { profile, updateProfile } = useProfile();
 
-  const startedAtRef = useRef<string>(new Date().toISOString());
-  const completeNotifiedRef = useRef(false);
-  const finalizedRef = useRef(false);
+  const sessionStateRef = useRef<SessionState>({
+    startedAt: new Date().toISOString(),
+    stage: "in-progress",
+  });
 
-  // Restart startedAtRef whenever session resets (when isComplete goes back to false)
+  // Reset session state whenever session restarts (isComplete goes back to false)
   useEffect(() => {
     if (!isComplete) {
-      completeNotifiedRef.current = false;
-      finalizedRef.current = false;
-      startedAtRef.current = new Date().toISOString();
+      sessionStateRef.current = {
+        startedAt: new Date().toISOString(),
+        stage: "in-progress",
+      };
     }
   }, [isComplete]);
 
-  // Notify parent component on completion once
+  // Handle completion transitions (notify parent and finalize persistence)
   useEffect(() => {
-    if (!isComplete || !result || completeNotifiedRef.current) return;
-    completeNotifiedRef.current = true;
-    const accuracy = getDisplayAccuracy(result);
-    onComplete?.({ accuracy, passed: result.passed });
-  }, [isComplete, result, onComplete]);
+    if (!isComplete || !result) return;
 
-  // Write session record and increment practice count once profile is ready
-  useEffect(() => {
-    if (!isComplete || !result || finalizedRef.current || !profile) return;
-    finalizedRef.current = true;
+    if (sessionStateRef.current.stage === "in-progress") {
+      sessionStateRef.current.stage = "notified";
+      const accuracy = getDisplayAccuracy(result);
+      onComplete?.({ accuracy, passed: result.passed });
+    }
 
-    const session: ReviewSession = {
-      id: createId(),
-      scope,
-      mode,
-      result,
-      startedAt: startedAtRef.current,
-      completedAt: new Date().toISOString(),
-    };
+    if (sessionStateRef.current.stage === "notified" && profile) {
+      const startedAt = sessionStateRef.current.startedAt;
+      sessionStateRef.current.stage = "finalized";
 
-    void (async () => {
-      await storage.recordLiveReview(session);
-      await updateProfile({ ...profile, versesPracticed: profile.versesPracticed + 1 });
-    })();
-  }, [isComplete, result, profile, scope, mode, storage, updateProfile]);
+      const session: ReviewSession = {
+        id: createId(),
+        scope,
+        mode,
+        result,
+        startedAt,
+        completedAt: new Date().toISOString(),
+      };
+
+      void (async () => {
+        await storage.recordLiveReview(session);
+        await updateProfile({ ...profile, versesPracticed: profile.versesPracticed + 1 });
+      })();
+    }
+  }, [isComplete, result, profile, scope, mode, storage, updateProfile, onComplete]);
+
+  const startedAtRef = useRef<string>(sessionStateRef.current.startedAt);
+  startedAtRef.current = sessionStateRef.current.startedAt;
 
   return { startedAtRef };
 }
+

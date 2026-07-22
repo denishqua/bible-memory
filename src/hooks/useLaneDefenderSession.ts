@@ -71,9 +71,7 @@ export function useLaneDefenderSession(tokens: Token[]) {
   // "not scheduled yet" — the frame loop assigns a fresh randomized delay.
   const spawnDueAtRef = useRef<(number | null)[]>(new Array(LANE_COUNT).fill(null));
   const rafRef = useRef<number | null>(null);
-  // Bumped on reset so the rAF-loop effect tears down and restarts cleanly.
-  const [generation, setGeneration] = useState(0);
-  // The most recent laser shot — cosmetic only, never read by the engine.
+  const [sessionKey, setSessionKey] = useState(0);
   const [lastShot, setLastShot] = useState<ShotEvent | null>(null);
 
   const [view, setView] = useState<LaneDefenderView>(() => {
@@ -88,11 +86,9 @@ export function useLaneDefenderSession(tokens: Token[]) {
     spawnDueAtRef.current = new Array(LANE_COUNT).fill(null);
     setLastShot(null);
     setView(makeView(engine, performance.now()));
-    setGeneration((g) => g + 1);
+    setSessionKey((k) => k + 1);
   }, [tokens]);
 
-  // If the token stream itself changes (new verse/collection without a
-  // remount), start over — skip the initial mount, which already built state.
   const mountedRef = useRef(false);
   useEffect(() => {
     if (!mountedRef.current) {
@@ -108,8 +104,6 @@ export function useLaneDefenderSession(tokens: Token[]) {
       if (!engine) return;
 
       if (engine.status === "playing") {
-        // 1. Words that reached the firing line unshot (may end the run on a
-        //    single-verse scope, so this happens before spawning).
         for (let i = 0; i < LANE_COUNT; i++) {
           const word = engine.lanes[i];
           if (word !== null && getWordProgress(word, now) >= 1) {
@@ -118,7 +112,6 @@ export function useLaneDefenderSession(tokens: Token[]) {
           }
         }
 
-        // 2. Streaming spawns into empty lanes after a short randomized delay.
         if (engine.status === "playing") {
           for (let i = 0; i < LANE_COUNT; i++) {
             if (engine.lanes[i] !== null) continue;
@@ -128,8 +121,6 @@ export function useLaneDefenderSession(tokens: Token[]) {
             } else if (now >= dueAt && trySpawn(engine, i, now)) {
               spawnDueAtRef.current[i] = null;
             }
-            // If the spawn attempt failed (lead cap / queue exhausted) the
-            // stale dueAt stays in the past and we simply retry next frame.
           }
         }
       }
@@ -150,7 +141,7 @@ export function useLaneDefenderSession(tokens: Token[]) {
         rafRef.current = null;
       }
     };
-  }, [generation]);
+  }, [sessionKey]);
 
   // Feeds a typed character in: d/f/j/k (either case) fire their lane, every
   // other character is inert.
